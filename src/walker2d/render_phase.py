@@ -10,20 +10,26 @@ Optional flags:
   --xml   XML model file (default: walker2d_subject1.xml)
   --eps   Episodes per run (default: 3)
   --steps Max steps per episode (default: 2000)
+  --live  Use MuJoCo's interactive viewer (realtime, GPU-accelerated) instead
+          of the matplotlib animation. Recommended for visual checks — the
+          matplotlib path can't sustain 125 fps with rgb_array frames and
+          plays back ~5–6× slow.
 
 Examples:
   python render_phase.py results/my_run:15000000:"15M checkpoint"
   python render_phase.py results/run1:final results/run2:10000000
+  python render_phase.py --live results/my_run:final
 """
 import argparse
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from stable_baselines3 import PPO
-from ppo_walker2d_phase import Walker2dPhaseAware, _JNT_LO, _JNT_HI
+from ppo_walker2d_phase import Walker2dPhaseAware, _JNT_LO, _JNT_HI, CTRL_HZ
 
 
 def parse_spec(spec: str, default_xml: str) -> dict:
@@ -43,6 +49,70 @@ def parse_spec(spec: str, default_xml: str) -> dict:
             "model_path": model_path, "xml_file": default_xml}
 
 
+def run_live(runs, args):
+    """Realtime playback via MuJoCo's passive viewer (GPU-accelerated).
+
+    Steps the env at CTRL_HZ wall-clock so playback matches sim time;
+    matplotlib animation can't sustain that with rgb_array frames.
+    """
+    import mujoco
+    import mujoco.viewer
+
+    dt = 1.0 / CTRL_HZ
+    for run in runs:
+        ref      = np.load(f"{run['result_dir']}/reference.npy")
+        xml_file = run["xml_file"]
+        env = Walker2dPhaseAware(
+            reference=ref, xml_file=xml_file,
+            pose_term_thresh=9999.0, ankle_term_thresh=9999.0,
+        )
+        model = PPO.load(run["model_path"])
+
+        torso_id = mujoco.mj_name2id(env.model, mujoco.mjtObj.mjOBJ_BODY, "torso")
+
+        with mujoco.viewer.launch_passive(env.model, env.data) as viewer:
+            # Track the torso COM from the side. mjCAMERA_TRACKING auto-updates
+            # lookat to the body's position each frame so the walker stays
+            # centered as it advances along +x.
+            viewer.cam.type         = mujoco.mjtCamera.mjCAMERA_TRACKING
+            viewer.cam.trackbodyid  = torso_id
+            viewer.cam.distance     = 4.0
+            viewer.cam.azimuth      = 90.0    # look from +y toward origin (side view)
+            viewer.cam.elevation    = -10.0
+            viewer.cam.lookat[:]    = [0.0, 0.0, 1.0]
+            for ep in range(args.eps):
+                start_phase = ep * len(ref) // args.eps
+                obs, _ = env.reset(seed=args.seed + ep)
+                env._phase = start_phase
+                qpos = env.data.qpos.copy()
+                qvel = env.data.qvel.copy()
+                qpos[3:9] = np.clip(ref[start_phase], _JNT_LO, _JNT_HI)
+                qvel[3:9] = 0.0
+                env.set_state(qpos, qvel)
+                obs = env._get_obs()
+
+                steps_done = 0
+                for _ in range(args.steps):
+                    if not viewer.is_running():
+                        break
+                    t0 = time.perf_counter()
+                    action, _ = model.predict(obs, deterministic=True)
+                    obs, _, terminated, truncated, _ = env.step(action)
+                    viewer.sync()
+                    steps_done += 1
+                    if terminated or truncated:
+                        break
+                    sleep_s = dt - (time.perf_counter() - t0)
+                    if sleep_s > 0:
+                        time.sleep(sleep_s)
+
+                print(f"[{run['label']}] ep {ep+1}: {steps_done} steps")
+                if not viewer.is_running():
+                    break
+
+        env.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Render phase-aware Walker2d policy")
     parser.add_argument("specs", nargs="+",
@@ -51,9 +121,20 @@ def main():
                         help="MuJoCo model XML (default: walker2d_subject1.xml)")
     parser.add_argument("--eps",   type=int, default=3,  help="Episodes per run")
     parser.add_argument("--steps", type=int, default=2000, help="Max steps per episode")
+    parser.add_argument("--live",  action="store_true",
+                        help="Use MuJoCo's interactive viewer at realtime "
+                             "(125 Hz). The default matplotlib path renders "
+                             "rgb_array frames and can't keep up at 125 fps.")
+    parser.add_argument("--seed",  type=int, default=0,
+                        help="RNG seed for env.reset() (root-state noise). "
+                             "Same seed → same rollout each invocation.")
     args = parser.parse_args()
 
     runs = [parse_spec(s, args.xml) for s in args.specs]
+
+    if args.live:
+        run_live(runs, args)
+        return
 
     all_frames = []
     run_labels = []
@@ -69,7 +150,7 @@ def main():
 
         for ep in range(args.eps):
             start_phase = ep * len(ref) // args.eps
-            obs, _ = env.reset()
+            obs, _ = env.reset(seed=args.seed + ep)
             env._phase = start_phase
             qpos = env.data.qpos.copy()
             qvel = env.data.qvel.copy()

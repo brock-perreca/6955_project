@@ -17,6 +17,7 @@ files, and `CLAUDE.md` at the repo root points here as the first stop.
 | Know what's planned next | [`ROADMAP.md`](ROADMAP.md) |
 | Understand a legacy script before touching it | [`LEGACY_TRACKS.md`](LEGACY_TRACKS.md) |
 | Know where reference data lives + how it's loaded | [`DATA_SOURCES.md`](DATA_SOURCES.md) |
+| Read primary-source papers (DeepMimic, GAIL, AMP×2, AIRL, OpenCap, KinTwin, KINESIS) | [`papers/papers.md`](papers/papers.md) |
 | Read the formal writeup | [`reports/`](reports/) |
 
 ## Quick navigation
@@ -35,6 +36,11 @@ files, and `CLAUDE.md` at the repo root points here as the first stop.
   documented in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 - **Writeups:** [`reports/`](reports/) — the original proposal and the
   current authoritative writeup.
+- **Papers:** [`papers/`](papers/) — primary-source PDFs (DeepMimic,
+  GAIL, AMP-for-animation, AMP-for-robots, AIRL, OpenCap, KinTwin,
+  KINESIS, smartphone-mocap validation) plus
+  [`papers/papers.md`](papers/papers.md), an index describing what each
+  one is and when to read it.
 
 ## Cross-reference conventions
 

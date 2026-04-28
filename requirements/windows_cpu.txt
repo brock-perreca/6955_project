@@ -28,9 +28,9 @@ imageio>=2.34
 imageio-ffmpeg>=0.4
 
 # ── Legacy musculoskeletal track ─────────────────────────────────────────────
-# Used by src/legacy/musculoskeletal/ (PPO on MyoAssist + GAIL pipeline).
-# myosuite transitively pulls in dm-tree and labmaze, which need CMake +
-# Bazelisk on PATH. See README.md "MyoAssist" section for the build-tool
-# fixes. If you only need the active Walker2d pipeline and don't have
-# the build tools installed, comment this line out before `pip install -r`.
-myosuite>=2.4.0
+# myosuite is intentionally NOT in this file. It pins gymnasium==1.2.3 and
+# mujoco==3.6.0, which conflict with the active Walker2d stack
+# (gymnasium 0.29 + stable-baselines3 2.8 + mujoco>=3.1). It also requires
+# Python 3.10–3.12 (3.13 unsupported upstream). For the legacy track, set
+# up a separate Python 3.12 venv (e.g. `.venv-myo`). See README.md "MyoAssist
+# (legacy musculoskeletal track)" for the recipe.

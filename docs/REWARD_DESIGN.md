@@ -2,7 +2,12 @@
 
 This is the *why* of the reward. For the implementation-level details,
 see [`METHODS.md`](METHODS.md). For the failure runs that motivated each
-term, see [`RUN_LOG.md`](RUN_LOG.md).
+term, see [`RUN_LOG.md`](RUN_LOG.md). The reward is a Walker2d-on-IK
+adaptation of DeepMimic — the original tracking-reward formulation
+(per-joint pose, end-effector, root, RSI) lives in
+[`papers/Peng_2018_DeepMimic.pdf`](papers/Peng_2018_DeepMimic.pdf);
+[`papers/papers.md § Active pipeline`](papers/papers.md#1-active-pipeline)
+explains where each piece came from.
 
 ---
 

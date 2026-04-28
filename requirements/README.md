@@ -15,6 +15,9 @@ for the planned MJX / GPU port (see
 [`../docs/ROADMAP.md`](../docs/ROADMAP.md)).
 
 For the **musculoskeletal** legacy track
-([`../src/legacy/musculoskeletal/`](../src/legacy/musculoskeletal/)) some
-extra system tools are needed (CMake, Bazelisk). See the project
-[`../README.md`](../README.md) "MyoAssist" section for that build path.
+([`../src/legacy/musculoskeletal/`](../src/legacy/musculoskeletal/)),
+MyoSuite lives in a **separate** Python 3.12 venv (`.venv-myo`) — it
+pins `gymnasium==1.2.3` and `mujoco==3.6.0`, which would break the
+active Walker2d stack if installed alongside it. See the project
+[`../README.md`](../README.md) "MyoAssist (legacy musculoskeletal
+track)" section for the setup recipe.

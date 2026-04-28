@@ -117,11 +117,13 @@ in `src/legacy/musculoskeletal/`.
 - **Current laptop (no GPU, Python 3.13):** `Ulrich_Treadmill_Data/`
   is a directory junction to `CoordinationRetrainingData/forSimTK/`.
   Venv at `.venv/` was built with the CPU build of PyTorch 2.7.0 and
-  `requirements/windows_cpu.txt` *with the `myosuite>=2.4.0` line
-  commented out* (no CMake/Bazelisk on this box, and the active
-  Walker2d pipeline doesn't need it). Re-enable the line and install
-  the build tools listed in `README.md` if reviving the
-  `src/legacy/musculoskeletal/` track here.
+  `requirements/windows_cpu.txt`. MyoSuite is **not** in this venv —
+  it pins `gymnasium==1.2.3` / `mujoco==3.6.0` (incompatible with
+  the active Walker2d stack) and requires Python 3.10–3.12. For the
+  legacy `src/legacy/musculoskeletal/` track, a sibling venv lives
+  at `.venv-myo/` (Python 3.12, MyoSuite 2.12.1, verified
+  `myoLegWalk-v0` reset+step). See `README.md` "MyoAssist (legacy
+  musculoskeletal track)" for the recipe.
 - **numpy must be 2.x** to load existing checkpoints — their pickle
   blobs reference `numpy._core` (a 2.x-only path). The requirements
   files now pin `numpy>=2.0,<3.0`.

@@ -21,7 +21,13 @@ Mechanism: 24-D discriminator input space, only 349 expert transitions,
 **2,000–4,000 parallel envs on a single RTX 5090**. At that scale, policy
 diversity itself prevents discriminator memorization. Reproduces the
 condition under which Escontrela et al. ran AMP successfully (4096 envs
-on a GPU cluster).
+on a GPU cluster) — see
+[`papers/Escontrela_2022_AMP_legged_robots.pdf`](papers/Escontrela_2022_AMP_legged_robots.pdf)
+(robotics) and the original
+[`papers/Peng_2021_AMP_animation.pdf`](papers/Peng_2021_AMP_animation.pdf)
+(character-animation framing); for AIRL-style transferable rewards
+see [`papers/Fu_2018_AIRL.pdf`](papers/Fu_2018_AIRL.pdf). Index entries:
+[`papers/papers.md § Adversarial imitation track`](papers/papers.md#2-adversarial-imitation-track).
 
 **Owner:** likely Brian (AMP track), Brock (env port).
 

@@ -55,6 +55,16 @@ combination was too ambitious for a one-semester course project. The
 user has flagged that they **may revisit** these ideas — the code is
 preserved precisely to make that easier.
 
+If you're considering picking this track up again, read the two recent
+musculoskeletal-imitation papers in [`papers/`](papers/) first:
+[`Simos_2025_KINESIS.pdf`](papers/Simos_2025_KINESIS.pdf) (290-muscle
+imitation, ~1.8h locomotion data) and
+[`Cotton_2025_KinTwin.pdf`](papers/Cotton_2025_KinTwin.pdf)
+(LocoMujoco-based muscle imitation from markerless mocap, including
+impaired gait). Both demonstrate that the original-proposal direction
+is now empirically tractable. See
+[`papers/papers.md § Musculoskeletal imitation`](papers/papers.md#3-musculoskeletal-imitation--original-proposal-direction).
+
 | File | Role |
 |---|---|
 | `ppo_myoassist.py` | PPO training on the MyoAssist env. Muscle-actuated. |
@@ -68,17 +78,30 @@ preserved precisely to make that easier.
 
 ### What to verify before re-running
 
-The musculoskeletal stack depends on heavy system libraries that have
-moved over time. Before running anything in this directory, confirm:
+MyoSuite's pinned deps conflict with the active Walker2d venv, so the
+musculoskeletal track lives in its own environment. Before running
+anything in this directory, confirm:
 
-- **Python version:** must be **3.11**. MyoSuite's C++ deps (`dm-tree`,
-  `labmaze`) don't build on 3.12+. The active Walker2d-only pipeline
-  doesn't have this constraint.
-- **CMake** is installed and on PATH (for `dm-tree`).
-- **Bazelisk** is installed and aliased to `bazel` (for `labmaze`).
-- **MyoSuite** version is compatible with the current MuJoCo / Gymnasium.
-  This was last verified in early April 2026; anything newer may need
-  pinning.
+- **Separate venv.** MyoSuite **must not** share the active `.venv` —
+  it pins `gymnasium==1.2.3` and `mujoco==3.6.0`, which would break
+  the Walker2d stack (`gymnasium==0.29.x`,
+  `stable-baselines3==2.8.x`, `mujoco>=3.1`). Use a sibling venv
+  named `.venv-myo` (gitignored via `.venv-*/`).
+- **Python 3.10–3.12.** MyoSuite declares
+  `Requires-Python: >=3.10,<=3.12`. 3.13 is unsupported upstream
+  (and pip will silently fall back to MyoSuite ≤ 2.11 plus the
+  unbuildable `labmaze`).
+- **MyoSuite version.** Verified working: **2.12.1** on Python 3.12.
+  This release dropped the `dm-control` dependency, so the old
+  CMake / Bazelisk requirement (for `dm-tree` and `labmaze`) is gone.
+  If you pin to ≤ 2.11 you will need those build tools back.
+- **Setup recipe** (uses [`uv`](https://docs.astral.sh/uv/)):
+  ```bash
+  uv python install 3.12
+  uv venv --python 3.12 .venv-myo
+  VIRTUAL_ENV=.venv-myo uv pip install myosuite
+  ```
+  Run scripts directly: `.venv-myo/Scripts/python src/legacy/musculoskeletal/...`.
 - **Data:** `OpenCap_data/` directory is gitignored. Layout described
   in [`DATA_SOURCES.md`](DATA_SOURCES.md).
 

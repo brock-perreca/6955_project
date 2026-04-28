@@ -7,8 +7,72 @@ matches the task.
 
 The project pivoted significantly from the original proposal. **Don't
 assume anything about the file structure or scope from generic Walker2d
-imitation work** — read [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)
-and [`docs/PROJECT_TIMELINE.md`](docs/PROJECT_TIMELINE.md) first.
+imitation work** — read the narrative arc below, then
+[`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) and
+[`docs/PROJECT_TIMELINE.md`](docs/PROJECT_TIMELINE.md).
+
+---
+
+## The narrative arc — what we wanted, what we had to settle for, what's still the dream
+
+**Where we started**
+([`docs/reports/Advanced_AI_Project_Report.pdf`](docs/reports/Advanced_AI_Project_Report.pdf),
+the original proposal): *Lab-to-Field Transfer in Musculoskeletal
+Reinforcement Learning.* A 6-condition study (R1–R6) training **3D,
+80-muscle, 20-DoF MyoLeg** agents on **OpenCap markerless** vs
+**lab-grade marker + force-plate + EMG** references with SAC and
+SAC+GAIL, evaluating emergent ground reaction forces, EMG, and joint
+contact forces against ground truth. The driving question: how much
+biomechanical fidelity is lost when markerless mocap replaces a $150k
+motion-capture lab.
+
+**Why we pivoted.** That scope was too large for one semester. 3D +
+Hill-type muscle actuators + adversarial imitation + multi-condition
+comparison needed infrastructure (OpenCap pipeline, OpenSim post-hoc
+analysis, muscle-actuator hyperparameter tuning) we could not bring up
+in time. On top of that, the first 2D fallback (Phase 1) failed for
+unrelated reasons — 50 vs 125 Hz reference speed mismatch, phase-blind
+observation, concatenated multi-trial reference — and a symmetry-reward
+pretraining detour (Phase 2) hit four characteristic local optima
+(two-legged hopping, one-legged hopping, ankle paddling, standing in
+place tapping feet). Phase conditioning, not clever reward shaping,
+turned out to be the missing ingredient.
+
+**Where we landed**
+([`docs/reports/writeup_filled_1.docx`](docs/reports/writeup_filled_1.docx)
+is the authoritative current writeup): a pragmatic backup track on
+**2D MuJoCo Walker2d-v4** (torque-actuated, 6 joints) conditioned on
+**Ulrich treadmill IK** (Subject 1, 1.25 m/s). Two methods:
+- **Phase-conditioned PPO + DeepMimic-style multi-term reward + BC
+  warm-start** — Brock's track, committed, working primary baseline.
+- **Adversarial Motion Priors / AIRL** — Brian's track, described in
+  the writeup, code not yet in this repo, collapses at 8-env CPU scale
+  (writeup §6.3) due to discriminator memorization of the compact
+  expert manifold.
+
+Full pivot history (Phase 0 → Phase 4) is in
+[`docs/PROJECT_TIMELINE.md`](docs/PROJECT_TIMELINE.md).
+
+**What we still want — the focus that has not changed.** The current
+DeepMimic reward is heavily *engineered*: every weight, exponential
+sharpness, contact threshold, and termination condition was tuned to
+close a specific reward-hacking exploit
+([`docs/REWARD_DESIGN.md`](docs/REWARD_DESIGN.md)). That gets a 2D
+walker walking, but it is the opposite of the original spirit.
+
+**The dream we would love to land before this project is done: a 2D
+Walker2d actually walking from mostly or purely imitation data — with
+minimal or no hand-crafted gait-shaping reward terms — and producing
+biomechanically realistic kinematics and contact patterns.** That is
+what AMP/AIRL were meant to deliver, and it is the through-line back
+to the original proposal's core question of how faithfully imitation
+alone can recover real human movement. The current engineered-reward
+track is the **alternate backup** that got something working; it is
+not the destination. Treat work that moves the project toward the
+imitation-only ideal — MJX-parallelized AMP, multi-step preview
+observations, DTW-based shape-fidelity rewards, richer multi-cycle or
+multi-subject reference data, or a measured return to the
+musculoskeletal track — as on-mission, not scope creep.
 
 ---
 
@@ -22,9 +86,13 @@ and [`docs/PROJECT_TIMELINE.md`](docs/PROJECT_TIMELINE.md) first.
 - **Active code:** [`src/walker2d/`](src/walker2d/). Modify these.
 - **Frozen code:** [`src/legacy/`](src/legacy/). Don't extend without
   asking the user first.
-- **Authoritative writeup:** [`docs/reports/writeup_filled_1.docx`](docs/reports/writeup_filled_1.docx)
-  (joint with Brian Keller). The PDF in the same folder is the
-  *original proposal* and the project pivoted away from it.
+- **Authoritative writeup for the *current* (backup) scope:**
+  [`docs/reports/writeup_filled_1.docx`](docs/reports/writeup_filled_1.docx)
+  (joint with Brian Keller). The PDF in the same folder
+  ([`Advanced_AI_Project_Report.pdf`](docs/reports/Advanced_AI_Project_Report.pdf))
+  is the original musculoskeletal proposal — its big-picture goal
+  (imitation-only biomechanically realistic locomotion) is still what
+  we'd love to reach; see the narrative arc above.
 - **Authors:** joint with **Brian Keller**. Brian works on AMP/AIRL
   (not yet committed to this repo); Brock works on phase-conditioned
   PPO + BC warm-start (the code that *is* committed).
@@ -44,6 +112,7 @@ and [`docs/PROJECT_TIMELINE.md`](docs/PROJECT_TIMELINE.md) first.
 | Future work (MJX, multi-step preview, DTW, multi-cycle) | [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 | Why this legacy file exists; what to verify before re-running | [`docs/LEGACY_TRACKS.md`](docs/LEGACY_TRACKS.md) |
 | Reference data formats (Ulrich, OpenCap, .osim) | [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md) |
+| Primary-source papers (DeepMimic, GAIL, AMP×2, AIRL, OpenCap, KinTwin, KINESIS) | [`docs/papers/papers.md`](docs/papers/papers.md) |
 | User-facing setup + quickstart commands | [`README.md`](README.md) |
 
 If a doc and the code disagree on a *value* (default flag, weight,
@@ -72,9 +141,13 @@ project is doing or why), the writeup wins.
    `<repo>/Ulrich_Treadmill_Data/` (gitignored). The repo root holds
    `CLAUDE.md`, `README.md`, `.gitignore`, and platform-agnostic config
    only.
-6. **`writeup_filled_1.docx` is new document for recent advancements and scope changes.
-   `Advanced_AI_Project_Report.pdf` is historical motivation, not a
-   spec.** Both live under [`docs/reports/`](docs/reports/).
+6. **`writeup_filled_1.docx` documents the current (backup) scope and
+   recent advancements. `Advanced_AI_Project_Report.pdf` is the
+   original musculoskeletal proposal — historical for the *file
+   structure*, but its big-picture goal (imitation-only,
+   biomechanically realistic locomotion) is still the project's
+   north star. See the narrative arc at the top of this file.** Both
+   live under [`docs/reports/`](docs/reports/).
 
 ---
 
@@ -95,6 +168,7 @@ project is doing or why), the writeup wins.
 │   ├── LEGACY_TRACKS.md             ←   what each old track was
 │   ├── DATA_SOURCES.md              ←   Ulrich + OpenCap formats
 │   ├── RUN_LOG.md                   ←   past runs with reproduce/render commands
+│   ├── papers/                       ←   primary-source PDFs + index
 │   ├── reports/                      ← the writeups
 │   └── figures/                      ← diagnostic plots
 ├── src/

@@ -51,8 +51,12 @@ This repo is documented for AI-first navigation. Start at
 **Active Walker2d pipeline:** Python 3.11 or 3.13 both work. Use a
 plain venv (`python -m venv .venv`) or conda — either is fine.
 
-**Legacy musculoskeletal track:** requires Python 3.11. Python 3.12+
-breaks MyoSuite's C++ deps (`dm-tree`, `labmaze`).
+**Legacy musculoskeletal track:** requires a **separate** Python 3.12
+venv (e.g. `.venv-myo`). MyoSuite cannot share the active venv —
+it pins `gymnasium==1.2.3` and `mujoco==3.6.0`, which would break
+the Walker2d stack (gymnasium 0.29 + stable-baselines3 2.8). MyoSuite
+also requires Python 3.10–3.12; 3.13 is unsupported upstream. See
+the "MyoAssist (legacy musculoskeletal track)" section below.
 
 ```bash
 # venv (works on Python 3.11 or 3.13)
@@ -102,20 +106,37 @@ ln -s CoordinationRetrainingData/forSimTK Ulrich_Treadmill_Data
 
 ### MyoAssist (legacy musculoskeletal track)
 
-`myosuite` is in `requirements/<platform>.txt` because
-`src/legacy/musculoskeletal/` imports it. It transitively pulls in
-`dm-tree` and `labmaze`, which need extra system build tools:
+MyoSuite is **not** in `requirements/<platform>.txt` and **must not**
+be installed into the active Walker2d venv: it pins
+`gymnasium==1.2.3` and `mujoco==3.6.0`, which would break the
+Walker2d stack (`gymnasium==0.29.x` + `stable-baselines3==2.8.x`).
+MyoSuite also requires Python 3.10–3.12 — 3.13 is unsupported
+upstream (`Requires-Python: >=3.10,<=3.12`).
 
-| Package | Error | Fix |
-|---------|-------|-----|
-| `dm-tree` | `CMake must be installed` | Install CMake, add to PATH |
-| `labmaze` | `command 'bazel' failed` | Install [Bazelisk](https://github.com/bazelbuild/bazelisk/releases), rename to `bazel.exe`, add to PATH |
+If you need the legacy musculoskeletal track, create a **separate
+venv** on Python 3.12. The recipe used on this dev box (uses
+[`uv`](https://docs.astral.sh/uv/) to install Python 3.12 if needed):
 
-Or try a binary-only install: `pip install dm-tree --only-binary=:all:`
+```bash
+# 1. Install Python 3.12 (one-time, if you don't already have it)
+uv python install 3.12
 
-If you only need the active Walker2d pipeline and don't want to set up
-the build tools, comment out the `myosuite>=2.4.0` line in
-`requirements/<platform>.txt` before `pip install -r`.
+# 2. Create a sibling venv at .venv-myo (gitignored via .venv-*/)
+uv venv --python 3.12 .venv-myo
+
+# 3. Install myosuite into it
+VIRTUAL_ENV=.venv-myo uv pip install myosuite          # bash
+# $env:VIRTUAL_ENV=".venv-myo"; uv pip install myosuite  # PowerShell
+
+# 4. Run legacy scripts via that venv directly (don't activate it
+#    in a shell that has the main .venv active):
+.venv-myo/Scripts/python src/legacy/musculoskeletal/ppo_myoassist.py ...
+```
+
+MyoSuite ≥ 2.12 dropped the `dm-control` dependency, so the old
+`labmaze` / `dm-tree` build-tool dance (CMake + Bazelisk) is no
+longer required. If you pin to ≤ 2.11 for any reason, you'll need
+those tools back.
 
 ---
 

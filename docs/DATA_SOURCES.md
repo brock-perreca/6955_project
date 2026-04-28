@@ -16,6 +16,17 @@ The current scientific question uses **Subject 1, baseline trial,
 of **56 frames @ 50 Hz** (~1.12 s), resampled to **140 frames @ 125 Hz**
 inside the env (see [`METHODS.md § Frequencies`](METHODS.md#frequencies-and-resampling)).
 
+> **Naming note.** Despite the local folder name "Ulrich", the dataset
+> originates from Scott D. **Uhlrich** et al. at Stanford NMBL — the
+> SimTK project [Muscle Coordination Retraining to Reduce Knee
+> Loading](https://simtk.org/projects/coordretraining), accompanying
+> Uhlrich et al., *Muscle coordination retraining inspired by
+> musculoskeletal simulations reduces knee contact force* (Sci Rep 12,
+> 9842, 2022). The `walking_baseline_*` and `walking_feedback_ON_*`
+> trials are the pre/post conditions of the gastrocnemius-vs-soleus
+> biofeedback experiment from that paper. The local junction name is
+> kept for backwards compatibility.
+
 ### Expected on-disk layout
 
 The loader (`src/walker2d/ulrich_loader.py`) looks under
@@ -112,6 +123,12 @@ Used by the **musculoskeletal** track (`src/legacy/musculoskeletal/`)
 from the original 3D project scope (writeup-replaced; see
 [`PROJECT_TIMELINE.md § Phase 0`](PROJECT_TIMELINE.md#phase-0--original-proposal-proposal-stage-see-reportsadvanced_ai_project_reportpdf)).
 **Not consumed by the active Walker2d pipeline.**
+
+OpenCap pipeline paper:
+[`papers/Uhlrich_2023_OpenCap.pdf`](papers/Uhlrich_2023_OpenCap.pdf).
+Independent validation of smartphone-based markerless mocap against
+marker-based gold standard:
+[`papers/Horsak_2023_smartphone_markerless_validity.pdf`](papers/Horsak_2023_smartphone_markerless_validity.pdf).
 
 ### Expected layout
 

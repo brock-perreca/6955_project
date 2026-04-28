@@ -9,6 +9,7 @@ gait_cycles/
 
 # Python / virtualenv
 .venv/
+.venv-*/
 __pycache__/
 *.pyc
 *.pyo

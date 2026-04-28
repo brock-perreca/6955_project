@@ -22,14 +22,27 @@ user returns to any of these ideas. Code is frozen at the pre-pivot state.
 
 ## Before re-running
 
-The musculoskeletal stack depends on heavy system libraries that have
-moved over time. Before running anything in this directory:
+MyoSuite must run in a **separate venv** from the active Walker2d
+pipeline — it pins `gymnasium==1.2.3` and `mujoco==3.6.0`, which
+conflict with the active stack (`gymnasium==0.29.x`,
+`stable-baselines3==2.8.x`). Before running anything here:
 
-- **Python 3.11** required (MyoSuite's C++ deps don't build on 3.12+).
-- **CMake** on PATH (for `dm-tree`).
-- **Bazelisk** aliased to `bazel` (for `labmaze`).
-- **MyoSuite** version compatible with current MuJoCo / Gymnasium —
-  last verified early April 2026.
+- **Separate venv** at `.venv-myo` (gitignored via `.venv-*/`).
+  Don't `pip install myosuite` into the main `.venv`.
+- **Python 3.10–3.12.** MyoSuite declares
+  `Requires-Python: >=3.10,<=3.12`. 3.13 is unsupported upstream
+  (and on 3.13 pip silently falls back to MyoSuite ≤ 2.11, which
+  pulls in `labmaze` with no Python 3.13 wheel).
+- **MyoSuite ≥ 2.12** dropped the `dm-control` dependency, so the
+  old CMake / Bazelisk requirement (for `dm-tree` and `labmaze`) is
+  gone. Verified working: **2.12.1** on Python 3.12.
+- **Setup recipe** (uses [`uv`](https://docs.astral.sh/uv/)):
+  ```bash
+  uv python install 3.12
+  uv venv --python 3.12 .venv-myo
+  VIRTUAL_ENV=.venv-myo uv pip install myosuite
+  .venv-myo/Scripts/python src/legacy/musculoskeletal/<script>.py
+  ```
 - **OpenCap data** at `<repo>/OpenCap_data/subject{N}/...`.
 
 See [`../../../docs/LEGACY_TRACKS.md`](../../../docs/LEGACY_TRACKS.md)
