@@ -40,8 +40,8 @@ Three top-line scientific contributions (from the writeup):
 
 - **Active training script:** `src/walker2d/ppo_walker2d_phase.py`.
 - **Active reference:** `assets/reference/gait_cycle_reference.npy` —
-  one clean stride from Ulrich Subject 1 baseline (140 frames @ 50 Hz,
-  resampled to ~350 frames @ 125 Hz inside the env).
+  one clean stride from Ulrich Subject 1 baseline (56 frames @ 50 Hz,
+  resampled to 140 frames @ 125 Hz inside the env).
 - **Current canonical policy:**
   `results/walker2d_phase_cycle_s1scaled_sum_20260422-175117/model.zip`
   - 60M env steps
@@ -103,9 +103,25 @@ in `src/legacy/musculoskeletal/`.
   run was trained against it. Required for `--scale_model` and is the
   default `--xml` for `render_phase.py`. Must be regenerated or copied
   from the user's other machine before training/rendering the canonical
-  policy.
+  policy. Stock-Walker2d runs (`walker2d_phase_full_sum_*` and
+  `walker2d_phase_cycle_sum_*`) load and roll out fine without it —
+  pass `--xml walker2d.xml` to `render_phase.py`.
 - `amp_walker2d.py` and `airl_walker2d.py` — not yet checked in
   (Brian's track).
 - `Ulrich_Treadmill_Data/` — gitignored. Users supply their own copy at
   `<repo>/Ulrich_Treadmill_Data/Subject{1..10}/IK/walking_*/output/results_ik.sto`.
   See [`DATA_SOURCES.md`](DATA_SOURCES.md).
+
+### Per-machine setup notes
+
+- **Current laptop (no GPU, Python 3.13):** `Ulrich_Treadmill_Data/`
+  is a directory junction to `CoordinationRetrainingData/forSimTK/`.
+  Venv at `.venv/` was built with the CPU build of PyTorch 2.7.0 and
+  `requirements/windows_cpu.txt` *with the `myosuite>=2.4.0` line
+  commented out* (no CMake/Bazelisk on this box, and the active
+  Walker2d pipeline doesn't need it). Re-enable the line and install
+  the build tools listed in `README.md` if reviving the
+  `src/legacy/musculoskeletal/` track here.
+- **numpy must be 2.x** to load existing checkpoints — their pickle
+  blobs reference `numpy._core` (a 2.x-only path). The requirements
+  files now pin `numpy>=2.0,<3.0`.

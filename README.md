@@ -48,14 +48,17 @@ This repo is documented for AI-first navigation. Start at
 
 ## Environment setup
 
-**Python 3.11 required.** Python 3.12+ breaks MyoSuite's C++ deps
-(`dm-tree`, `labmaze`). Not a constraint for the active Walker2d
-pipeline — relevant only if reviving the
-[musculoskeletal](src/legacy/musculoskeletal/) track.
+**Active Walker2d pipeline:** Python 3.11 or 3.13 both work. Use a
+plain venv (`python -m venv .venv`) or conda — either is fine.
+
+**Legacy musculoskeletal track:** requires Python 3.11. Python 3.12+
+breaks MyoSuite's C++ deps (`dm-tree`, `labmaze`).
 
 ```bash
-conda create -n OpenCap_RL python=3.11
-conda activate OpenCap_RL
+# venv (works on Python 3.11 or 3.13)
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # macOS/Linux
 ```
 
 ### Option A — NVIDIA RTX 5090 (CUDA 12.8)
@@ -80,9 +83,28 @@ pip install -r requirements/windows_cpu.txt
 pip install -r requirements/macos.txt
 ```
 
-### MyoAssist (only for the legacy musculoskeletal track)
+### Linking the Ulrich dataset
 
-Extra system build tools are needed:
+The loader expects `<repo>/Ulrich_Treadmill_Data/Subject{N}/IK/...`.
+If the dataset arrives as the SimTK distribution
+(`CoordinationRetrainingData/forSimTK/`), create a directory junction
+or symlink. On Windows (no admin needed):
+
+```cmd
+mklink /J "Ulrich_Treadmill_Data" "CoordinationRetrainingData\forSimTK"
+```
+
+On macOS/Linux:
+
+```bash
+ln -s CoordinationRetrainingData/forSimTK Ulrich_Treadmill_Data
+```
+
+### MyoAssist (legacy musculoskeletal track)
+
+`myosuite` is in `requirements/<platform>.txt` because
+`src/legacy/musculoskeletal/` imports it. It transitively pulls in
+`dm-tree` and `labmaze`, which need extra system build tools:
 
 | Package | Error | Fix |
 |---------|-------|-----|
@@ -90,6 +112,10 @@ Extra system build tools are needed:
 | `labmaze` | `command 'bazel' failed` | Install [Bazelisk](https://github.com/bazelbuild/bazelisk/releases), rename to `bazel.exe`, add to PATH |
 
 Or try a binary-only install: `pip install dm-tree --only-binary=:all:`
+
+If you only need the active Walker2d pipeline and don't want to set up
+the build tools, comment out the `myosuite>=2.4.0` line in
+`requirements/<platform>.txt` before `pip install -r`.
 
 ---
 

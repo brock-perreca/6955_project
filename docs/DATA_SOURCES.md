@@ -13,8 +13,8 @@ expect.
 
 The current scientific question uses **Subject 1, baseline trial,
 1.25 m/s** from the Ulrich dataset, extracted as a single clean stride
-of 140 frames @ 50 Hz, resampled to ~350 frames @ 125 Hz inside the env
-(see [`METHODS.md § Frequencies`](METHODS.md#frequencies-and-resampling)).
+of **56 frames @ 50 Hz** (~1.12 s), resampled to **140 frames @ 125 Hz**
+inside the env (see [`METHODS.md § Frequencies`](METHODS.md#frequencies-and-resampling)).
 
 ### Expected on-disk layout
 
@@ -46,6 +46,19 @@ If your local data lives somewhere else (e.g.
 `CoordinationRetrainingData/forSimTK/`), the simplest fix is a symlink
 or rename to `Ulrich_Treadmill_Data/`. Alternatively, override
 `ULRICH_ROOT` programmatically before importing the loader.
+
+**On Windows**, a directory junction works without admin and is what
+this repo uses on machines where the data lives under
+`CoordinationRetrainingData/forSimTK/`:
+
+```cmd
+mklink /J "Ulrich_Treadmill_Data" "CoordinationRetrainingData\forSimTK"
+```
+
+Note that the trial directories in the SimTK dump are named
+`walking_baseline1`, `walking_FBcolor1_finalFB1`, etc. — the loader's
+`walking_*` glob handles this; the `extract_gait_cycle.py`
+`walking_*baseline*` filter matches `walking_baseline1` correctly.
 
 ### What gets loaded
 
@@ -156,7 +169,8 @@ Both are dimensionless, so the mass-mismatch cancels.
 - Shape: `(N, 6)`, dtype `float32`, units **radians**, Walker2d sign
   convention.
 - N is whatever `extract_gait_cycle.py` detected as one stride —
-  typically **140 frames @ 50 Hz** for Subject 1 baseline.
+  for Subject 1 baseline this is **56 frames @ 50 Hz** (~1.12 s,
+  resampled to 140 frames @ 125 Hz inside the env).
 - Joint order: `[hip_r, knee_r, ankle_r, hip_l, knee_l, ankle_l]`.
 - Resampled to 125 Hz at env-init time, *not* on disk. The on-disk
   artifact stays at 50 Hz so it's diagnosable with low-frequency tools

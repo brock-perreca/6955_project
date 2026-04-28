@@ -82,7 +82,7 @@ out_dir = PROJECT_ROOT / "assets" / "reference"
 out_dir.mkdir(parents=True, exist_ok=True)
 out = out_dir / "gait_cycle_reference.npy"
 np.save(out, cycle)
-print(f"\nSaved {len(cycle)}-frame gait cycle → {out.relative_to(PROJECT_ROOT)}")
+print(f"\nSaved {len(cycle)}-frame gait cycle -> {out.relative_to(PROJECT_ROOT)}")
 
 import matplotlib.pyplot as plt
 t = np.arange(len(cycle)) / control_hz
@@ -100,5 +100,5 @@ fig_dir = PROJECT_ROOT / "docs" / "figures"
 fig_dir.mkdir(parents=True, exist_ok=True)
 fig_path = fig_dir / "gait_cycle_check.png"
 plt.savefig(fig_path, dpi=150)
-print(f"Saved → {fig_path.relative_to(PROJECT_ROOT)}")
+print(f"Saved -> {fig_path.relative_to(PROJECT_ROOT)}")
 plt.show()

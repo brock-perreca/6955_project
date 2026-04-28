@@ -72,12 +72,9 @@ project is doing or why), the writeup wins.
    `<repo>/Ulrich_Treadmill_Data/` (gitignored). The repo root holds
    `CLAUDE.md`, `README.md`, `.gitignore`, and platform-agnostic config
    only.
-6. **`writeup_filled_1.docx` is authoritative for scope/methods/results.
+6. **`writeup_filled_1.docx` is new document for recent advancements and scope changes.
    `Advanced_AI_Project_Report.pdf` is historical motivation, not a
    spec.** Both live under [`docs/reports/`](docs/reports/).
-7. **Don't delete legacy code or data.** The user has flagged that some
-   original-proposal ideas may be revisited. "Move and document" is
-   always preferred over "remove."
 
 ---
 

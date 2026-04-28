@@ -6,10 +6,12 @@
 #   pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 #
 # Then install the rest:
-#   pip install -r requirements_windows_5090.txt
+#   pip install -r requirements/windows_5090.txt
 
 # Scientific stack
-numpy>=1.26,<2.0
+# numpy 2.x is required to load checkpoints that were trained with numpy 2.x
+# (their cloudpickle blobs reference numpy._core, which numpy 1.x doesn't have).
+numpy>=2.0,<3.0
 scipy>=1.13
 pandas>=2.2
 matplotlib>=3.8
@@ -20,11 +22,16 @@ mujoco>=3.1
 stable-baselines3>=2.3
 imitation>=1.0
 
-# RL environment — MyoAssist (optional, requires build tools — see README)
-myosuite>=2.4.0
-
 # Utilities
 tqdm>=4.66
 pyyaml>=6.0
 imageio>=2.34
 imageio-ffmpeg>=0.4
+
+# ── Legacy musculoskeletal track ─────────────────────────────────────────────
+# Used by src/legacy/musculoskeletal/ (PPO on MyoAssist + GAIL pipeline).
+# myosuite transitively pulls in dm-tree and labmaze, which need CMake +
+# Bazelisk on PATH. See README.md "MyoAssist" section for the build-tool
+# fixes. If you only need the active Walker2d pipeline and don't have
+# the build tools installed, comment this line out before `pip install -r`.
+myosuite>=2.4.0

@@ -69,7 +69,7 @@ For the reward formula and exploit taxonomy, see
 │   │   ├── walker2d_subject1.xml         #   (missing on this checkout — see PROJECT_STATUS.md)
 │   │   └── walker2d_custom.xml           #   Legacy custom MJCF (predates stick-with-stock decision)
 │   └── reference/
-│       └── gait_cycle_reference.npy       # Single Ulrich stride @ 50Hz, (140, 6)
+│       └── gait_cycle_reference.npy       # Single Ulrich stride @ 50Hz, (56, 6)
 │
 ├── requirements/                          # Pip requirement files by platform
 │   ├── windows_5090.txt

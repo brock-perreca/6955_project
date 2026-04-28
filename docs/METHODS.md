@@ -227,19 +227,23 @@ At 32 envs this means a checkpoint every ~156k per-env steps.
 ## Reference cycle details (per writeup §5.2)
 
 Active reference: Subject 1, baseline trial, 1.25 m/s, extracted as a
-single clean stride: **140 frames @ 50 Hz → 350 frames @ 125 Hz** (cubic
-spline). Note the two distinct "140s" floating around the codebase:
+single clean stride: **56 frames @ 50 Hz → 140 frames @ 125 Hz** (cubic
+spline, ~1.12 s).
 
-- The reference cycle has **140 source frames** at 50 Hz before resampling.
-- `GAIT_CYCLE_FRAMES = 140` is the constant used to normalize sin/cos φ
-  in the observation. That's a **125 Hz frame count** chosen so the
-  encoding has a ~1.1 s period regardless of how long the resampled
-  reference array actually is. The current single-cycle reference is
-  ~350 frames @ 125 Hz (≈2.8 s), so sin/cos φ wraps roughly 2.5× per
-  reference cycle. This works because phase advances 1 frame per env
-  step (fixed clock), so the encoding is monotonic-with-wrap and still
-  acts as a within-stride signal — but worth knowing if the constant
-  ever needs to be tuned.
+The on-disk artifact in `assets/reference/gait_cycle_reference.npy` is
+the 56-frame, 50 Hz version (so it's diagnosable with low-frequency
+tools). Each training run resamples it to 140 frames @ 125 Hz at
+env-init time and saves *that* array as `<run-dir>/reference.npy`, so
+`render_phase.py` reproduces the exact array the training env saw.
+
+`GAIT_CYCLE_FRAMES = 140` is the constant used to normalize sin/cos φ
+in the observation. It happens to coincide with the post-resample
+length of the current single-cycle reference, so for this reference
+the encoding wraps exactly once per cycle. With the long full-trial
+reference (`--ref_all`, 7570 frames @ 125 Hz ≈ 60 s) the encoding
+wraps every ~1.1 s instead of every 60 s — which is what makes
+sin/cos φ a useful within-stride signal regardless of reference
+length.
 
 ---
 
