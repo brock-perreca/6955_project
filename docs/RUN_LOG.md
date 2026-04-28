@@ -1,5 +1,24 @@
 # Walker2d Run Log
 
+This file is the project's run log. It covers (1) why the earliest
+phase-blind imitation runs failed, (2) the symmetry-reward pretrain
+detour and the local optima it found, and (3) the path to the first
+walking policy.
+
+For the **current canonical walking policy**
+(`walker2d_phase_cycle_s1scaled_sum_20260422-175117`, 60M steps,
+single-cycle reference, Subject-1-scaled MJCF, per-joint reward, 2026-04-22),
+see [`PROJECT_STATUS.md`](PROJECT_STATUS.md) and the project
+[`README.md`](../README.md). The reward and training setup have evolved
+since the earliest "first walking policy" mentioned below — see
+[`PROJECT_TIMELINE.md`](PROJECT_TIMELINE.md) for the chronology and
+[`REWARD_DESIGN.md`](REWARD_DESIGN.md) for the current reward.
+
+> **Note:** Commands in this log were updated for the post-reorganization
+> file layout. Active scripts now live under `src/walker2d/`, legacy
+> Walker2d scripts under `src/legacy/walker2d_v1/`. Run all commands
+> from the project root.
+
 ---
 
 ## Background: why the first approach failed
@@ -27,7 +46,7 @@ falls over. The reward gradient is too noisy to climb toward actual walking.
 **Representative failure — `walker2d_ulrich_all_20260406-221644`**
 *(last and most developed run before switching approach)*
 ```bash
-python render_walker.py --model results/walker2d_ulrich_all_20260406-221644/model.zip --steps 500
+python src/legacy/walker2d_v1/render_walker.py --model results/walker2d_ulrich_all_20260406-221644/model.zip --steps 500
 ```
 
 The symmetry reward-shaping experiments (`pretrain_walker2d.py`) were a detour to see if
@@ -50,12 +69,12 @@ the `Walker2dContactWalk` symmetry wrapper (no reference data required).
 
 ```bash
 conda activate OpenCap_RL
-cd c:/Users/bakel/Desktop/6955_Project
+# cd to the project root (path will differ per machine)
 ```
 
 Render any checkpoint:
 ```bash
-python render_walker.py --model results/walker2d_pretrain_symmetry_<timestamp>/model.zip --vanilla --steps 500
+python src/legacy/walker2d_v1/render_walker.py --model results/walker2d_pretrain_symmetry_<timestamp>/model.zip --vanilla --steps 500
 ```
 
 ---
@@ -82,12 +101,12 @@ gravity = 2× normal (−19.62 m/s²), ankle torques hard-capped at ±0.3
 
 **Reproduce:**
 ```bash
-python pretrain_walker2d.py --mode symmetry --num_envs 32 --total_steps 5e6
+python src/legacy/walker2d_v1/pretrain_walker2d.py --mode symmetry --num_envs 32 --total_steps 5e6
 ```
 
 **Render:**
 ```bash
-python render_walker.py --model results/walker2d_pretrain_symmetry_20260407-111838/model.zip --vanilla --steps 500
+python src/legacy/walker2d_v1/render_walker.py --model results/walker2d_pretrain_symmetry_20260407-111838/model.zip --vanilla --steps 500
 ```
 
 ---
@@ -115,13 +134,13 @@ Identical hyperparameters; different random seed led to a different local optimu
 
 **Reproduce:**
 ```bash
-python pretrain_walker2d.py --mode symmetry --num_envs 32 --total_steps 5e6
+python src/legacy/walker2d_v1/pretrain_walker2d.py --mode symmetry --num_envs 32 --total_steps 5e6
 ```
 *(Same command as Run 1 — outcome varies by seed)*
 
 **Render:**
 ```bash
-python render_walker.py --model results/walker2d_pretrain_symmetry_20260407-114136/model.zip --vanilla --steps 500
+python src/legacy/walker2d_v1/render_walker.py --model results/walker2d_pretrain_symmetry_20260407-114136/model.zip --vanilla --steps 500
 ```
 
 ---
@@ -150,12 +169,12 @@ ankle torques hard-capped at ±0.3, `forward_reward_weight=0.5`
 
 **Reproduce:**
 ```bash
-python pretrain_walker2d.py --mode symmetry --num_envs 32 --total_steps 5e6 --weight 8.0
+python src/legacy/walker2d_v1/pretrain_walker2d.py --mode symmetry --num_envs 32 --total_steps 5e6 --weight 8.0
 ```
 
 **Render:**
 ```bash
-python render_walker.py --model results/walker2d_pretrain_symmetry_20260407-172719/model.zip --vanilla --steps 500
+python src/legacy/walker2d_v1/render_walker.py --model results/walker2d_pretrain_symmetry_20260407-172719/model.zip --vanilla --steps 500
 ```
 
 ---
@@ -184,18 +203,18 @@ Forward reward further reduced vs Run 3 during mid-session tuning.
 
 **Reproduce:**
 ```bash
-python pretrain_walker2d.py --mode symmetry --num_envs 32 --total_steps 5e6 --weight 8.0
+python src/legacy/walker2d_v1/pretrain_walker2d.py --mode symmetry --num_envs 32 --total_steps 5e6 --weight 8.0
 ```
 *(Same command as Run 3 — the forward_reward_weight was reduced interactively during this
 session; exact value not logged. To reproduce the standing behavior, try lowering it further:)*
 ```bash
-python pretrain_walker2d.py --mode symmetry --num_envs 32 --total_steps 5e6 --weight 8.0
+python src/legacy/walker2d_v1/pretrain_walker2d.py --mode symmetry --num_envs 32 --total_steps 5e6 --weight 8.0
 ```
 *(Edit `forward_reward_weight=0.1` in `pretrain_walker2d.py:make_env()` to reproduce)*
 
 **Render:**
 ```bash
-python render_walker.py --model results/walker2d_pretrain_symmetry_20260408-110759/model.zip --vanilla --steps 500
+python src/legacy/walker2d_v1/render_walker.py --model results/walker2d_pretrain_symmetry_20260408-110759/model.zip --vanilla --steps 500
 ```
 
 ---

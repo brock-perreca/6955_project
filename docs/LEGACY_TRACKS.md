@@ -1,0 +1,121 @@
+# Legacy tracks
+
+Code under [`../src/legacy/`](../src/legacy/) is preserved for historical
+reference. **Do not extend without confirming with the user first.** If
+you find yourself wanting to add features here, the right move is almost
+always to ask whether the new feature should go into the active pipeline
+under [`../src/walker2d/`](../src/walker2d/) instead.
+
+For the chronological story of why each track exists, see
+[`PROJECT_TIMELINE.md`](PROJECT_TIMELINE.md).
+
+---
+
+## `src/legacy/walker2d_v1/` — earlier 2D Walker2d attempts
+
+These are the Walker2d scripts from before phase conditioning was
+adopted. They share heritage with the active pipeline (`Walker2d-v4`
+torque actuation, Ulrich IK reference) but use **different envs and
+different reward designs** that were superseded.
+
+| File | Status | Why it's legacy | Safe to delete? |
+|---|---|---|---|
+| `ppo_walker2d.py` | Frozen | Phase-blind imitation. Three compounding bugs (no resampling, phase-blind obs, concatenated 413k-frame ref) all closed in `ppo_walker2d_phase.py`. Loaders extracted to `src/walker2d/ulrich_loader.py`. | No — preserved for historical reference + blame |
+| `pretrain_walker2d.py` | Dead end | Symmetry-reward pretraining without a reference. Hit four canonical local optima (hopping, paddling, standing). The fix turned out to be phase conditioning, not reward shaping. | No — produces the demo runs in `RUN_LOG.md` |
+| `gail_walker2d.py` | Dead end | GAIL approach for Walker2d. Not part of the writeup. AMP / AIRL replaced it as the adversarial track in the current writeup. | No — useful as a comparison baseline if AMP/AIRL ever land |
+| `render_walker.py` | Frozen | Renderer for the legacy `Walker2dImitation` env and vanilla Walker2d-v4 (`--vanilla`). Still useful for rendering legacy checkpoints (e.g. `results/walker2d_pretrain_symmetry_*/`). | No |
+
+**Reproduce/render commands** for each demo in this group are in
+[`RUN_LOG.md`](RUN_LOG.md).
+
+### What to do if a legacy walker2d_v1 file matters again
+
+- If you want to re-run `pretrain_walker2d.py`: it stands alone (no
+  imports from other project files). Should still work.
+- If you want to re-run `ppo_walker2d.py`: same. The loaders inside it
+  are preserved (duplicated with `src/walker2d/ulrich_loader.py`); they
+  can read Ulrich data from the standard `Ulrich_Treadmill_Data/` layout
+  off the project root.
+- If you want to extend (e.g. add a new reward variant to legacy):
+  **ask first.** The active pipeline almost certainly has a more
+  principled place for the new feature.
+
+---
+
+## `src/legacy/musculoskeletal/` — original 3D 80-muscle plan
+
+This is the original proposal scope: **3D, 80-muscle, 20-DoF MyoLeg**
+agents trained on **OpenCap markerless** vs **lab-grade marker + force
+plate + EMG** references, with SAC and SAC+GAIL. See
+[`PROJECT_TIMELINE.md § Phase 0`](PROJECT_TIMELINE.md#phase-0--original-proposal-proposal-stage-see-reportsadvanced_ai_project_reportpdf)
+and `docs/reports/Advanced_AI_Project_Report.pdf`.
+
+It was dropped because the 3D + muscle + adversarial + multi-condition
+combination was too ambitious for a one-semester course project. The
+user has flagged that they **may revisit** these ideas — the code is
+preserved precisely to make that easier.
+
+| File | Role |
+|---|---|
+| `ppo_myoassist.py` | PPO training on the MyoAssist env. Muscle-actuated. |
+| `ppo_walk.py` | MyoSuite `myoLegWalk-v0` baseline run loop. |
+| `render_myoassist.py` | Visualize a trained MyoAssist policy. |
+| `train.py` | Driver for two-stage training: BC pretraining → GAIL. |
+| `bc_policy.py` | Behavioural-cloning policy network + supervised trainer. |
+| `gail.py` | GAIL discriminator + PPO inner loop. |
+| `data_utils.py` | OpenCap / SimTK data loading + preprocessing. |
+| `evaluate.py` | Quantitative policy evaluation (per-step kinematics). |
+
+### What to verify before re-running
+
+The musculoskeletal stack depends on heavy system libraries that have
+moved over time. Before running anything in this directory, confirm:
+
+- **Python version:** must be **3.11**. MyoSuite's C++ deps (`dm-tree`,
+  `labmaze`) don't build on 3.12+. The active Walker2d-only pipeline
+  doesn't have this constraint.
+- **CMake** is installed and on PATH (for `dm-tree`).
+- **Bazelisk** is installed and aliased to `bazel` (for `labmaze`).
+- **MyoSuite** version is compatible with the current MuJoCo / Gymnasium.
+  This was last verified in early April 2026; anything newer may need
+  pinning.
+- **Data:** `OpenCap_data/` directory is gitignored. Layout described
+  in [`DATA_SOURCES.md`](DATA_SOURCES.md).
+
+If extending this track, the best approach is probably to **fork to a
+new directory** (e.g. `src/musculoskeletal/`) rather than modifying the
+preserved legacy files. That way the old code stays working as a
+reference point.
+
+---
+
+## What's *not* in `src/legacy/`
+
+A few things that look like they could be legacy but aren't:
+
+- **`src/walker2d/ulrich_loader.py`** — extracted from the original
+  `ppo_walker2d.py`, but it's the *active* loader. Imports from this
+  file are encouraged.
+- **`src/walker2d/extract_gait_cycle.py`** — uses Ulrich data, but it's
+  the active script for building `assets/reference/gait_cycle_reference.npy`.
+  Re-run it whenever the canonical reference cycle needs to change.
+- **`src/diagnostics/`** — not legacy, just standalone. Not on the
+  training path but actively useful for sanity checks.
+- **`assets/mjcf/walker2d_custom.xml`** — predates the decision to stick
+  with stock Walker2d-v4 geometry. Could be deleted but the user
+  prefers preservation. Don't reference from active code.
+
+---
+
+## Asking before extending
+
+If you (an AI assistant or human collaborator) find yourself reaching
+into `src/legacy/` to add something, please pause and check whether the
+right move is one of:
+
+1. The active pipeline already has a place for this (most common).
+2. A new file in `src/walker2d/` or a new sibling directory.
+3. A genuine extension to the legacy code, after confirming with the user
+   that the legacy track is being revisited.
+
+Option 3 is rare. The default is option 1 or 2.

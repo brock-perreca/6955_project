@@ -1,7 +1,17 @@
+"""
+diag_cycle.py — plot 3 looped gait cycles + measure seam discontinuity.
+Run from the project root: `python src/diagnostics/diag_cycle.py`
+"""
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
-ref = np.load("gait_cycle_reference.npy")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+REF_PATH     = PROJECT_ROOT / "assets" / "reference" / "gait_cycle_reference.npy"
+FIG_DIR      = PROJECT_ROOT / "docs" / "figures"
+FIG_DIR.mkdir(parents=True, exist_ok=True)
+
+ref = np.load(REF_PATH)
 n_in = len(ref)
 n_out = int(round(n_in * 125.0 / 50.0))
 x_in = np.linspace(0,1,n_in); x_out = np.linspace(0,1,n_out)
@@ -34,5 +44,6 @@ for i, (ax, name) in enumerate(zip(axes.flat, names)):
     ax.set_title(name); ax.set_ylabel('deg')
 plt.suptitle("3 looped gait cycles — check for discontinuities at red lines")
 plt.tight_layout()
-plt.savefig("cycle_continuity.png", dpi=100)
-print("\nSaved cycle_continuity.png")
+out = FIG_DIR / "cycle_continuity.png"
+plt.savefig(out, dpi=100)
+print(f"\nSaved {out.relative_to(PROJECT_ROOT)}")

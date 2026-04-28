@@ -1,0 +1,291 @@
+# Methods — implementation details
+
+Implementation-level reference for the active phase-conditioned
+imitation pipeline (`src/walker2d/ppo_walker2d_phase.py`). For the formal
+methods description (problem statement, reward formula, hypothesis
+labels), see [`reports/writeup_filled_1.docx`](reports/writeup_filled_1.docx).
+For the *reasoning* behind each reward term and the failure modes that
+motivate it, see [`REWARD_DESIGN.md`](REWARD_DESIGN.md).
+
+---
+
+## Frequencies and resampling
+
+Walker2d-v4 has `frame_skip=4`, `dt=0.002s` → control runs at **125 Hz**.
+Ulrich IK is at **50 Hz**. The reference is resampled to 125 Hz on load
+via `scipy.interpolate.CubicSpline` in `load_ref_cycle`
+(`src/walker2d/ppo_walker2d_phase.py`). Linear interp was the original
+default; the cubic spline avoids the velocity-step artifacts that hurt
+`vel_r`. The Phase 1 runs *forgot to resample*, which played the gait
+2.5× too fast — one of three root causes of the original failure (see
+[`PROJECT_TIMELINE.md`](PROJECT_TIMELINE.md)).
+
+---
+
+## Joint sign convention
+
+Walker2d's joint axes are all `[0, -1, 0]`, so the IK→sim mapping is
+`walker = -opensim` for hip, knee, and ankle. See the comments in
+`src/legacy/walker2d_v1/ppo_walker2d.py:91-103` (the original
+documentation; preserved verbatim) and in
+`src/walker2d/ulrich_loader.py`.
+
+Joint order in the 6-vector is
+`[hip_r, knee_r, ankle_r, hip_l, knee_l, ankle_l]`.
+
+---
+
+## Joint limits (slightly relaxed at hip)
+
+`_JNT_LO`/`_JNT_HI` in `src/walker2d/ppo_walker2d_phase.py`:
+
+```python
+_JNT_LO = [-2.618, -2.618, -0.785, -2.618, -2.618, -0.785]   # rad
+_JNT_HI = [ 0.349,  0.000,  0.785,  0.349,  0.000,  0.785]
+```
+
+Hip extension is allowed up to **+20°** to cover the Ulrich range
+(stock Walker2d caps hip at 0). Knee/ankle untouched.
+
+---
+
+## Phase observation
+
+25-D obs = `[base(17) | q_ref(6) | sin φ | cos φ]`.
+
+φ is normalized to a fixed module-level constant
+**`GAIT_CYCLE_FRAMES = 140`** (~1.1 s @ 125 Hz), *not* to the full
+reference length. With long continuous references (e.g. 7570 frames),
+normalizing to `ref_len` would stretch sin/cos φ across 60 s and destroy
+the within-stride signal.
+
+The `observation_space` override happens *after* `MujocoEnv.__init__()`
+because `MujocoEnv` assigns to `self.observation_space` directly (no
+property setter), so a property override would `AttributeError`.
+
+---
+
+## Custom MJCF support
+
+The env now takes an `xml_file=` kwarg (CLI `--scale_model` selects
+`walker2d_subject1.xml`, otherwise stock `walker2d.xml`). Because
+`Walker2dEnv.__init__` hardcodes `"walker2d.xml"`, the env replicates
+Walker2d's attribute setup (`_forward_reward_weight`, `_healthy_z_range`,
+etc.) and calls `MujocoEnv.__init__` directly. See
+[`ARCHITECTURE.md § XML resolution`](ARCHITECTURE.md#xml-resolution-walker2dphaseawareinit)
+for resolution order.
+
+---
+
+## Fixed-clock phase tracking (`_advance_phase`)
+
+Phase advances by exactly 1 frame per env step — no matching, no
+adaptation. This replaced the earlier adaptive scheme that searched
+forward up to `max_phase_advance` frames for the best-matching reference
+pose. The adaptive version let stiff-legged policies "shop" for
+extended-knee reference frames and never learn swing flexion; a fixed
+clock forces the agent to track the reference at the correct time
+regardless of its current state.
+
+The `--max_phase_advance` CLI flag is still accepted but no longer
+consumed by the reward loop.
+
+---
+
+## Reference FK pre-computation (`_precompute_reference_kinematics`)
+
+Once at env init, every reference frame is pushed into
+`mujoco.mj_kinematics` (with torso clamped at z=1.28, pitch=0) to cache
+per-frame:
+
+- root height (`_ref_root_height`)
+- right/left foot x relative to root (`_ref_foot_{r,l}_xrel`)
+- right/left foot world-z (`_ref_foot_{r,l}_z`)
+
+These cached values drive the EE and root reward terms. **Note:** an
+earlier draft used foot world-z directly; the in-file comment correction
+explains that root-relative z is what the EE reward needs because
+world-z is ~0 at stance and useful as a swing-clearance signal — but
+the *current* code stores root-relative z and the EE reward consumes it
+as such.
+
+---
+
+## Stance side detection
+
+Pre-computed at reset from reference hip angles:
+`stance_right[t] = ref[t,0] >= ref[t,3]` (right hip more extended than
+left → right is in stance). Used by the contact alternation reward.
+
+---
+
+## Reward (weighted sum, per-joint scaled)
+
+Each sub-reward is in `[0, 1]` and combined as a weighted sum, scaled by
+`dt` so returns are time-invariant. Per-joint scales/weights live as
+module-level constants in `src/walker2d/ppo_walker2d_phase.py`:
+
+```python
+_JSCALE   = [10, 20, 40, 10, 20, 40]      # k_hip=10, k_knee=20, k_ankle=40
+_JWEIGHTS = [0.4, 1.0, 2.5, 0.4, 1.0, 2.5]  # ankle weighted highest
+_KVSCALE  = [0.05, 0.1, 0.2, 0.05, 0.1, 0.2]  # tighter vel scale on ankles
+```
+
+Sharper k on the ankle reflects that heel-strike timing matters far more
+than hip posture — k=40 → 50% reward at ~7°, k=10 → 50% reward at ~15°.
+
+For the per-component formulas, defaults, and the rationale for each
+term, see [`REWARD_DESIGN.md`](REWARD_DESIGN.md).
+
+`--product_reward` switches `imit_r` from arithmetic to geometric mean
+of per-joint exps.
+
+---
+
+## Periodic velocity computation
+
+`_ref_vel` is computed by padding the reference with
+`[ref[-1], …, ref[0]]` before central differencing, so frame 0's velocity
+is consistent with the looping cycle. Without the wrap, `np.gradient`'s
+one-sided edge difference produced a velocity discontinuity at the seam.
+
+---
+
+## Forward-velocity warm start (RSI fix)
+
+`reset()` sets `qvel[0] = self._v_target` when warm-starting from a
+reference frame. Previously `qvel[0]` defaulted to ~0 even though joints
+were placed mid-stride at 1.25 m/s reference kinematics. That mismatch
+caused both feet to land simultaneously (standing pattern) for the first
+~50 frames of every episode and was a major contributor to poor early
+tracking.
+
+---
+
+## Termination
+
+Four checks, any of which ends the episode:
+
+1. **Root height out of `[0.8, 2.0]`** (inherited from Walker2d-v4's
+   default `super().step`).
+2. **Pitch magnitude > 0.3 rad (~17°).** Added because without it the
+   agent learns a controlled forward fall — height only drops below 0.8
+   *after* the lean becomes irrecoverable.
+3. **`pose_term`** (0.9 rad) for hip/knee and looser **`ankle_term`**
+   (0.40 rad) for ankle. The looser ankle exists because the agent
+   exploits large plantarflexion for hopping if held to the hip/knee
+   threshold.
+4. **`x_vel < -0.1`** (moving backwards).
+
+---
+
+## Optimizer schedule
+
+From-scratch runs use a linear LR decay **3e-4 → 3e-5** over training
+(`lr_schedule(progress_remaining)`), `ent_coef=0.005`, `target_kl=0.015`.
+The decay prevents large destabilizing updates once the policy finds a
+good gait. Replaced the earlier flat `1e-4` learning rate.
+
+**Finetune mode (`--finetune`):** `learning_rate=1e-5`, `ent_coef=0`,
+`target_kl=0.005`. Much more conservative than the original `3e-5`
+finetune setting — the canonical s1scaled run is sensitive to larger
+updates.
+
+---
+
+## Behavioral cloning warm-start (`--bc_epochs N`)
+
+Optional pretraining stage. `compute_bc_dataset` rolls out a PD tracking
+controller (Kp=200, Kd=20 in torque space, normalized by gear) inside the
+actual MuJoCo simulation, collecting (obs, action) pairs that are
+*physically consistent with ground contact* — unlike `mj_inverse`, which
+ignores contact forces and produces wrong torques during stance.
+
+`pretrain_bc` then does supervised MSE on `π_mean(obs) → action` for N
+epochs (LR drops to lr/10 in the second half).
+
+Flags:
+
+| Flag | Default | Description |
+|---|---|---|
+| `--bc_epochs` | 0 | If >0, run BC warm-start before PPO |
+| `--bc_steps` | 200_000 | PD-rollout samples to collect |
+| `--bc_kp` / `--bc_kd` | 200 / 20 | PD gains (torque space, divided by gear) |
+| `--bc_only` | off | Stop after BC, save BC-only model, skip PPO |
+
+Mutually exclusive with `--finetune` (BC is skipped if finetuning).
+
+---
+
+## Checkpoint cadence
+
+`CheckpointCallback` saves every ~5M env steps (was 500k earlier).
+At 32 envs this means a checkpoint every ~156k per-env steps.
+
+---
+
+## Reference cycle details (per writeup §5.2)
+
+Active reference: Subject 1, baseline trial, 1.25 m/s, extracted as a
+single clean stride: **140 frames @ 50 Hz → 350 frames @ 125 Hz** (cubic
+spline). Note the two distinct "140s" floating around the codebase:
+
+- The reference cycle has **140 source frames** at 50 Hz before resampling.
+- `GAIT_CYCLE_FRAMES = 140` is the constant used to normalize sin/cos φ
+  in the observation. That's a **125 Hz frame count** chosen so the
+  encoding has a ~1.1 s period regardless of how long the resampled
+  reference array actually is. The current single-cycle reference is
+  ~350 frames @ 125 Hz (≈2.8 s), so sin/cos φ wraps roughly 2.5× per
+  reference cycle. This works because phase advances 1 frame per env
+  step (fixed clock), so the encoding is monotonic-with-wrap and still
+  acts as a within-stride signal — but worth knowing if the constant
+  ever needs to be tuned.
+
+---
+
+## Full CLI reference (`ppo_walker2d_phase.py`)
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--ref_cycle` | — | Path to gait cycle `.npy` (required unless `--ref_all`) |
+| `--ref_all` | — | Use full concatenated Ulrich reference (mutex with `--ref_cycle`) |
+| `--subjects` | None | Subjects to include in `--ref_all` |
+| `--trial_filter` | None | Substring filter for trial names in `--ref_all` |
+| `--num_envs` | 32 | Parallel environments |
+| `--total_steps` | 5e6 | Total env steps |
+| `--device` | cpu | PPO device (cpu recommended for MLP) |
+| `--scale_model` | off | Use `walker2d_subject1.xml` (Subject-1-scaled MJCF) |
+| `--finetune` | None | Pretrained `.zip` to finetune from (lr→1e-5, entropy→0, target_kl→0.005) |
+| `--bc_epochs` | 0 | BC warm-start before PPO (skipped when finetuning) |
+| `--bc_steps` | 200000 | PD-rollout samples for BC dataset |
+| `--bc_kp` / `--bc_kd` | 200 / 20 | PD gains for BC data collection |
+| `--bc_only` | off | Stop after BC, save BC-only model, skip PPO |
+| `--imit_weight` | 4.0 | Per-joint pose tracking weight |
+| `--vel_weight` | 1.0 | Per-joint velocity tracking weight |
+| `--ee_weight` | 4.0 | End-effector (foot x + z) tracking weight |
+| `--root_weight` | 2.0 | Root height + pitch tracking weight |
+| `--contact_weight` | 1.0 | Stance-side foot contact alternation weight |
+| `--swing_pen_weight` | 2.0 | Penalty on swing-foot ground contact (anti toe-drag) |
+| `--peak_bonus_weight` | 0.0 | Bonus for matching ref at high-excursion phases |
+| `--fwd_weight` | 0.0 | Forward velocity reward (`exp(-3·(v − v_target)²)`) |
+| `--v_target` | 1.25 | Target forward speed (m/s) — Ulrich treadmill |
+| `--action_rate_weight` | 0.0 | Anti-jerk penalty on `Σ(aₜ − aₜ₋₁)²` |
+| `--product_reward` | off | Pose term as geometric mean (default arithmetic) |
+| `--max_phase_advance` | 4 | (Inert) accepted but unused after fixed-clock switch |
+| `--pose_term` | 0.9 rad | Hip/knee deviation termination threshold |
+| `--ankle_term` | 0.40 rad | Ankle deviation termination threshold |
+| `--no_pose_term` | off | Disable pose termination (sets pose_term=9999; ankle_term still applies) |
+| `--out_dir` | None | Override output directory (default: `results/<auto-stamped>`) |
+
+---
+
+## Diagnostic scripts (`src/diagnostics/`)
+
+Standalone, not imported by the training pipeline. Run from the project root.
+
+| Script | Purpose |
+|---|---|
+| `diag_cycle.py` | Plot 3 looped gait cycles + print per-joint discontinuity at the seam. Writes `docs/figures/cycle_continuity.png`. |
+| `diag_ref.py` | Print per-joint reference ranges and run open-loop FK at fixed pitch to confirm the reference stays upright. |
+| `diag_walker_mass.py` | Dump Walker2d per-body masses (total ≈ 23.68 kg) and the scale factor for comparing to a 75 kg subject. |
+| `extract_osim_mass.py` | Parse `*.osim` XML to pull per-subject total body mass. Used for BW-normalized GRF comparison. |

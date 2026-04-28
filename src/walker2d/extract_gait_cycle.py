@@ -7,9 +7,12 @@ then saves ~100 frames (one stride at 50Hz ≈ 1s of walking).
 
 Output: gait_cycle_reference.npy  shape (N, 6)
 """
+import sys
 import numpy as np
 from pathlib import Path
-from ppo_walker2d import load_sto, ULRICH_ROOT
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ulrich_loader import load_sto, ULRICH_ROOT, PROJECT_ROOT
 
 # Use Subject1, first baseline trial
 subj_dir = ULRICH_ROOT / "Subject1" / "IK"
@@ -75,9 +78,11 @@ names = ["hip_r", "knee_r", "ankle_r", "hip_l", "knee_l", "ankle_l"]
 for i, name in enumerate(names):
     print(f"  {name:10s}: [{np.rad2deg(cycle[:,i].min()):.1f}°, {np.rad2deg(cycle[:,i].max()):.1f}°]")
 
-out = Path("gait_cycle_reference.npy")
+out_dir = PROJECT_ROOT / "assets" / "reference"
+out_dir.mkdir(parents=True, exist_ok=True)
+out = out_dir / "gait_cycle_reference.npy"
 np.save(out, cycle)
-print(f"\nSaved {len(cycle)}-frame gait cycle → {out}")
+print(f"\nSaved {len(cycle)}-frame gait cycle → {out.relative_to(PROJECT_ROOT)}")
 
 import matplotlib.pyplot as plt
 t = np.arange(len(cycle)) / control_hz
@@ -91,6 +96,9 @@ for i, (ax, name) in enumerate(zip(axes.flat, names)):
 axes[-1,0].set_xlabel("time (s)")
 axes[-1,1].set_xlabel("time (s)")
 plt.tight_layout()
-plt.savefig("gait_cycle_check.png", dpi=150)
-print("Saved → gait_cycle_check.png")
+fig_dir = PROJECT_ROOT / "docs" / "figures"
+fig_dir.mkdir(parents=True, exist_ok=True)
+fig_path = fig_dir / "gait_cycle_check.png"
+plt.savefig(fig_path, dpi=150)
+print(f"Saved → {fig_path.relative_to(PROJECT_ROOT)}")
 plt.show()

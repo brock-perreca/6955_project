@@ -1,0 +1,267 @@
+Learning Human-Like Bipedal Gait from Mocap Demonstrationsvia Phase-Conditioned Imitation and Adversarial Style Rewards
+
+Brian Keller and Brock Pereca
+
+CS 6955 - Advanced AI 
+
+Abstract
+
+Producing natural, human-like walking in physics-based simulation is difficult because hand-crafted reward functions either under-specify the desired gait—yielding reward-hacked, biomechanically implausible locomotion—or over-specify it, yielding brittle motion due to mismatched reference dynamics. This problem is central to assistive-device design, musculoskeletal modeling, and legged robotics, where the goal is locomotion that is mechanically consistent with recorded human movement. We investigate two complementary approaches applied to a MuJoCo Walker2d agent conditioned on inverse-kinematics (IK) reference data from the Ulrich treadmill-walking dataset: (1) a phase-aware, DeepMimic-style imitation reward encoding joint pose, joint velocity, end-effector placement, ground contact alternation, and root height; and (2) Adversarial Motion Priors (AMP), which replaces hand-crafted style terms with a learned LSGAN discriminator trained on expert motion transitions. Phase-conditioned PPO with reference-state initialization produces policies exhibiting heel-strike gait events and biomechanically plausible kinematics, while naïve reward formulations consistently produce degenerate strategies including ankle-paddling, one-legged hopping, and toe-walking. AMP collapses to near-zero style reward at small environment scale (8 parallel envs); the mechanism and path to resolution via GPU-parallelized environments are characterized.
+
+1  Introduction
+
+A central challenge in physics-based character animation and embodied AI is the gait imitation problem: given a reference motion captured from a human subject, train a reinforcement learning policy to reproduce that motion in a rigid-body simulation subject to gravity, contact, and actuator constraints. The problem is deceptively difficult. Specifying 'walk like a human' in terms of a scalar reward requires encoding decades of biomechanical insight about joint angles, foot placement, ground reaction forces, and inter-limb coordination. Miss any component and the optimizer finds a degenerate solution that maximizes the partial reward while violating the missing constraints entirely.
+
+We study this problem on the MuJoCo Walker2d-v4 planar biped, a well-studied benchmark with 8 degrees of freedom (6 actuated joints: bilateral hip, knee, and ankle). Our reference motion is derived from inverse-kinematics reconstruction of treadmill walking data from the Ulrich dataset (Subject 1, 1.25 m/s), processed into a single clean gait cycle of 140 frames at 50 Hz, then resampled to 350 frames at 125 Hz via cubic spline to match the simulator control rate. We use a custom Walker2d XML model (walker2d_subject1.xml) that more faithfully represents adult human limb proportions relative to the default Gymnasium model.
+
+This project sits at the intersection of model-free RL (PPO), imitation learning (behavioral cloning warm-start), and adversarial imitation (AMP/AIRL), making it directly relevant to the reinforcement learning methods covered in this course. The reward-hacking failure modes we document are canonical examples of Goodhart's Law in RL: when a measure becomes a target it ceases to be a good measure.
+
+The primary contributions of this project are:
+
+A phase-conditioned observation encoding [s_base, q_ref(φ), sin φ, cos φ] ∈ ℝ²⁵ that provides the policy direct access to the target joint configuration and its position in the gait cycle.
+
+A multi-term DeepMimic-style reward incorporating joint pose tracking, joint velocity tracking, end-effector placement, root height, ground contact alternation, and swing-foot penalty, with weights derived from biomechanical reasoning.
+
+A behavioral cloning warm-start using PD-controller rollouts (rather than inverse dynamics) to generate physically consistent training data.
+
+An implementation of Adversarial Motion Priors (AMP) with LSGAN discriminator, zero-centered gradient penalty, and bounded style reward on top of Stable Baselines 3 PPO.
+
+A mechanistic characterization of AMP's scale-dependent discriminator collapse, motivating GPU-parallelized future experiments.
+
+2  Related Work
+
+DeepMimic (Peng et al., 2018)
+
+Peng et al. introduced the motion imitation paradigm for physics-based characters: a phase-indexed reference clip drives a dense reward composed of weighted exponential penalties on pose, velocity, end-effector, and root tracking errors. Our reward design follows this framework closely, including the reference-state initialization (RSI) scheme in which episodes are reset to a uniformly sampled reference frame to ensure uniform coverage of the gait cycle. DeepMimic operated on articulated 3-D humanoids with full physics; we apply the same principles to the planar Walker2d benchmark with real human IK data.
+
+Adversarial Motion Priors (Escontrela et al., 2022)
+
+Escontrela et al. proposed replacing hand-crafted style reward terms with a learned LSGAN discriminator trained on expert motion transitions. The style reward r_s = max(0, 1 − 0.25(D−1)²) ∈ [0,1] is combined with a task reward via r = w_g·r_task + w_s·r_style. Their key enabling condition is massive environment parallelism (4096 environments on a GPU cluster), which prevents discriminator collapse. We implement AMP faithfully but are constrained to 8 CPU environments, producing the collapse behavior characterized in Section 6.
+
+AIRL (Fu et al., 2018)
+
+Fu et al. proposed Adversarial Inverse Reinforcement Learning, which learns a disentangled reward function with a shaping potential f(s,s') + γh(s') − h(s). We implemented AIRL as a comparison point; while more stable than AMP at small scale due to the shaping term, it produces qualitatively similar gait to the pure imitation baseline.
+
+PPO (Schulman et al., 2017)
+
+We use Proximal Policy Optimization as our base RL algorithm throughout, via Stable Baselines 3. PPO's on-policy nature is well-matched to the dense, phase-dependent reward landscape of gait imitation, where off-policy value estimates from stale experience can cause catastrophic forgetting of phase alignment.
+
+Massively Parallel Deep RL (Rudin et al., 2022)
+
+Rudin et al. demonstrated that GPU-parallelized environments (4096 environments on a single GPU) reduce wall-clock training time for legged locomotion from hours to minutes. Their work directly motivates our planned migration to MuJoCo MJX (JAX GPU backend) as the next step for AMP training, where discriminator coverage requires policy diversity achievable only with thousands of simultaneous rollouts.
+
+Dynamic Time Warping (Kovar et al., 2002)
+
+Dynamic Time Warping provides a sequence-alignment metric robust to temporal phase offset between motion clips. We propose DTW distance between the agent's full-episode joint trajectory and the reference cycle as a held-out evaluation metric and potential reward signal in future work, as it captures shape fidelity independently of minor phase drift.
+
+3  Problem Statement
+
+We formalize gait imitation as a Markov Decision Process M = (S, A, T, r, γ) augmented with a reference motion.
+
+State. State.
+
+Let q ∈ ℝ⁸ be the generalized positions (excluding global x-translation) and q̇ ∈ ℝ⁹ the generalized velocities of the Walker2d. The base simulator observation is s_base = [q, q̇] ∈ ℝ¹⁷.
+
+Reference motion. 
+
+A reference gait cycle is a sequence of joint configurations R = {q^ref_t}_{t=0}^{T−1}, q^ref_t ∈ ℝ⁶, representing the hip, knee, and ankle angles (bilateral) of a human walking at 1.25 m/s, sampled at the simulator control frequency. The cycle is periodic: q^ref_T = q^ref_0.
+
+Phase. 
+
+A scalar phase index φ ∈ {0, …, T−1} advances by one per environment step, wrapping modulo T. The phase-conditioned observation augments the base state:
+
+s = [s_base | q^ref_φ | sin(2πφ/T) | cos(2πφ/T)]  ∈ ℝ²⁵
+
+Gait imitation objective. 
+
+The agent must find a policy π*: S → A that maximizes the expected discounted return:
+
+π* = argmax_π  E_{τ~π} [ Σ_{t=0}^∞  γᵗ · r(s_t, a_t, φ_t) ]
+
+where r encodes fidelity to the reference motion R and φ_t = t mod T. The problem is interesting precisely because the solution space contains many local optima satisfying partial reward criteria while violating human gait conventions. The goal is the policy whose joint trajectory most closely matches the biomechanical reference holistically.
+
+4  Method
+
+4.1  Phase-Conditioned Observation and Reference State Initialization
+
+The Walker2d-v4 default observation is phase-blind: the policy sees joint angles and velocities but has no information about where it is in the gait cycle or what joint configuration it should target. We augment the observation with q^ref_φ and (sin φ, cos φ) as described above.
+
+At episode reset, Reference State Initialization (RSI) samples a uniformly random phase φ₀ ~ Uniform(0, T) and initializes joint angles and velocities to the reference values at that phase:
+
+q[3:9]  ←  clip(q^ref_{φ₀}, q_lo, q_hi)
+
+q̇[3:9] ←  q̇^ref_{φ₀},    q̇[0] ←  v_target
+
+The forward velocity initialization (q̇₀ = 1.25 m/s) is critical: without it, a body initialized mid-stride at a swing configuration but zero forward velocity is in a physically inconsistent state that causes immediate failure. RSI ensures uniform coverage of all gait phases during training.
+
+4.2  DeepMimic-Style Imitation Reward
+
+Our reward is a weighted sum of six tracking terms, all scaled by timestep Δt:
+
+r = r_imit + r_vel + r_ee + r_root + r_contact − r_swing_pen + r_ctrl
+
+Joint pose tracking. Joint pose tracking.
+
+Per-joint exponential penalties with sharpness k_j ∈ {10, 20, 40} and weights w_j ∈ {0.4, 1.0, 2.5} for hip, knee, and ankle respectively. Ankle sharpness is highest (k=40, half-reward at 7°) because heel-strike timing is controlled primarily by ankle angle at toe-off.
+
+r_imit = w_imit · Δt · (1/N) Σ_j  w_j · exp(−k_j · (q_j − q^ref_j)²)
+
+Joint velocity tracking. Joint velocity tracking.
+
+Reference joint velocities q̇^ref are estimated via central differences on the periodic reference cycle with wrap-around boundary conditions. Velocity tracking prevents the policy from matching pose statically while missing push-off and loading dynamics.
+
+End-effector tracking. End-effector tracking.
+
+Forward kinematics is precomputed at initialization to obtain reference foot positions (x_rel, z_rel) for each reference frame. During rollout, foot world positions are queried from MuJoCo geometry. Swing-phase z is penalized with sharpness k_z = 200 (versus 40 at stance), triggering earlier in toe-off to prevent toe-drag. The swing threshold is a root-relative foot height of −1.15 m.
+
+Root height and pitch tracking. Root height and pitch tracking.
+
+r_root = w_root · Δt · exp(−10 · [(z_root − z^ref_root)² + θ²])
+
+Including torso pitch θ prevents the degenerate solution of controlled forward falling, which minimizes height error while maximizing forward speed.
+
+Ground contact alternation. Ground contact alternation.
+
+Contact forces on each foot are extracted from MuJoCo's cfrc_ext. A reward of tanh(F_stance/50) − tanh(F_swing/50) incentivizes loading the reference-specified stance foot while unloading the swing foot. The tanh normalization prevents the reward from growing unboundedly with contact force magnitude.
+
+Swing-foot contact penalty. Swing-foot contact penalty.
+
+An additional direct penalty −w_swing · tanh(F_swing/50) is applied to the swing foot during phases where the reference specifies elevation. This addresses toe-drag exploits that generate small contact forces not caught by the alternation term.
+
+4.3  Behavioral Cloning Warm-Start
+
+Rather than using inverse dynamics to compute reference torques (which ignores ground reaction forces and is systematically wrong during stance phase), we roll out a PD tracking controller inside the full MuJoCo simulation:
+
+τ = K_p · (q^ref − q)  +  K_d · (q̇^ref − q̇),    K_p=200, K_d=20
+
+This collects 200,000 (s, a) pairs used to pretrain the policy network via supervised learning before RL fine-tuning. Because the PD rollout runs inside the full simulator, contact forces are computed at every integration sub-step, producing torques that are physically consistent with ground contact—exactly the torques we want the policy to imitate. Inverse dynamics, by contrast, computes torques assuming free-space dynamics and produces systematically incorrect results during approximately half the gait cycle.
+
+4.4  Adversarial Motion Priors (AMP)
+
+AMP replaces hand-crafted style terms with a discriminator D_ψ: ℝ²⁴ → ℝ trained to distinguish reference motion transitions from policy transitions. Discriminator input is the concatenated (state, next-state) pair in 12-dimensional joint space [q_j, q̇_j] ∈ ℝ¹², giving a 24-dimensional input.
+
+LSGAN discriminator loss: LSGAN discriminator loss:
+
+L_D = E_expert[(D−1)²] + E_policy[(D+1)²] + (λ/2)·E_expert[‖∇_s D‖²]
+
+The last term is a zero-centered gradient penalty (λ=10) on expert samples only, following Escontrela et al. Expert noise (σ=0.05 rad) is added to expert transitions during discriminator training to soften the expert manifold.
+
+Style reward: Style reward:
+
+r_s = max(0,  1 − 0.25·(D − 1)²)  ∈ [0, 1]
+
+Combined reward: Combined reward:
+
+r = w_g · r_task + w_s · r_s,    w_g=0.35, w_s=0.65
+
+where r_task = exp(−5·(v_x − v_target)²) is a pure forward-velocity reward that keeps the policy moving forward while the style reward shapes the gait.
+
+5  Experimental Design
+
+5.1  Hypotheses
+
+H1. A phase-conditioned observation with multi-term imitation reward produces qualitatively better gait (heel-strike events, alternating foot contact, upright posture) than a phase-blind policy with only forward-velocity reward.
+
+H2. The multi-term reward function is exploitable: each unconstrained degree of freedom produces a characteristic degenerate strategy that is locally optimal for the partial reward while biomechanically implausible.
+
+H3. AMP with fewer than ~100 parallel environments produces discriminator collapse (style reward converges to near zero), rendering the learned policy worse than the direct imitation baseline.
+
+5.2  Domain and Data
+
+Simulator: MuJoCo 3.3.0 via Gymnasium Walker2d-v4; custom XML with adult human limb proportions. Control frequency 125 Hz (frame skip 4, integration step 0.002 s).
+
+Reference motion: IK reconstruction of Subject 1, Ulrich treadmill walking dataset, 1.25 m/s. A single clean gait cycle of 140 frames at 50 Hz was extracted (discarding inter-trial boundaries) and resampled to 350 frames at 125 Hz via cubic spline interpolation.
+
+Policy network: MLP with two hidden layers of 256 units, tanh activations (SB3 default). AMP discriminator: two hidden layers of 64 units, ELU activations.
+
+Training: 8 parallel CPU environments (SubprocVecEnv), 20M environment steps per run. PPO hyperparameters: n_steps=2048, batch size 64, n_epochs=10, γ=0.99, λ_GAE=0.95, learning rate 3×10⁻⁴.
+
+5.3  Experiments
+
+Experiment 1 (H1) — Phase-conditioned PPO: Train PPO with the full multi-term reward on the 350-frame gait cycle. Evaluate via visual inspection of rendered episodes, episode length distribution, and reward component breakdown.
+
+Experiment 2 (H2) — Reward exploitability: Characterize degenerate strategies observed during reward engineering. For each failure mode, identify the unconstrained degree of freedom exploited, the specific reward term that permits it, and the qualitative gait produced.
+
+Experiment 3 (H3) — AMP at small scale: Train AMP (disc_hidden=64, 8 envs) for 20M steps. Evaluate by plotting style reward r_s and task reward over training, and rendering the final policy.
+
+Evaluation criteria across all experiments: (1) episode length—longer episodes indicate better stability; (2) mean episodic return; (3) style reward r_s for AMP—collapse to near zero confirms H3; (4) qualitative gait—presence of heel-strike events, bilateral foot alternation, upright torso, absence of degenerate strategies.
+
+6  Results and Discussion
+
+6.1  Phase-Conditioned PPO (H1)
+
+[Figure 1: Mean episodic return (top) and episode length (bottom) vs. environment steps for two phase-conditioned PPO runs over 100M steps. Run 0422 (primary) shown in blue; Run 0423 (comparison) shown dashed in orange. Curves smoothed with exponential moving average (α=0.15).]
+
+Two training runs are reported. Run 0422 (primary) used 32 parallel CPU environments and trained for 100M steps over approximately 2.5 hours. The return curve rises smoothly and monotonically from near-zero through roughly 27M steps, reaching mean episodic returns of 8,000–16,000 before entering a noisy but sustained high-performance regime. Episode lengths follow the same trajectory, exceeding 25,000 steps by 25M steps. Run 0423 (comparison) shares identical hyperparameters but climbs faster in the first 20M steps—reaching returns above 10,000 by 18M steps—before collapsing into high-variance instability from 20M steps onward. Peak episode lengths exceed 100,000 steps but alternate with crashes to near-zero, indicating a policy that discovers long-horizon walking but cannot stabilize it. Run 0422 is preferred as the primary result because its smoother convergence profile indicates a more stable learned policy, corroborated by qualitative rendering.
+
+The best phase-conditioned PPO policy produces qualitatively human-like walking: the agent maintains an upright torso, achieves bilateral foot alternation with identifiable heel-strike events at each stance transition, and sustains locomotion for full 2000-step episodes at the target speed of 1.25 m/s. This confirms H1.
+
+The gait exhibits temporal jerkiness at phase transitions, most pronounced at the half-cycle boundary where the reference wraps from frame 349 back to frame 0. We attribute this to the use of a single extracted gait cycle: the endpoints are kinematically consistent within the cycle, but the velocity at the wrap-around boundary creates a brief reward dip the policy cannot smooth away. Using a multi-cycle reference or imposing periodic velocity boundary conditions on the reference would mitigate this.
+
+6.2  Reward Exploitability (H2)
+
+The multi-term reward design required iterative refinement driven by visual inspection of rendered rollouts. At each stage, the optimizer found a degenerate strategy that was locally optimal for the current partial reward while violating human gait conventions. Three failure modes were encountered and are characteristic of the reward engineering process for gait imitation.
+
+Removing individual reward components revealed structured failure modes, each corresponding to a specific unconstrained degree of freedom:
+
+Ankle-paddling: before the swing-foot contact penalty was added, the agent exploited the ankle joint tracking term by producing rapid ankle oscillation with no net ground loading. The reference ankle oscillates through the full gait cycle regardless of foot contact, so ankle motion alone satisfies the tracking reward while generating no forward progress.
+
+One-legged hopping: without an explicit contact alternation reward, the agent discovered that planting one foot and using the other as a balance pole satisfied the joint tracking reward for the stance leg while requiring no bilateral coordination. This strategy is stable over long episodes and difficult to dislodge once converged.
+
+Toe-walking: without explicit end-effector tracking, the agent satisfied the ankle joint reward by maintaining a permanently plantarflexed posture, effectively walking on its toes. Foot placement constraints are necessary to close this degree of freedom.
+
+These failure modes are canonical examples of Goodhart’s Law in RL: each degenerate strategy is locally optimal for the partial reward while biomechanically implausible. Notably, none of these exploits required pathological behavior from the optimizer—each is a reasonable solution to the reward as written. This motivates both the full multi-term reward design and the use of DTW distance as a complement to scalar return for evaluating gait shape fidelity, since a policy can achieve high return while exhibiting any of the above strategies if the reward weights are miscalibrated.
+
+6.3  AMP at Small Scale (H3)
+
+[Training curves for AMP pending GPU-parallelized run. The quantitative results described below (style reward stabilization at r_s ≈ 0.028–0.034, total wall time ~53 minutes for 20M steps at 8 environments) are from a preliminary CPU-scale run and will be supplemented with plots once the Linux environment with sufficient parallel environments is configured.]
+
+The style reward converges to near-zero (r_s ≈ 0.03) rather than the r_s ∈ [0.5, 1.0] range that would indicate meaningful style matching, confirming H3. The rendered final policy produces worse walking than the pure imitation baseline: the near-zero style reward provides insufficient gradient signal to shape the gait, and the task reward alone (pure forward velocity) optimizes speed without kinematic structure.
+
+The collapse mechanism is as follows. With 8 environments and n_steps=2048, each rollout provides 8 × 2047 = 16,376 policy transitions. The expert buffer contains 349 transitions drawn from the 350-frame reference cycle. In the 24-dimensional discriminator input space, early-training policy transitions cluster near the initialization distribution while the expert transitions form a compact 1-D manifold (the gait cycle). A discriminator with even 64 hidden units can achieve near-perfect separation before the policy has produced any meaningful walking, driving r_s → 0 and eliminating the style gradient entirely. Expert noise (σ=0.05 rad) and the zero-centered gradient penalty partially slow this process but cannot prevent it at this scale.
+
+The AMP paper ran 4096 parallel environments on a GPU cluster. At that scale, policy transitions are diverse enough to prevent the discriminator from memorizing the compact expert manifold—the discriminator must generalize rather than memorize. With 8 environments, this diversity is structurally unachievable regardless of discriminator capacity or regularization.
+
+7  Conclusion and Future Work
+
+We implemented phase-conditioned imitation learning for a planar Walker2d conditioned on real human mocap data. The phase-aware reward, reference state initialization, and behavioral cloning warm-start together produce policies with identifiable heel-strike events and qualitatively human-like kinematics. Individual reward components are each necessary to avoid specific reward-hacking failure modes that are predictable from the biomechanics of the task. AMP, while theoretically appealing, requires massive environment parallelism to prevent discriminator collapse and produces worse results than direct imitation at the 8-environment CPU scale.
+
+The most important finding is that reward-hacking failure modes in gait imitation are highly structured: each missing constraint corresponds to a specific degree of freedom the optimizer exploits. AMP's requirement for parallelism is not a hyperparameter failure but a fundamental property of the discriminator's input space—with 24-dimensional input and only 349 expert transitions, the discriminator has far more capacity than data and will memorize rather than generalize at any policy diversity level achievable with 8 environments.
+
+Planned future directions include:
+
+1. AMP on GPU-parallelized environments via MuJoCo MJX (JAX GPU backend), targeting 2,000–4,000 parallel environments on a single RTX 5090. At this scale, policy transitions are diverse enough to prevent discriminator memorization, enabling AMP to function as designed.
+
+2. Multi-step future context: extend the observation to include a horizon of K future reference frames [q^ref_φ, q^ref_{φ+1}, …, q^ref_{φ+K−1}], allowing the policy to anticipate upcoming phase transitions and smooth the jerkiness at wrap-around boundaries. This is analogous to model-predictive control with a reference preview window.
+
+3. DTW-based reference selection and evaluation: Dynamic Time Warping distance will be used to identify and cluster similar gait cycles from the Ulrich dataset for multi-cycle reference training, providing richer and more temporally smooth reference signals. DTW distance between the agent’s full-episode joint trajectory and the reference cycle is also proposed as a held-out evaluation metric complementary to scalar episodic return: since a policy can achieve high return while exhibiting degenerate strategies (Section 6.2), DTW provides a shape-fidelity signal that is robust to reward miscalibration and independent of minor phase drift.
+
+4. Multi-cycle and multi-subject reference: training on a longer, multi-cycle reference or multiple subjects from the Ulrich dataset would improve temporal smoothness and robustness of the learned policy.
+
+Code
+
+[FILL IN: your GitHub repo URL]
+
+Key files:
+
+ppo_walker2d_phase.py — phase-conditioned PPO environment and reward
+
+amp_walker2d.py — AMP discriminator and training callback
+
+airl_walker2d.py — AIRL implementation (comparison baseline)
+
+render_phase.py — policy visualization
+
+References
+
+[1] X. B. Peng, P. Abbeel, S. Levine, and M. van de Panne, "DeepMimic: Example-Guided Deep Reinforcement Learning of Physics-Based Character Skills," ACM Transactions on Graphics (SIGGRAPH), vol. 37, no. 4, 2018.
+
+[2] A. Escontrela, X. B. Peng, W. Yu, T. Zhang, A. Iscen, K. Goldberg, and P. Abbeel, "Adversarial Motion Priors Make Good Substitutes for Complex Reward Functions," IEEE/RSJ IROS, 2022.
+
+[3] J. Fu, K. Luo, and S. Levine, "Learning Robust Rewards with Adversarial Inverse Reinforcement Learning," ICLR, 2018.
+
+[4] J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov, "Proximal Policy Optimization Algorithms," arXiv:1707.06347, 2017.
+
+[5] N. Rudin, D. Hoeller, P. Reist, and M. Hutter, "Learning to Walk in Minutes Using Massively Parallel Deep Reinforcement Learning," CoRL, 2022.
+
+[6] L. Kovar, M. Gleicher, and F. Pighin, "Motion Graphs," ACM Transactions on Graphics (SIGGRAPH), vol. 21, no. 3, 2002.

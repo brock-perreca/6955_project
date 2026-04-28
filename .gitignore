@@ -1,7 +1,29 @@
+# External data — gitignored, supplied per-machine
+# (See docs/DATA_SOURCES.md for expected layouts)
 OpenCap_data/
+Ulrich_Treadmill_Data/
 Ulrich_Treadmill_data/
+CoordinationRetrainingData/
 gait_cycles/
-.DS_Store
+
+# Python / virtualenv
+.venv/
+__pycache__/
 *.pyc
+*.pyo
 *.pt
 
+# Claude Code local settings
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Office lockfiles (e.g. ~$writeup.docx while it's open in Word)
+~$*
+
+# Build / cache artefacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

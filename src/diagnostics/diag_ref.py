@@ -1,6 +1,15 @@
+"""
+diag_ref.py — print reference joint ranges and run open-loop FK at fixed
+pitch to confirm the reference stays upright.
+Run from the project root: `python src/diagnostics/diag_ref.py`
+"""
+from pathlib import Path
 import numpy as np, mujoco, gymnasium as gym
 
-ref = np.load("gait_cycle_reference.npy")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+REF_PATH     = PROJECT_ROOT / "assets" / "reference" / "gait_cycle_reference.npy"
+
+ref = np.load(REF_PATH)
 n_in = len(ref); n_out = int(round(n_in * 125.0 / 50.0))
 x_in = np.linspace(0,1,n_in); x_out = np.linspace(0,1,n_out)
 ref125 = np.stack([np.interp(x_out,x_in,ref[:,j]) for j in range(6)],axis=1)

@@ -1,0 +1,111 @@
+# Project status — current snapshot
+
+*Last updated: 2026-04-28.*
+
+For a chronological story of how we got here, see
+[`PROJECT_TIMELINE.md`](PROJECT_TIMELINE.md). For the formal writeup, see
+[`reports/writeup_filled_1.docx`](reports/writeup_filled_1.docx) (joint
+with Brian Keller).
+
+---
+
+## What this project is
+
+A reinforcement learning study of **gait imitation on the MuJoCo
+Walker2d-v4 planar biped**, conditioned on inverse-kinematics reference
+data from the Ulrich treadmill walking dataset (Subject 1, 1.25 m/s).
+
+Two complementary imitation methods are studied:
+
+1. **Phase-conditioned PPO + multi-term DeepMimic reward** — the primary
+   track. Active code in [`../src/walker2d/`](../src/walker2d/).
+   *Working*: produces a policy with heel-strike events, bilateral foot
+   alternation, and 2000-step sustained walking.
+2. **Adversarial Motion Priors (AMP) + AIRL** — comparison track. Code
+   not committed to this repo (Brian's track, on his machine).
+   *Pending GPU port*: AMP collapses at 8 CPU envs.
+
+Three top-line scientific contributions (from the writeup):
+
+- A working phase-conditioned imitation policy on real human IK data.
+- A mechanistic taxonomy of reward-hacking failure modes (ankle paddling,
+  one-legged hopping, toe-walking) framed as canonical Goodhart's-Law
+  cases. See [`REWARD_DESIGN.md`](REWARD_DESIGN.md).
+- A characterization of AMP's discriminator collapse at small env counts
+  (writeup §6.3) and the mechanism that explains it.
+
+---
+
+## What's currently running
+
+- **Active training script:** `src/walker2d/ppo_walker2d_phase.py`.
+- **Active reference:** `assets/reference/gait_cycle_reference.npy` —
+  one clean stride from Ulrich Subject 1 baseline (140 frames @ 50 Hz,
+  resampled to ~350 frames @ 125 Hz inside the env).
+- **Current canonical policy:**
+  `results/walker2d_phase_cycle_s1scaled_sum_20260422-175117/model.zip`
+  - 60M env steps
+  - Subject-1-scaled MJCF (`assets/mjcf/walker2d_subject1.xml`,
+    *currently missing on this checkout* — must be regenerated/copied
+    before training/rendering)
+  - Per-joint weighted-sum reward (no product reward)
+  - Single-cycle reference (no `--ref_all`)
+- **Most recent training computer:** the user has alternate machines;
+  the canonical run was trained on the other one.
+
+## Comparison runs on disk
+
+| Result dir | Steps | Notes |
+|---|---|---|
+| `results/walker2d_phase_cycle_s1scaled_sum_20260422-175117/` | 60M | **Canonical**, scaled MJCF, single-cycle ref |
+| `results/walker2d_phase_full_sum_20260410-124935/` | 18M | Stock Walker2d, full-trial ref, uniform-k=8 — useful as a `--finetune` base for stock-geometry runs |
+| `results/walker2d_phase_full_sum_20260410-105306/` | 45M | Earlier DeepMimic-reward run |
+| `results/walker2d_phase_cycle_sum_20260409-211537/` | 10.5M | First single-cycle reference run |
+| `results/walker2d_pretrain_symmetry_20260407-172719/` | 5M | Symmetry-pretrain ankle-paddling demo (legacy) |
+
+Render any of them with:
+
+```bash
+python src/walker2d/render_phase.py results/<run-dir>:final
+# or, for an integer checkpoint step under checkpoints/:
+python src/walker2d/render_phase.py results/<run-dir>:18000000:"18M"
+```
+
+The default `--xml` is `walker2d_subject1.xml`. For runs trained on stock
+Walker2d, override with `--xml walker2d.xml`.
+
+---
+
+## What still needs to happen
+
+For the **current writeup-driven scope**, see [`ROADMAP.md`](ROADMAP.md).
+Highlights:
+
+1. **MJX/GPU port** to make AMP function (4,000-env parallelism).
+2. **Multi-step future context** in the observation
+   (`[q_ref_φ, q_ref_{φ+1}, …, q_ref_{φ+K−1}]`) to smooth wrap-around
+   jerkiness at the gait-cycle seam.
+3. **DTW-based evaluation and reference selection** — held-out
+   shape-fidelity metric independent of phase drift; clustering signal
+   for picking reference cycles from the Ulrich dataset.
+4. **Multi-cycle / multi-subject reference** for temporal smoothness
+   and robustness.
+
+For the **possibility of revisiting the original 3D / musculoskeletal
+scope**, see [`LEGACY_TRACKS.md`](LEGACY_TRACKS.md). Code is preserved
+in `src/legacy/musculoskeletal/`.
+
+---
+
+## Known gaps in this checkout
+
+- `assets/mjcf/walker2d_subject1.xml` — **missing**. The current canonical
+  run was trained against it. Required for `--scale_model` and is the
+  default `--xml` for `render_phase.py`. Must be regenerated or copied
+  from the user's other machine before training/rendering the canonical
+  policy.
+- `amp_walker2d.py` and `airl_walker2d.py` — not yet checked in
+  (Brian's track).
+- `Ulrich_Treadmill_Data/` — gitignored. Users supply their own copy at
+  `<repo>/Ulrich_Treadmill_Data/Subject{1..10}/IK/walking_*/output/results_ik.sto`.
+  See [`DATA_SOURCES.md`](DATA_SOURCES.md).

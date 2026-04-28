@@ -1,18 +1,27 @@
 """
-PPO imitation learning on Walker2d-v4 using Ulrich et al. IK data.
+LEGACY — phase-blind imitation pipeline (v1).
+==============================================
+This is the original phase-blind PPO imitation script. It was superseded by
+`src/walker2d/ppo_walker2d_phase.py`, which adds a phase-conditioned
+observation, fixed-clock phase tracking, and the multi-term DeepMimic
+reward. See `docs/PROJECT_TIMELINE.md` and `docs/RUN_LOG.md` for the three
+root causes of this script's failure (no resampling, phase blindness,
+413k-frame concatenated reference).
 
-Trains a torque-actuated Walker2d to imitate the sagittal-plane joint
-kinematics from 10 subjects × multiple walking trials (~413k frames total).
+Kept on disk for historical reference. The active pipeline no longer
+imports anything from this file — `load_sto`, `load_ulrich_reference`, and
+`ULRICH_ROOT` were extracted into `src/walker2d/ulrich_loader.py`.
 
-Phase-tracked DeepMimic-style reward over hip/knee/ankle.
+Original docstring:
+    PPO imitation learning on Walker2d-v4 using Ulrich et al. IK data.
+    Trains a torque-actuated Walker2d to imitate the sagittal-plane joint
+    kinematics from 10 subjects × multiple walking trials (~413k frames).
+    Phase-tracked DeepMimic-style reward over hip/knee/ankle.
 
-Usage:
-    python ppo_walker2d.py                          # train on all subjects
-    python ppo_walker2d.py --subjects 1 2 3         # subset of subjects
-    python ppo_walker2d.py --trial_filter baseline  # only baseline trials
-
-After training, run extract_grf.py to pull foot contact forces for
-downstream OpenSim static optimization comparison.
+Original usage (do not run on new work — use ppo_walker2d_phase.py):
+    python src/legacy/walker2d_v1/ppo_walker2d.py
+    python src/legacy/walker2d_v1/ppo_walker2d.py --subjects 1 2 3
+    python src/legacy/walker2d_v1/ppo_walker2d.py --trial_filter baseline
 """
 import argparse
 import os

@@ -57,9 +57,12 @@ from stable_baselines3.common.callbacks import (
     BaseCallback, CheckpointCallback, CallbackList
 )
 
-PROJECT_ROOT = Path(__file__).parent
-sys.path.insert(0, str(PROJECT_ROOT))
-from ppo_walker2d import load_ulrich_reference   # reuse loader
+# <repo>/src/walker2d/ppo_walker2d_phase.py → repo root is two parents up
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+MJCF_ROOT    = PROJECT_ROOT / "assets" / "mjcf"
+REF_ROOT     = PROJECT_ROOT / "assets" / "reference"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ulrich_loader import load_ulrich_reference   # reuse loader
 
 CTRL_HZ          = 125.0   # Walker2d-v4: frame_skip=4, dt=0.002s
 REF_HZ           = 50.0    # Ulrich IK / extracted gait cycles
@@ -199,10 +202,16 @@ class Walker2dPhaseAware(Walker2dEnv):
         self._reset_noise_scale     = 5e-3
         self._exclude_current_positions_from_observation = True
 
-        # Resolve xml_file: relative names look in gymnasium assets dir,
-        # absolute paths (or explicit PROJECT_ROOT paths) are used as-is.
+        # Resolve xml_file:
+        #   - "walker2d.xml" → found by MujocoEnv in gymnasium's assets dir
+        #   - absolute path  → used as-is
+        #   - bare filename  → look in assets/mjcf/ first, then PROJECT_ROOT (back-compat)
         if xml_file == "walker2d.xml":
-            resolved_xml = xml_file  # MujocoEnv finds this in its assets dir
+            resolved_xml = xml_file
+        elif Path(xml_file).is_absolute():
+            resolved_xml = str(xml_file)
+        elif (MJCF_ROOT / xml_file).exists():
+            resolved_xml = str(MJCF_ROOT / xml_file)
         else:
             resolved_xml = str(PROJECT_ROOT / xml_file)
 
@@ -695,7 +704,8 @@ def main():
 
     xml_file = "walker2d_subject1.xml" if args.scale_model else "walker2d.xml"
     if args.scale_model:
-        xml_path = str(PROJECT_ROOT / "walker2d_subject1.xml")
+        # Subject-1-scaled MJCF lives under assets/mjcf/ in the new layout.
+        xml_path = str(MJCF_ROOT / "walker2d_subject1.xml")
         print(f"Using scaled model: {xml_path}")
     else:
         xml_path = "walker2d.xml"
