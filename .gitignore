@@ -32,3 +32,6 @@ Thumbs.db
 
 # Training stdout logs (TB events under <run-dir>/tb/ are the canonical record)
 results/*.log
+
+# Overnight sweep outputs — large, per-machine, not part of the canonical record
+results/overnight_*/
