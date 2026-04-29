@@ -16,10 +16,18 @@ treadmill walking trial (1.25 m/s):
    [`src/walker2d/`](src/walker2d/) and produces the canonical walking
    policy.
 2. **Adversarial Motion Priors (AMP)** + **AIRL** as comparison
-   methods. Implemented but not yet committed to this repo (Brian's
-   track). AMP collapses at 8 CPU envs (writeup §6.3); resolution is
-   planned via a MuJoCo MJX / GPU-parallel port — see
-   [`docs/ROADMAP.md`](docs/ROADMAP.md).
+   methods (Brian's track), in
+   [`src/walker2d/amp_walker2d.py`](src/walker2d/amp_walker2d.py) and
+   [`src/walker2d/airl_walker2d.py`](src/walker2d/airl_walker2d.py).
+   Both reuse `Walker2dPhaseAware` from the PPO track and replace the
+   hand-crafted reward with a learned discriminator. AMP collapses at
+   8 CPU envs (writeup §6.3); the recommended workflow today is to
+   finetune from a working PPO+DeepMimic checkpoint. The full unblock
+   is a MuJoCo MJX / GPU-parallel port — see
+   [`docs/ROADMAP.md`](docs/ROADMAP.md). For implementation specifics
+   (LSGAN vs AIRL discriminator, reward shaping, gradient penalty,
+   adaptive freeze) see
+   [`docs/METHODS.md`](docs/METHODS.md#adversarial-imitation-tracks-amp-and-airl-brians-track).
 
 A secondary muscle-actuated track using MyoAssist (3D, 80-muscle) is
 preserved as legacy code under

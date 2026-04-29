@@ -283,6 +283,113 @@ length.
 
 ---
 
+## Adversarial-imitation tracks: AMP and AIRL (Brian's track)
+
+Both `src/walker2d/amp_walker2d.py` and `src/walker2d/airl_walker2d.py`
+share the env, BC helpers, and reference loader from
+`ppo_walker2d_phase.py`. They differ from the engineered-reward track
+in *how the reward signal is produced*: a discriminator scores
+transitions `(s, s′)` against an expert buffer built from consecutive
+IK reference frames. The hand-crafted DeepMimic reward is set to 0.
+
+### Shared design (both tracks)
+
+- **Expert buffer** (`make_expert_buffer` in `airl_walker2d.py`):
+  consecutive IK frames are paired into `(s_t, s_{t+1})` rows. For
+  `--ref_cycle` the wraparound pair `(s_{T-1}, s_0)` is included
+  because the cycle loops cleanly. For `--ref_all`, trial-boundary
+  transitions are excluded *only when the loader reports per-trial
+  segment lengths* — the active loader does not, so `--ref_all`
+  currently includes a small number of inter-trial boundary rows.
+- **State features** (`extract_airl_state`):
+  `[q_joint(6), dq_joint(6)] = 12-dim` by default.
+  `--no_joint_vel` ablates to the 6-dim positions-only form. Phase is
+  *deliberately omitted* — the (s, s′) transition structure encodes
+  gait sequencing implicitly, and adding redundant phase features
+  collapsed the expert manifold to identical zeros in earlier runs.
+- **Per-rollout loop** (in the SB3 callback, `_on_rollout_end`):
+  1. Pull policy `(s, s′)` rows from the rollout buffer, masking out
+     transitions where `episode_starts[t+1]=True` (terminals).
+  2. Update the discriminator on a balanced expert / policy batch.
+  3. Rewrite `rollout_buffer.rewards` with the discriminator signal.
+     PPO's downstream advantage / value updates then optimise the
+     policy against this learned reward.
+
+### AIRL specifics (`airl_walker2d.py`)
+
+- **Discriminator architecture:**
+  `g(s, s′) = f(s, s′) + γ · h(s′) − h(s)` where `f` and `h` are
+  separate Tanh MLPs (default hidden 256). The shaping potential `h`
+  cancels environment dynamics so the recovered reward is dynamics-
+  invariant.
+- **Loss:** binary cross-entropy with label smoothing 0.1
+  (expert→0.9, policy→0.1); WGAN-GP gradient penalty (default 10) on
+  interpolated expert↔policy samples; Gaussian noise (`--expert_noise
+  0.05`) added to expert (s, s′) before each disc step to blur the
+  140-frame manifold.
+- **Reward:** `r = g(s, s′)` directly, with running-window
+  normalisation (50k samples) so PPO's advantage scale stays stable.
+- **Adaptive freeze** (`--min_frac_expert 0.05`): if the fraction of
+  policy transitions the disc scores expert-like drops below the
+  floor, the disc is frozen for that rollout — the policy gets a
+  chance to catch up before the disc trains further. Directly
+  targets the runaway-discriminator collapse.
+- **Cold-start failure:** without `--finetune`, the discriminator
+  reaches near-perfect separation before the policy learns to walk
+  and gradients vanish. The recommended setup is `--finetune <ppo
+  walker>.zip`, which already produces transitions that overlap
+  with the expert manifold. A small `--loco_bonus` (default 0.05 ·
+  max(0, x_vel)) is layered on the env reward as an additional
+  cold-start cushion.
+- **Optional BC pretrain** (`--bc_epochs`): same PD-rollout dataset
+  used by `ppo_walker2d_phase.py`, applied to the policy before AIRL
+  begins.
+
+### AMP specifics (`amp_walker2d.py`)
+
+- **Discriminator architecture:** ELU MLP `[1024, 512, 1]` matching
+  Escontrela et al. — purely `D(s, s′)` with no shaping potential.
+  AMP isn't trying to recover a transferable reward; it just needs a
+  useful style signal.
+- **Loss (LSGAN, paper Eq. 3):**
+  `L = E_E[(D − 1)²] + E_π[(D + 1)²] + (w_gp/2) · E_E[‖∇_φ D‖²]`.
+  The gradient penalty is **zero-centered on expert samples only**
+  (not interpolated), penalising non-zero gradients on the data
+  manifold — different from AIRL's WGAN-GP.
+- **Style reward (paper Eq. 4):**
+  `r_s = max(0, 1 − 0.25 · (D(s, s′) − 1)²) ∈ [0, 1]`. Bounded by
+  construction, so no running normalisation is needed.
+- **Combined reward:**
+  `r = 0.35 · r_task + 0.65 · r_style` (paper weights `w_g`, `w_s`).
+  The task term is `r_task = exp(-5 · (v_x − v_target)²)` (default
+  `v_target = 1.25 m/s`). Critically, the task reward is **scaled,
+  not zeroed** — this keeps a usable gradient alive from step 1, so
+  AMP from-scratch is feasible without `--finetune` (whereas AIRL is
+  not).
+- **Disc batch sizing:** `--disc_batch_size 4096` is enforced as a
+  cap on each gradient step. Building the gradient-penalty graph
+  with `create_graph=True` over the full rollout (~16k samples on
+  CPU) crashed at the C level; sub-batching avoids this.
+- **Expert noise:** same 0.05-std augmentation as AIRL, motivated by
+  the same 140-frame memorisation risk.
+
+### Why both tracks collapse at 8-env CPU scale
+
+In short: the expert manifold is tiny (140 cycle transitions) and the
+policy's per-rollout transition count at 8 envs × 512 steps ≈ 4 k
+already gives the discriminator more than enough capacity to memorise
+the expert set within the first few updates. Once `frac_expert`
+crashes to 0 the reward signal collapses and the policy stops
+improving. Mitigations layered into the current code (label smoothing,
+expert noise, gradient penalty, AIRL's adaptive freeze, AMP's bounded
+reward + retained task term) help but do not eliminate the failure;
+the writeup §6.3 conclusion is that the right unblock is MJX/GPU
+parallelism (4,000+ envs → ~2M policy transitions per rollout, which
+swamps the 140-frame expert buffer and forces the discriminator to
+generalise instead of memorise).
+
+---
+
 ## Diagnostic scripts (`src/diagnostics/`)
 
 Standalone, not imported by the training pipeline. Run from the project root.

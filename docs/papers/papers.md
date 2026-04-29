@@ -10,8 +10,12 @@ The papers are grouped by which track of the project they support:
 1. **Active pipeline** — phase-conditioned PPO + DeepMimic-style reward
    (Brock's track, the code that's committed).
 2. **Adversarial imitation track** — GAIL → AMP / AIRL (Brian's track,
-   not yet committed; this is also "the dream" of imitation-driven gait
-   per [`../../CLAUDE.md`](../../CLAUDE.md)).
+   committed in
+   [`../../src/walker2d/amp_walker2d.py`](../../src/walker2d/amp_walker2d.py)
+   and
+   [`../../src/walker2d/airl_walker2d.py`](../../src/walker2d/airl_walker2d.py);
+   this is also "the dream" of imitation-driven gait per
+   [`../../CLAUDE.md`](../../CLAUDE.md)).
 3. **Musculoskeletal imitation — the original-proposal direction** —
    muscle-driven walkers trained with imitation. The 3D / 80-muscle plan
    that was descoped for this semester but is the through-line back to

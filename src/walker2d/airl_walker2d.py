@@ -16,8 +16,9 @@ Key differences from ppo_walker2d_phase.py:
 
 Usage
 ─────
-  python airl_walker2d.py --ref_cycle gait_cycle_reference.npy
-  python airl_walker2d.py --ref_cycle gait_cycle_reference.npy --disc_updates 3 --num_envs 16
+  python src/walker2d/airl_walker2d.py --ref_cycle assets/reference/gait_cycle_reference.npy
+  python src/walker2d/airl_walker2d.py --ref_cycle assets/reference/gait_cycle_reference.npy \\
+      --disc_updates 3 --num_envs 16
 """
 
 import argparse
@@ -36,11 +37,12 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback, CallbackList
 
-PROJECT_ROOT = Path(__file__).parent
-sys.path.insert(0, str(PROJECT_ROOT))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ppo_walker2d_phase import (Walker2dPhaseAware, load_ref_cycle, CTRL_HZ,
                                  GAIT_CYCLE_FRAMES, compute_bc_dataset, pretrain_bc)
+from ulrich_loader import load_ulrich_reference
 
 # ── constants ─────────────────────────────────────────────────────────────────
 
@@ -536,14 +538,16 @@ def main():
         reference = load_ref_cycle(Path(args.ref_cycle))
         is_cycle  = True   # clean loop — wraparound pair is valid
     else:
-        from ppo_walker2d import load_ulrich_reference
         print("Loading full Ulrich reference...")
-        reference, segment_lengths = load_ulrich_reference(
-            subjects        = args.subjects,
-            trial_filter    = args.trial_filter,
-            control_hz      = CTRL_HZ,
-            return_lengths  = True,
+        reference = load_ulrich_reference(
+            subjects     = args.subjects,
+            trial_filter = args.trial_filter,
+            control_hz   = CTRL_HZ,
         )
+        # Active loader doesn't expose per-trial lengths; segment_lengths stays
+        # None, so make_expert_buffer will include trial-boundary transitions
+        # in the expert set. Acceptable for --ref_all (~hundreds of thousands
+        # of pairs total; a few boundary artefacts wash out).
         is_cycle = False   # concatenated trials — never wrap around
     print(f"Reference: {reference.shape}  ({len(reference)/CTRL_HZ:.1f}s @ {CTRL_HZ}Hz)")
 

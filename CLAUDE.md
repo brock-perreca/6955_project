@@ -45,10 +45,14 @@ is the authoritative current writeup): a pragmatic backup track on
 **Ulrich treadmill IK** (Subject 1, 1.25 m/s). Two methods:
 - **Phase-conditioned PPO + DeepMimic-style multi-term reward + BC
   warm-start** — Brock's track, committed, working primary baseline.
-- **Adversarial Motion Priors / AIRL** — Brian's track, described in
-  the writeup, code not yet in this repo, collapses at 8-env CPU scale
-  (writeup §6.3) due to discriminator memorization of the compact
-  expert manifold.
+- **Adversarial Motion Priors / AIRL** — Brian's track,
+  [`src/walker2d/amp_walker2d.py`](src/walker2d/amp_walker2d.py) and
+  [`src/walker2d/airl_walker2d.py`](src/walker2d/airl_walker2d.py).
+  Both reuse `Walker2dPhaseAware` from the PPO track but replace the
+  hand-crafted reward with a learned discriminator (LSGAN for AMP,
+  AIRL-shaped BCE for AIRL). Collapses at 8-env CPU scale (writeup
+  §6.3) due to discriminator memorisation of the compact expert
+  manifold; needs the MJX-parallelised port for stable training.
 
 Full pivot history (Phase 0 → Phase 4) is in
 [`docs/PROJECT_TIMELINE.md`](docs/PROJECT_TIMELINE.md).
@@ -82,7 +86,8 @@ musculoskeletal track — as on-mission, not scope creep.
   conditioned on Ulrich treadmill IK (Subject 1, baseline, 1.25 m/s).
   Two methods: phase-conditioned PPO + DeepMimic reward (working,
   primary track) and Adversarial Motion Priors / AIRL (comparison
-  track, partial / pending GPU port).
+  track, committed in `src/walker2d/{amp,airl}_walker2d.py`, pending
+  GPU/MJX port for stable training at scale).
 - **Active code:** [`src/walker2d/`](src/walker2d/). Modify these.
 - **Frozen code:** [`src/legacy/`](src/legacy/). Don't extend without
   asking the user first.
@@ -93,9 +98,12 @@ musculoskeletal track — as on-mission, not scope creep.
   is the original musculoskeletal proposal — its big-picture goal
   (imitation-only biomechanically realistic locomotion) is still what
   we'd love to reach; see the narrative arc above.
-- **Authors:** joint with **Brian Keller**. Brian works on AMP/AIRL
-  (not yet committed to this repo); Brock works on phase-conditioned
-  PPO + BC warm-start (the code that *is* committed).
+- **Authors:** joint with **Brian Keller**. Brian's AMP/AIRL code
+  lives in [`src/walker2d/amp_walker2d.py`](src/walker2d/amp_walker2d.py)
+  and [`src/walker2d/airl_walker2d.py`](src/walker2d/airl_walker2d.py)
+  (cherry-picked from upstream `bk-37/6955_Project@3e4c3fa`). Brock
+  works on phase-conditioned PPO + BC warm-start
+  ([`src/walker2d/ppo_walker2d_phase.py`](src/walker2d/ppo_walker2d_phase.py)).
 
 ---
 

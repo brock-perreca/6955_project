@@ -20,7 +20,8 @@ For the chronology of *why* this layout exists, see
 | A new render mode or comparison tool | `walker2d/` (new file) |
 | A new diagnostic / sanity-check script | `diagnostics/` |
 | A revival of the 3D musculoskeletal track | new `musculoskeletal/` (NOT under `legacy/`) — see [`../docs/LEGACY_TRACKS.md`](../docs/LEGACY_TRACKS.md) |
-| A new AMP / AIRL / DTW / MJX experiment | new sibling dir under `src/` |
+| A variation on AMP / AIRL that still uses `Walker2dPhaseAware` | `walker2d/` (e.g. extend `amp_walker2d.py` / `airl_walker2d.py` or add a sibling) |
+| A new MJX / GPU port that breaks the env contract | new sibling dir under `src/` |
 
 The default rule is "extend the active pipeline." Reach into `legacy/`
 only after confirming with the user that the legacy track is being

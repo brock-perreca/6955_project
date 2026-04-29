@@ -22,7 +22,7 @@ different reward designs** that were superseded.
 |---|---|---|---|
 | `ppo_walker2d.py` | Frozen | Phase-blind imitation. Three compounding bugs (no resampling, phase-blind obs, concatenated 413k-frame ref) all closed in `ppo_walker2d_phase.py`. Loaders extracted to `src/walker2d/ulrich_loader.py`. | No — preserved for historical reference + blame |
 | `pretrain_walker2d.py` | Dead end | Symmetry-reward pretraining without a reference. Hit four canonical local optima (hopping, paddling, standing). The fix turned out to be phase conditioning, not reward shaping. | No — produces the demo runs in `RUN_LOG.md` |
-| `gail_walker2d.py` | Dead end | GAIL approach for Walker2d. Not part of the writeup. AMP / AIRL replaced it as the adversarial track in the current writeup. | No — useful as a comparison baseline if AMP/AIRL ever land |
+| `gail_walker2d.py` | Dead end | GAIL approach for Walker2d. Not part of the writeup. Superseded in the active code by `src/walker2d/amp_walker2d.py` (LSGAN-style AMP) and `src/walker2d/airl_walker2d.py` (AIRL with shaping potential). | No — kept as a comparison baseline against the current AMP / AIRL implementations |
 | `render_walker.py` | Frozen | Renderer for the legacy `Walker2dImitation` env and vanilla Walker2d-v4 (`--vanilla`). Still useful for rendering legacy checkpoints (e.g. `results/walker2d_pretrain_symmetry_*/`). | No |
 
 **Reproduce/render commands** for each demo in this group are in

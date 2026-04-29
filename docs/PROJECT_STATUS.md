@@ -21,9 +21,15 @@ Two complementary imitation methods are studied:
    track. Active code in [`../src/walker2d/`](../src/walker2d/).
    *Working*: produces a policy with heel-strike events, bilateral foot
    alternation, and 2000-step sustained walking.
-2. **Adversarial Motion Priors (AMP) + AIRL** — comparison track. Code
-   not committed to this repo (Brian's track, on his machine).
-   *Pending GPU port*: AMP collapses at 8 CPU envs.
+2. **Adversarial Motion Priors (AMP) + AIRL** — comparison track.
+   Brian's code, committed at
+   [`../src/walker2d/amp_walker2d.py`](../src/walker2d/amp_walker2d.py)
+   and
+   [`../src/walker2d/airl_walker2d.py`](../src/walker2d/airl_walker2d.py)
+   (cherry-picked from upstream `bk-37/6955_Project@3e4c3fa` on
+   2026-04-28). *Pending GPU/MJX port*: AMP collapses at 8 CPU envs;
+   the recommended workflow today is to finetune from a working
+   PPO+DeepMimic checkpoint via `--finetune`.
 
 Three top-line scientific contributions (from the writeup):
 
@@ -43,13 +49,18 @@ Three top-line scientific contributions (from the writeup):
   one clean stride from Ulrich Subject 1 baseline (56 frames @ 50 Hz,
   resampled to 140 frames @ 125 Hz inside the env).
 - **Current canonical policy:**
-  `results/walker2d_phase_cycle_s1scaled_sum_20260422-175117/model.zip`
-  - 60M env steps
+  `results/walker2d_phase_cycle_s1scaled_sum_20260423-213031/model.zip`
+  (cherry-picked from upstream `3e4c3fa`).
+  - 100M env steps (`checkpoints/model_100000000_steps.zip` snapshot
+    is also on disk)
   - Subject-1-scaled MJCF (`assets/mjcf/walker2d_subject1.xml`,
     *currently missing on this checkout* — must be regenerated/copied
     before training/rendering)
   - Per-joint weighted-sum reward (no product reward)
   - Single-cycle reference (no `--ref_all`)
+  - Previous 60M canonical run
+    (`walker2d_phase_cycle_s1scaled_sum_20260422-175117/`) is still on
+    disk for comparison.
 - **Most recent training computer:** the user has alternate machines;
   the canonical run was trained on the other one.
 
@@ -57,7 +68,8 @@ Three top-line scientific contributions (from the writeup):
 
 | Result dir | Steps | Notes |
 |---|---|---|
-| `results/walker2d_phase_cycle_s1scaled_sum_20260422-175117/` | 60M | **Canonical**, scaled MJCF, single-cycle ref |
+| `results/walker2d_phase_cycle_s1scaled_sum_20260423-213031/` | 100M | **Latest extended run**, scaled MJCF, single-cycle ref. Saved as `model.zip` + `checkpoints/model_100000000_steps.zip`. From upstream commit `3e4c3fa`. |
+| `results/walker2d_phase_cycle_s1scaled_sum_20260422-175117/` | 60M | Earlier canonical run, scaled MJCF, single-cycle ref |
 | `results/walker2d_phase_full_sum_20260410-124935/` | 18M | Stock Walker2d, full-trial ref, uniform-k=8 — useful as a `--finetune` base for stock-geometry runs |
 | `results/walker2d_phase_full_sum_20260410-105306/` | 45M | Earlier DeepMimic-reward run |
 | `results/walker2d_phase_cycle_sum_20260409-211537/` | 10.5M | First single-cycle reference run |
@@ -106,8 +118,12 @@ in `src/legacy/musculoskeletal/`.
   policy. Stock-Walker2d runs (`walker2d_phase_full_sum_*` and
   `walker2d_phase_cycle_sum_*`) load and roll out fine without it —
   pass `--xml walker2d.xml` to `render_phase.py`.
-- `amp_walker2d.py` and `airl_walker2d.py` — not yet checked in
-  (Brian's track).
+- `amp_walker2d.py` and `airl_walker2d.py` — checked in (cherry-picked
+  from upstream commit `3e4c3fa` on 2026-04-28). Both relocated from
+  the repo root into `src/walker2d/` and rewired to import the active
+  loader; `--ref_cycle` works out-of-the-box, `--ref_all` no longer
+  receives per-trial segment lengths (boundary transitions are not
+  filtered out of the expert buffer).
 - `Ulrich_Treadmill_Data/` — gitignored. Users supply their own copy at
   `<repo>/Ulrich_Treadmill_Data/Subject{1..10}/IK/walking_*/output/results_ik.sto`.
   See [`DATA_SOURCES.md`](DATA_SOURCES.md).

@@ -25,18 +25,18 @@ Reuses make_expert_buffer / extract_airl_state from airl_walker2d.py.
 Usage
 ─────
   # From scratch (task reward prevents cold-start collapse)
-  python amp_walker2d.py --ref_cycle gait_cycle_reference.npy
+  python src/walker2d/amp_walker2d.py --ref_cycle assets/reference/gait_cycle_reference.npy
 
   # Warm-start from a walking policy (recommended for fast convergence)
-  python amp_walker2d.py --ref_cycle gait_cycle_reference.npy \\
+  python src/walker2d/amp_walker2d.py --ref_cycle assets/reference/gait_cycle_reference.npy \\
       --finetune results/walker2d_phase_cycle_*/model.zip
 
   # GPU training
-  python amp_walker2d.py --ref_cycle gait_cycle_reference.npy \\
+  python src/walker2d/amp_walker2d.py --ref_cycle assets/reference/gait_cycle_reference.npy \\
       --num_envs 32 --device cuda
 
   # Ablation: discriminator on joint positions only (no velocities)
-  python amp_walker2d.py --ref_cycle gait_cycle_reference.npy --no_joint_vel
+  python src/walker2d/amp_walker2d.py --ref_cycle assets/reference/gait_cycle_reference.npy --no_joint_vel
 """
 
 import argparse
@@ -53,14 +53,15 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback, CallbackList
 
-PROJECT_ROOT = Path(__file__).parent
-sys.path.insert(0, str(PROJECT_ROOT))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ppo_walker2d_phase import (
     Walker2dPhaseAware, load_ref_cycle, CTRL_HZ,
     compute_bc_dataset, pretrain_bc, LogCallback,
 )
 from airl_walker2d import extract_airl_state, make_expert_buffer
+from ulrich_loader import load_ulrich_reference
 
 
 # ── AMP discriminator ─────────────────────────────────────────────────────────
@@ -404,14 +405,15 @@ def main():
         reference = load_ref_cycle(Path(args.ref_cycle))
         is_cycle  = True
     else:
-        from ppo_walker2d import load_ulrich_reference
         print("Loading full Ulrich reference...")
-        reference, segment_lengths = load_ulrich_reference(
-            subjects        = args.subjects,
-            trial_filter    = args.trial_filter,
-            control_hz      = CTRL_HZ,
-            return_lengths  = True,
+        reference = load_ulrich_reference(
+            subjects     = args.subjects,
+            trial_filter = args.trial_filter,
+            control_hz   = CTRL_HZ,
         )
+        # Active loader doesn't expose per-trial lengths; segment_lengths stays
+        # None, so make_expert_buffer will include trial-boundary transitions
+        # in the expert set. Acceptable for --ref_all.
         is_cycle = False
     print(f"Reference: {reference.shape}  ({len(reference)/CTRL_HZ:.1f}s @ {CTRL_HZ}Hz)")
 

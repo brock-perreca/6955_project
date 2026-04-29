@@ -157,13 +157,15 @@ exploit found by visual inspection):
   inside the actual MuJoCo sim instead — contact-aware (s, a) pairs
   for supervised pretraining.
 
-**Current canonical policy:** `walker2d_phase_cycle_s1scaled_sum_20260422-175117/`
-(60M steps, Subject-1-scaled MJCF, single-cycle reference, per-joint
-weighted-sum reward). See [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+**Current canonical policy:** `walker2d_phase_cycle_s1scaled_sum_20260423-213031/`
+(100M steps, Subject-1-scaled MJCF, single-cycle reference, per-joint
+weighted-sum reward; replaces the prior 60M
+`walker2d_phase_cycle_s1scaled_sum_20260422-175117/`, which is still on
+disk). See [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ---
 
-## Phase 4 — Adversarial methods (Brian's track, in progress)
+## Phase 4 — Adversarial methods (Brian's track)
 
 **Decision:** Compare the engineered DeepMimic reward against learned
 adversarial alternatives. Two new methods:
@@ -174,10 +176,13 @@ adversarial alternatives. Two new methods:
 - **AIRL (Adversarial IRL)** — disentangled reward with shaping
   potential `f(s,s') + γh(s') − h(s)`.
 
-**Status:** Both methods are described in detail in the writeup
-(`docs/reports/writeup_filled_1.docx` §4.4 and §6.3). Code is **not yet
-committed to this repo** — `amp_walker2d.py` and `airl_walker2d.py`
-exist on Brian's machine.
+**Status:** Both methods are described in the writeup
+(`docs/reports/writeup_filled_1.docx` §4.4 and §6.3). Code is committed
+at [`../src/walker2d/amp_walker2d.py`](../src/walker2d/amp_walker2d.py)
+and [`../src/walker2d/airl_walker2d.py`](../src/walker2d/airl_walker2d.py)
+(cherry-picked from upstream `bk-37/6955_Project@3e4c3fa` on 2026-04-28).
+Both reuse `Walker2dPhaseAware` from the PPO track and the BC helpers
+from `ppo_walker2d_phase.py`; only the reward signal differs.
 
 **Key finding (writeup §6.3):** AMP collapses at 8 CPU envs. The
 discriminator achieves near-perfect separation before the policy has
@@ -215,6 +220,6 @@ infrastructure.
 **Brian Keller** — AMP and AIRL implementations, discriminator-collapse
 analysis, MJX migration plan.
 
-This timeline currently emphasizes Brock's track because his code is
-checked into this repo. Brian's AMP/AIRL implementations are described
-in the writeup but live on his machine.
+This timeline emphasizes Brock's track because the engineered-reward
+PPO line drives the active narrative; Brian's AMP/AIRL code now lives
+under `src/walker2d/` (cherry-picked from upstream on 2026-04-28).

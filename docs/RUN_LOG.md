@@ -6,13 +6,16 @@ detour and the local optima it found, and (3) the path to the first
 walking policy.
 
 For the **current canonical walking policy**
-(`walker2d_phase_cycle_s1scaled_sum_20260422-175117`, 60M steps,
-single-cycle reference, Subject-1-scaled MJCF, per-joint reward, 2026-04-22),
-see [`PROJECT_STATUS.md`](PROJECT_STATUS.md) and the project
-[`README.md`](../README.md). The reward and training setup have evolved
-since the earliest "first walking policy" mentioned below — see
-[`PROJECT_TIMELINE.md`](PROJECT_TIMELINE.md) for the chronology and
-[`REWARD_DESIGN.md`](REWARD_DESIGN.md) for the current reward.
+(`walker2d_phase_cycle_s1scaled_sum_20260423-213031`, 100M steps,
+single-cycle reference, Subject-1-scaled MJCF, per-joint reward,
+2026-04-23 — pulled in from upstream commit `3e4c3fa`), see
+[`PROJECT_STATUS.md`](PROJECT_STATUS.md) and the project
+[`README.md`](../README.md). The previous 60M run
+(`walker2d_phase_cycle_s1scaled_sum_20260422-175117`, 2026-04-22) is
+still on disk for comparison. The reward and training setup have
+evolved since the earliest "first walking policy" mentioned below —
+see [`PROJECT_TIMELINE.md`](PROJECT_TIMELINE.md) for the chronology
+and [`REWARD_DESIGN.md`](REWARD_DESIGN.md) for the current reward.
 
 > **Note:** Commands in this log were updated for the post-reorganization
 > file layout. Active scripts now live under `src/walker2d/`, legacy

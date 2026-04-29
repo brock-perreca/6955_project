@@ -37,7 +37,9 @@ For the reward formula and exploit taxonomy, see
 │
 ├── src/                                  # All Python code
 │   ├── walker2d/                         # ── ACTIVE: phase-conditioned imitation ──
-│   │   ├── ppo_walker2d_phase.py        #   Main training (env + reward + BC + main)
+│   │   ├── ppo_walker2d_phase.py        #   PPO + DeepMimic engineered reward (Brock's track)
+│   │   ├── amp_walker2d.py              #   AMP — LSGAN disc, paper combined reward (Brian's track)
+│   │   ├── airl_walker2d.py             #   AIRL — disc with shaping potential, BCE+GP (Brian's track)
 │   │   ├── render_phase.py              #   Render one or more trained policies
 │   │   ├── extract_gait_cycle.py        #   Build gait_cycle_reference.npy from Ulrich IK
 │   │   └── ulrich_loader.py             #   load_sto / load_ulrich_reference / ULRICH_ROOT
@@ -94,12 +96,29 @@ For the reward formula and exploit taxonomy, see
 ppo_walker2d_phase.py
   └─ from ulrich_loader import load_ulrich_reference
 
+airl_walker2d.py
+  ├─ from ppo_walker2d_phase import Walker2dPhaseAware, load_ref_cycle, CTRL_HZ,
+  │                                  GAIT_CYCLE_FRAMES, compute_bc_dataset, pretrain_bc
+  └─ from ulrich_loader        import load_ulrich_reference
+
+amp_walker2d.py
+  ├─ from ppo_walker2d_phase import Walker2dPhaseAware, load_ref_cycle, CTRL_HZ,
+  │                                  compute_bc_dataset, pretrain_bc, LogCallback
+  ├─ from airl_walker2d        import extract_airl_state, make_expert_buffer
+  └─ from ulrich_loader        import load_ulrich_reference
+
 render_phase.py
   └─ from ppo_walker2d_phase import Walker2dPhaseAware, _JNT_LO, _JNT_HI
 
 extract_gait_cycle.py
   └─ from ulrich_loader import load_sto, ULRICH_ROOT, PROJECT_ROOT
 ```
+
+`amp_walker2d.py` reuses `extract_airl_state` and `make_expert_buffer`
+from `airl_walker2d.py` because the (s, s′) feature extraction and
+expert-buffer construction are identical between the two methods —
+only the discriminator architecture, loss, and reward formulation
+differ.
 
 The active pipeline does not import from any file in `src/legacy/`.
 Path resolution: each active script computes
@@ -150,13 +169,18 @@ Run all of these from the project root.
 | Action | Command |
 |---|---|
 | Build the gait-cycle reference (one-time) | `python src/walker2d/extract_gait_cycle.py` |
-| Train from scratch (stock Walker2d) | `python src/walker2d/ppo_walker2d_phase.py --ref_cycle assets/reference/gait_cycle_reference.npy --num_envs 32 --total_steps 5e6` |
-| Train from scratch (Subject-1-scaled) | …add `--scale_model` |
-| Train with BC warm-start | …add `--bc_epochs 10 --bc_steps 200000` |
-| Finetune from a checkpoint | …add `--finetune results/<run-dir>/model.zip` |
-| Render a single trained run | `python src/walker2d/render_phase.py results/<run-dir>:final` |
+| Train PPO + DeepMimic from scratch (stock Walker2d) | `python src/walker2d/ppo_walker2d_phase.py --ref_cycle assets/reference/gait_cycle_reference.npy --num_envs 32 --total_steps 5e6` |
+| Train PPO + DeepMimic from scratch (Subject-1-scaled) | …add `--scale_model` |
+| Train PPO + DeepMimic with BC warm-start | …add `--bc_epochs 10 --bc_steps 200000` |
+| Finetune PPO + DeepMimic from a checkpoint | …add `--finetune results/<run-dir>/model.zip` |
+| Train AMP (paper weights, finetuned from a working walker) | `python src/walker2d/amp_walker2d.py --ref_cycle assets/reference/gait_cycle_reference.npy --finetune results/<phase-run>/model.zip --num_envs 32 --total_steps 5e6` |
+| Train AIRL (same finetune pattern; cold-start collapses) | `python src/walker2d/airl_walker2d.py --ref_cycle assets/reference/gait_cycle_reference.npy --finetune results/<phase-run>/model.zip --num_envs 32 --total_steps 5e6` |
+| Render a single trained run (any track — they share the env) | `python src/walker2d/render_phase.py results/<run-dir>:final` |
 | Compare multiple runs back-to-back | `python src/walker2d/render_phase.py results/<run-A>:final results/<run-B>:60000000:"60M"` |
 | Sanity-check the reference | `python src/diagnostics/diag_cycle.py` &nbsp;&nbsp;and&nbsp;&nbsp;`python src/diagnostics/diag_ref.py` |
 
 For the full set of `ppo_walker2d_phase.py` flags and their defaults,
 see [`METHODS.md`](METHODS.md) or `python src/walker2d/ppo_walker2d_phase.py --help`.
+The AMP/AIRL CLIs are documented in their respective module docstrings
+and via `--help`; the AMP/AIRL discriminator + reward design is
+covered in [`METHODS.md`](METHODS.md).
