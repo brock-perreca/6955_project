@@ -603,3 +603,159 @@ Skip `docs/figures/restart_b2_xvel-5M.mp4` (the prior stiff-hip
 baseline) unless you specifically want to A/B against it; the
 batch-3 review already covered it.
 
+---
+
+## Batch 5 — 2026-04-29 — narrow the `hipopen` over-flex — **partial positive (both variants)**
+
+> **Headline:** both single-knob aggregator variants against
+> `b4_hipopen_5M` produced **partial improvements** in the same
+> direction: narrower hip ROM, lower peak hip flexion, no survival
+> regression. Neither hits the "ROM drops to ~43°" target — both
+> land at ~57° vs reference 43° (baseline 63°). `min_joint` is the
+> more reference-faithful of the two (mean fwd vel 1.231 m/s vs
+> target 1.25, vs `pose_scale20` 1.354 m/s and baseline 1.395 m/s);
+> `pose_scale20` wins by a hair on hip ROM (56.6° vs 57.1°). Both
+> are queued for visual A/B against `b4_hipopen_5M.mp4`.
+
+### Setup
+
+Two parallel single-knob ablations against the proven `b4_hipopen_5M`
+recipe (8 envs, `--xvel_term 0.3`, `--xml walker2d_hipopen.xml`,
+single-cycle reference). Trained from scratch with RSI rather than
+finetuning — `b4_hipopen_5M`'s over-flex is an established local
+optimum that a small finetune may not be able to climb out of.
+
+| Variant | Change | Mechanism | Output dir |
+|---|---|---|---|
+| `pose_scale20` | `--pose_scale 20` (default 10) | Doubles the exponential sharpness of `r_pose = exp(-k·mean(diff²))`. A 10° overshoot now costs ~10% of pose reward instead of ~5%. Preserves the mean aggregator. | `results/restart_b5_pose_scale20/` |
+| `min_joint`    | `--min_joint_pose` flag | Worst-joint floor: `r_pose = min_j exp(-k·w_j·diff_j²)`. One bad joint kills the whole pose reward — directly attacks the 5-of-6-joint loophole that lets the policy hide a single overshooting hip behind 5 compliant joints. | `results/restart_b5_min_joint/` |
+
+Both: 8 envs, 5M steps, `--xvel_term 0.3`, `--xml walker2d_hipopen.xml`,
+single-cycle reference, RSI + warm-start qvel, height + |pitch|>0.3
+termination only, no swing_pen, no contact_r, no BC. Seeds 7 and 8.
+Ran sequentially (~18.5 min each) on the 8-core box.
+
+### Expectation
+
+- **`pose_scale20`**: smallest change. Should narrow ROM somewhat
+  by raising the cost of single-joint overshoots, but the mean
+  aggregator still forgives 5/6 compliant joints. Risk: if the
+  exponential is too sharp the reward gradient flattens and training
+  slows; with k=20 vs k=10 at 0.18 rad RMS, gradient is still
+  well-conditioned.
+- **`min_joint`**: most aggressive. Forces all 6 joints to track
+  simultaneously. Risk per the prompt: policy can't satisfy all 6
+  and collapses to a different basin. Lower training ep_rew expected
+  (lower headline reward is a *signal* the loophole closed, not a
+  failure).
+
+### Observation (full 5M for both)
+
+Both ran cleanly to 5M with no instability. Final training scalars
+(read from the train log):
+
+| metric                        | b4_hipopen_5M | b5_pose_scale20 | b5_min_joint |
+|---|---|---|---|
+| training ep_len mean (final) | 4841          | **6211** (peak iter 1200) | 3389 |
+| training ep_rew mean (final) | 3507          | **4153**                  | 2071 |
+
+`pose_scale20` looks "best" on training-time ep_rew/ep_len because
+its sharper-but-still-forgiving aggregator is genuinely easier to
+optimise than the baseline at the same gait. `min_joint`'s lower
+ep_rew is *expected and correct* — the worst-joint floor makes pose
+reward harder to earn, even with the same gait. The training-time
+numbers are not the load-bearing comparison; eval is.
+
+`scripts/eval_hip_rom.py` over 4 deterministic episodes × 1000 steps,
+RSI seeds 42..45:
+
+| metric                             | b4_hipopen_5M (baseline) | b5_pose_scale20 | b5_min_joint |
+|---|---|---|---|
+| eval episodes survived             | 1000 × 4                 | 1000 × 4                  | 1000 × 4 |
+| mean fwd velocity (m/s, target 1.25) | 1.395                  | 1.354                     | **1.231** |
+| **hip_r ROM (deg, ref 43.18)**     | 63.23                    | **56.58**                 | 57.08 |
+| **hip_l ROM (deg, ref 43.30)**     | 59.35                    | 58.10                     | **56.49** |
+| hip_r min / max (deg, ref -13/+30) | -23.2 / +40.1            | -16.7 / **+39.9**         | -19.2 / **+37.9** |
+| hip_l min / max (deg, ref -13/+30) | -17.7 / +41.7            | -21.9 / **+36.2**         | -20.5 / **+36.0** |
+| per-ep hip_r max (deg)             | 38.7, 37.4, 40.1, 37.7   | 37.5, 39.3, 38.0, 39.9    | 35.4, 36.3, **37.9, 37.2** |
+| % steps within 1° of upper limit   | 0.0%                     | 0.0%                      | 0.0% |
+
+**Both variants narrowed the gait in the right direction.** Hip ROM
+fell from 63° → 57°. The peak hip flexion (the load-bearing
+over-flex) fell from +40° → +37–40°, with `min_joint` showing the
+tightest peak (per-ep maxes 35-38° vs baseline 37-40°). The hip min
+also tightened (`pose_scale20` -23° → -17°), suggesting both
+variants reduce extension overshoot in addition to flexion.
+
+The clearest single signal is mean forward velocity. Baseline
+`b4_hipopen_5M` ran at 1.40 m/s (12% over the 1.25 m/s treadmill
+target); `min_joint` settles at **1.231 m/s — essentially exactly the
+target**. This is consistent with the prompt's diagnosis: in the
+baseline, the policy buys forward momentum from over-flexion at a
+small pose-reward cost. With `min_joint` enforcing all-joint
+tracking, that trade-off no longer favours over-flexion, and the
+forward velocity decays to the value that the reference kinematics
+actually encode.
+
+`pose_scale20` lands in between: hip ROM the tightest of the three
+(56.58°), but mean fwd vel still 1.354 m/s — the sharper mean
+aggregator narrows the *shape* of the gait without fully closing the
+forward-velocity loophole.
+
+**Verdict:** both are partial wins. `min_joint` is the more
+reference-faithful of the two on the metric that's hardest to fake
+(`fwd_vel`); `pose_scale20` has marginally tighter hip ROM. Per
+the prompt's win criterion ("hip_r ROM drops to ~43° AND fwd_vel
+~1.25 AND survival 1000×4"), neither hits the ROM target. Survival
+and fwd_vel are both met by `min_joint`; only survival is met by
+`pose_scale20`.
+
+### Render
+
+```
+# Eval (single source of truth):
+python scripts/eval_hip_rom.py results/restart_b5_pose_scale20 results/restart_b5_min_joint results/restart_b4_hipopen_5M
+
+# Pre-rendered:
+docs/figures/restart_b5_pose_scale20.mp4   (1000-step deterministic rollout)
+docs/figures/restart_b5_min_joint.mp4      (1000-step deterministic rollout)
+docs/figures/restart_b4_hipopen_5M.mp4     (current best — visual baseline for A/B)
+
+# Re-render either:
+python src/walker2d/render_phase.py --eps 1 --steps 1000 --mp4 docs/figures/restart_b5_<variant>.mp4 results/restart_b5_<variant>:final:<label>
+```
+
+`render_phase.py` auto-loads the trained-against MJCF from
+`env_kwargs.json`; no `--xml` needed.
+
+### What to watch
+
+Three mp4s for visual A/B (use the same metric-trap discipline as
+[Batch 3](#batch-3--2026-04-29--overnight-19-experiment-sweep--negative-result):
+trust visual + hip-ROM-from-deterministic-rollout, ignore DTW /
+stride-period readouts on stationary force oscillations):
+
+1. **`docs/figures/restart_b4_hipopen_5M.mp4` — baseline.** Rewatch
+   first to refresh the over-flexed-but-walks signature. Hip flexion
+   visibly past the reference's neutral leg position; mean fwd vel
+   1.40 m/s.
+2. **`docs/figures/restart_b5_min_joint.mp4` — leading candidate
+   for new current best.** Watch the thigh peak forward flexion vs
+   the baseline. Should look slightly less exaggerated. Mean fwd
+   vel 1.23 m/s — the body should advance at perceptibly closer to
+   "treadmill speed" rather than "running across the plane".
+3. **`docs/figures/restart_b5_pose_scale20.mp4` — runner-up.**
+   Tightest hip ROM of the three numerically (56.6°), but mean fwd
+   vel 1.35 m/s (still 8% over). May look more visibly tracking the
+   reference shape than `min_joint`, but at a faster body translation.
+
+If `min_joint` looks visibly closer to a reference-paced walk,
+**it becomes the new current best** (supersedes `b4_hipopen_5M`).
+If both still look too over-flexed, the next escalation is to stack
+the two: `--pose_scale 20 --min_joint_pose` (+ seed 9), which neither
+of these single-knob runs tested. Beyond that, the prompt's
+peaked-forward-reward fallback (`--fwd_weight 0.15
+--xvel_term -1e9 --pose_weight 0.50` to make room) replaces the
+survival floor with a target-velocity bell curve; this is the
+ROADMAP § 0 step (3) escalation.
+

@@ -26,25 +26,34 @@ overshooting joint when the other five track.
 
 **Plan, in order of escalation:**
 
-1. **5M follow-up of `b4_hipopen` with the same recipe.** Already
-   queued (`results/restart_b4_hipopen_5M/`, seed 6). Hypothesis:
-   additional rollouts shrink the 91°→43° overshoot.
-2. **If (1) plateaus over-flexed, sharpen pose tracking.** Try
-   `--pose_scale 20` (50% reward at 0.18 rad RMS rather than 0.26)
-   *or* `--product_reward` (geometric-mean per-joint exps; one bad
-   joint hurts the whole reward). Single-knob ablation against (1).
-3. **If still over-fast, add the peaked forward reward** that was
+1. ✓ **5M follow-up of `b4_hipopen` with the same recipe.** Done:
+   `results/restart_b4_hipopen_5M/`, seed 6. Narrowed 91°→63° hip
+   ROM, 2.07→1.40 m/s. Still over-flexed by ~10°.
+2. ✓ **Sharpen pose tracking.** Done: Batch 5 (2026-04-29). Both
+   `--pose_scale 20` and `--min_joint_pose` ran as single-knob
+   ablations against (1). Both narrow hip ROM 63° → 57° and pull
+   fwd vel toward target; `min_joint` lands at 1.231 m/s
+   (essentially target 1.25). Neither hits the win criterion of hip
+   ROM ~43°. Both are valid candidates for the new current best,
+   pending visual A/B. See
+   [`RESTART_LOG.md § Batch 5`](RESTART_LOG.md#batch-5--2026-04-29--narrow-the-hipopen-over-flex--partial-positive-both-variants).
+3. **Stack the two batch-5 knobs (NEW after Batch 5).** Neither
+   single-knob run tested `--pose_scale 20 --min_joint_pose`
+   together. Worth a 5M run before escalating to a peaked-forward
+   reward, since both knobs moved the gait in the same direction.
+4. **If still over-fast, add the peaked forward reward** that was
    originally Batch 4's plan: `fwd_r = exp(-3·(v-1.25)²)` with
    `--fwd_weight 0.15`, drop `--xvel_term`. Now the survival floor
-   no longer rewards drift at any forward speed.
-4. **Once a clean tracking gait exists, retry AMP/AIRL warm-start.**
+   no longer rewards drift at any forward speed. Note: not currently
+   wired as a CLI flag — would require code changes.
+5. **Once a clean tracking gait exists, retry AMP/AIRL warm-start.**
    Batch 3's AMP runs failed partly because the underlying PPO policy
    could not produce reference-like hip flexion (data-distribution
    mismatch with the expert manifold). With a hipopen baseline that
    actually tracks, the discriminator should have a learnable signal.
 
-**Owner:** Brock. Code change for (1) is zero (already running). (2)
-and (3) are existing CLI flags. (4) is the comparison track.
+**Owner:** Brock. (3) is two existing CLI flags stacked. (4) needs
+new code (peaked-forward reward term). (5) is the comparison track.
 
 **Skip:** more aggregator variants on the *stock* MJCF, hip_term,
 energy penalty, reverse curriculum, preview_k > 1. Batch 3 already
