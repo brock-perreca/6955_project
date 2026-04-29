@@ -133,14 +133,10 @@ class Walker2dPhaseAware(Walker2dEnv):
         imitation_weight:   float = 4.0,
         vel_weight:         float = 1.0,
         ee_weight:          float = 4.0,  # end-effector foot position tracking
-        root_weight:        float = 2.0,  # root height + pitch tracking
+        root_weight:        float = 2.0,  # root height tracking
         contact_weight:     float = 1.0,
-        fwd_weight:         float = 0.0,  # forward velocity reward
         v_target:           float = 1.25, # target forward speed (m/s) — Ulrich treadmill
         swing_pen_weight:   float = 2.0,  # penalty for swing foot ground contact
-        action_rate_weight: float = 0.0,  # penalty for large action changes (anti-jerk)
-        peak_bonus_weight:  float = 0.0,  # bonus for matching ref at high-excursion phases
-        imit_scale:         float = 20.0,  # sharpness of exp(-k·err²)
         max_phase_advance:  int   = 4,    # max frames to skip per step
         pose_term_thresh:   float = 0.9,  # rad — hip/knee termination
         ankle_term_thresh:  float = 0.40, # rad — ankle termination (looser)
@@ -156,12 +152,8 @@ class Walker2dPhaseAware(Walker2dEnv):
         self._ee_weight         = ee_weight
         self._root_weight       = root_weight
         self._contact_weight    = contact_weight
-        self._fwd_weight        = fwd_weight
         self._v_target          = v_target
         self._swing_pen_weight  = swing_pen_weight
-        self._action_rate_weight = action_rate_weight
-        self._peak_bonus_weight  = peak_bonus_weight
-        self._imit_scale        = imit_scale
         self._max_phase_advance = max_phase_advance
         self._pose_term_thresh  = pose_term_thresh
         self._ankle_term_thresh = ankle_term_thresh
@@ -175,15 +167,6 @@ class Walker2dPhaseAware(Walker2dEnv):
         # want frame 0's velocity computed from frames [-1, 0, 1] (wrap-around).
         ref_pad = np.concatenate([reference[-1:], reference, reference[:1]], axis=0)
         self._ref_vel = (np.gradient(ref_pad, 1.0 / CTRL_HZ, axis=0)[1:-1]).astype(np.float32)
-
-        # Pre-compute per-joint excursion normalizers for peak bonus.
-        # excursion[t, j] ∈ [0,1]: 0 = joint at its neutral midpoint, 1 = at max/min extreme.
-        # This gates the peak bonus on phases where the reference is near its range limits.
-        _q_max    = reference.max(axis=0)   # (6,)
-        _q_min    = reference.min(axis=0)   # (6,)
-        _neutral  = (_q_max + _q_min) / 2.0
-        _half_rng = (_q_max - _q_min) / 2.0 + 1e-6
-        self._ref_excursion = (np.abs(reference - _neutral) / _half_rng).astype(np.float32)
 
         # Pre-compute stance side per frame from reference hip angles.
         # In Walker2d convention, the stance hip is more extended (less negative / more positive).
@@ -225,9 +208,6 @@ class Walker2dPhaseAware(Walker2dEnv):
             **kwargs,
         )
 
-        # Previous action for action-rate penalty (anti-jerk)
-        self._prev_action = np.zeros(6, dtype=np.float32)
-
         # Override observation_space after super().__init__ sets it —
         # MujocoEnv.__init__ assigns self.observation_space directly, so a
         # @property with no setter causes an AttributeError.
@@ -241,6 +221,8 @@ class Walker2dPhaseAware(Walker2dEnv):
         # Pre-compute reference foot positions (world z and root-relative x)
         # and root height via FK — used for EE and root reward terms.
         self._precompute_reference_kinematics()
+
+        self._term_cause: str | None = None
 
     def _get_obs(self) -> np.ndarray:
         base    = super()._get_obs().astype(np.float32)    # (17,)
@@ -316,7 +298,7 @@ class Walker2dPhaseAware(Walker2dEnv):
 
     def reset(self, **kwargs):
         self._phase = np.random.randint(0, self._ref_len)
-        self._prev_action = np.zeros(6, dtype=np.float32)
+        self._term_cause = None
         _, info = super().reset(**kwargs)
 
         if self._warm_start:
@@ -339,6 +321,7 @@ class Walker2dPhaseAware(Walker2dEnv):
 
     def step(self, action):
         _, _, terminated, truncated, info = super().step(action)
+        height_term = bool(terminated)  # super().step terminates on root height OOB
 
         q_sim  = self.data.qpos[3:9].astype(np.float32)
         dq_sim = self.data.qvel[3:9].astype(np.float32)
@@ -353,13 +336,6 @@ class Walker2dPhaseAware(Walker2dEnv):
             imit_r = float(np.exp(-np.sum(_JWEIGHTS * _JSCALE * diff ** 2) / np.sum(_JWEIGHTS)))
         else:
             imit_r = float(np.mean(_JWEIGHTS * np.exp(-_JSCALE * diff ** 2)))
-
-        # ── peak excursion bonus ──────────────────────────────────────
-        # Rewards the policy for matching the reference specifically when the
-        # reference is near its range extremes (e.g. peak knee flex at mid-swing,
-        # peak ankle push-off). excursion[phase] ∈ [0,1] gates the bonus.
-        excursion = self._ref_excursion[self._phase]   # (6,) in [0,1]
-        peak_bonus = float(np.mean(excursion * np.exp(-_JSCALE * diff ** 2)))
 
         # ── joint velocity tracking — tighter for ankles (push-off timing)
         vel_r = float(np.mean(np.exp(-_KVSCALE * diff_v ** 2)))
@@ -380,16 +356,11 @@ class Walker2dPhaseAware(Walker2dEnv):
         foot_r_zrel = ftr_xpos[2] - root_xpos[2]
         foot_l_xrel = ftl_xpos[0] - root_xpos[0]
         foot_l_zrel = ftl_xpos[2] - root_xpos[2]
-        # x placement: k=40 (cm-level accuracy)
-        # z clearance: k=40 during stance, k=200 during swing — much sharper
-        # penalty when the reference says the foot should be elevated but it's dragging.
         SWING_CLEARANCE = -1.15  # root-relative z threshold: above this = swing phase
         # Lowered from -1.05: foot z rises from -1.29 (stance) to -0.89 (peak swing).
         # At -1.15 the high-k EE penalty + swing contact penalty trigger earlier in toe-off.
         r_is_swing = self._ref_foot_r_z[self._phase] > SWING_CLEARANCE
         l_is_swing = self._ref_foot_l_z[self._phase] > SWING_CLEARANCE
-        kz_r = 40.0
-        kz_l = 40.0
 
         ee_err_r_x = (foot_r_xrel - self._ref_foot_r_xrel[self._phase]) ** 2
         ee_err_l_x = (foot_l_xrel - self._ref_foot_l_xrel[self._phase]) ** 2
@@ -397,16 +368,17 @@ class Walker2dPhaseAware(Walker2dEnv):
         ee_err_l_z = (foot_l_zrel - self._ref_foot_l_z[self._phase])    ** 2
         ee_r = float(0.25 * (np.exp(-40.0 * ee_err_r_x) +
                               np.exp(-40.0 * ee_err_l_x) +
-                              np.exp(-kz_r  * ee_err_r_z) +
-                              np.exp(-kz_l  * ee_err_l_z)))
+                              np.exp(-40.0 * ee_err_r_z) +
+                              np.exp(-40.0 * ee_err_l_z)))
 
-        # ── root tracking (height + pitch) ────────────────────────────
-        # DeepMimic: k_root = 10, pitch coeff = 0.1 * root_rot_err.
-        # Our pitch exploit needs coeff = 1.0 to actually penalise lean.
+        # ── root height tracking ──────────────────────────────────────
+        # Pitch was previously included here with coeff 1.0; the pitch
+        # termination at 0.3 rad now closes the controlled-fall exploit on
+        # its own, so the reward term is height-only.
         root_height = float(root_xpos[2])
         root_pitch  = float(self.data.qpos[2])
         ref_height  = float(self._ref_root_height[self._phase])
-        root_err = (root_height - ref_height) ** 2 + 1.0 * root_pitch ** 2
+        root_err = (root_height - ref_height) ** 2
         root_r = float(np.exp(-10.0 * root_err))
 
         # ── contact alternation reward ────────────────────────────────
@@ -427,17 +399,10 @@ class Walker2dPhaseAware(Walker2dEnv):
         if l_is_swing:
             swing_pen += float(np.tanh(foot_l_frc / 50.0))
 
-        # ── action rate penalty (anti-jerk) ──────────────────────────
-        action_arr = np.asarray(action, dtype=np.float32)
-        action_rate_pen = float(np.sum(np.square(action_arr - self._prev_action)))
-        self._prev_action = action_arr.copy()
-
-        # ── forward velocity reward ───────────────────────────────────
-        x_vel = float(info.get("x_velocity", self.data.qvel[0]))
-        fwd_r = float(np.exp(-3.0 * (x_vel - self._v_target) ** 2))
-
         # ── ctrl cost ─────────────────────────────────────────────────
         ctrl_cost = -1e-3 * float(np.sum(np.square(self.data.ctrl)))
+
+        x_vel = float(info.get("x_velocity", self.data.qvel[0]))
 
         # ── combine (DeepMimic-inspired weighted sum) ──────────────────
         # Scale by dt so returns are time-invariant across episode lengths.
@@ -446,13 +411,10 @@ class Walker2dPhaseAware(Walker2dEnv):
         # Approximate DeepMimic weight ratio: pose(0.65) vel(0.1) ee(0.15) root(0.1)
         reward = (self._imitation_weight    * self.dt * self.N_REF * imit_r
                   + self._vel_weight        * self.dt * self.N_REF * vel_r
-                  + self._peak_bonus_weight * self.dt * self.N_REF * peak_bonus
-                  + self._fwd_weight        * self.dt              * fwd_r
                   + self._ee_weight         * self.dt * 2          * ee_r
                   + self._root_weight       * self.dt              * root_r
                   + self._contact_weight    * self.dt              * contact_r
                   - self._swing_pen_weight  * self.dt              * swing_pen
-                  - self._action_rate_weight * self.dt             * action_rate_pen
                   + ctrl_cost)
 
         # ── termination ───────────────────────────────────────────────
@@ -460,19 +422,33 @@ class Walker2dPhaseAware(Walker2dEnv):
         # Pitch termination: kill episode on forward/backward lean > 0.3 rad (~17°).
         # This forces the agent to maintain upright posture — without it the agent
         # learns controlled forward falling which is never penalized until height drops.
-        if abs(root_pitch) > 0.3:
-            terminated = True
         ankle_dev = max(abs(diff[2]), abs(diff[5]))
         other_dev = max(abs(diff[0]), abs(diff[1]), abs(diff[3]), abs(diff[4]))
-        if ankle_dev > self._ankle_term_thresh or other_dev > self._pose_term_thresh:
+        pitch_term = abs(root_pitch) > 0.3
+        ankle_term = ankle_dev > self._ankle_term_thresh
+        pose_term  = other_dev > self._pose_term_thresh
+        xvel_term  = x_vel < -0.1
+        if pitch_term or ankle_term or pose_term or xvel_term:
             terminated = True
-        if x_vel < -0.1:
-            terminated = True
+
+        if terminated and self._term_cause is None:
+            if   height_term: self._term_cause = "height"
+            elif pitch_term:  self._term_cause = "pitch"
+            elif ankle_term:  self._term_cause = "ankle"
+            elif pose_term:   self._term_cause = "pose"
+            elif xvel_term:   self._term_cause = "xvel"
+            else:             self._term_cause = "other"
 
         # ── advance phase (after reward/termination use current phase) ─
         self._advance_phase()
 
-        info.update(imit_r=imit_r, vel_r=vel_r, ee_r=ee_r, root_r=root_r, phase=self._phase)
+        info.update(
+            imit_r=imit_r, vel_r=vel_r, ee_r=ee_r, root_r=root_r,
+            contact_r=contact_r, swing_pen=swing_pen, ctrl_cost=ctrl_cost,
+            phase=self._phase,
+        )
+        if terminated:
+            info["term_cause"] = self._term_cause
         return self._get_obs(), reward, terminated, truncated, info
 
 
@@ -589,15 +565,35 @@ def pretrain_bc(
 # ── callback ──────────────────────────────────────────────────────────────────
 
 class LogCallback(BaseCallback):
+    """Console + TensorBoard logging.
+
+    Prints every `log_interval` rollouts. Records per-component reward means
+    and per-rollout termination-cause counts to TensorBoard every rollout
+    (when SB3's logger has a TB writer attached).
+    """
+
+    REWARD_COMPS = ("imit_r", "vel_r", "ee_r", "root_r", "contact_r",
+                    "swing_pen", "ctrl_cost")
+    TERM_CAUSES  = ("height", "pitch", "ankle", "pose", "xvel", "other")
+
     def __init__(self, log_interval: int = 50):
         super().__init__(verbose=0)
         self._interval = log_interval
         self._rollout  = 0
         self._ep_r: list[float] = []
         self._ep_l: list[int]   = []
+        self._comp_buf: dict[str, list[float]] = {k: [] for k in self.REWARD_COMPS}
+        self._term_counts: dict[str, int] = {k: 0 for k in self.TERM_CAUSES}
 
     def _on_step(self) -> bool:
         for info in self.locals.get("infos", []):
+            for k, buf in self._comp_buf.items():
+                v = info.get(k)
+                if v is not None:
+                    buf.append(float(v))
+            cause = info.get("term_cause")
+            if cause in self._term_counts:
+                self._term_counts[cause] += 1
             ep = info.get("episode")
             if ep:
                 self._ep_r.append(float(ep["r"]))
@@ -606,6 +602,15 @@ class LogCallback(BaseCallback):
 
     def _on_rollout_end(self) -> None:
         self._rollout += 1
+        for k, buf in self._comp_buf.items():
+            if buf:
+                self.logger.record(f"reward/{k}", float(np.mean(buf)))
+        for k, c in self._term_counts.items():
+            self.logger.record(f"term/{k}", int(c))
+        for k in self._comp_buf:
+            self._comp_buf[k].clear()
+        for k in self._term_counts:
+            self._term_counts[k] = 0
         if self._rollout % self._interval == 0 and self._ep_r:
             print(
                 f"[iter {self._rollout:5d} | steps {self.num_timesteps:>9,}]  "
@@ -658,18 +663,13 @@ def main():
     parser.add_argument("--ee_weight",      type=float, default=4.0,
                         help="End-effector foot position tracking weight")
     parser.add_argument("--root_weight",    type=float, default=2.0,
-                        help="Root height + pitch tracking weight")
+                        help="Root height tracking weight")
     parser.add_argument("--contact_weight", type=float, default=1.0)
-    parser.add_argument("--fwd_weight", type=float, default=0.0,
-                        help="Forward velocity reward weight")
     parser.add_argument("--v_target", type=float, default=1.25,
-                        help="Target forward speed in m/s (used with --fwd_weight)")
+                        help="Treadmill speed (m/s) used by the warm-start qvel and "
+                             "downstream reward variants. Matches Ulrich Subject 1 baseline.")
     parser.add_argument("--swing_pen_weight", type=float, default=2.0,
                         help="Penalty weight for swing foot ground contact")
-    parser.add_argument("--action_rate_weight", type=float, default=0.0,
-                        help="Penalty weight for action rate of change (anti-jerk)")
-    parser.add_argument("--peak_bonus_weight", type=float, default=0.0,
-                        help="Bonus weight for matching ref at high-excursion phases (knee flex etc)")
 
     # phase tracking
     parser.add_argument("--max_phase_advance", type=int,   default=4,
@@ -688,6 +688,8 @@ def main():
     parser.add_argument("--product_reward", action="store_true",
                         help="DeepMimic product-of-exps reward: all components "
                              "must be satisfied simultaneously (geometric mean)")
+    parser.add_argument("--no_tb", action="store_true",
+                        help="Disable TensorBoard logging (default: write to <log_dir>/tb)")
     parser.add_argument("--out_dir", default=None)
     args = parser.parse_args()
 
@@ -738,12 +740,9 @@ def main():
                 ee_weight         = args.ee_weight,
                 root_weight       = args.root_weight,
                 contact_weight    = args.contact_weight,
-                fwd_weight        = args.fwd_weight,
                 v_target          = args.v_target,
                 swing_pen_weight  = args.swing_pen_weight,
-                action_rate_weight  = args.action_rate_weight,
-                peak_bonus_weight   = args.peak_bonus_weight,
-                max_phase_advance   = args.max_phase_advance,
+                max_phase_advance = args.max_phase_advance,
                 pose_term_thresh  = args.pose_term,
                 ankle_term_thresh = args.ankle_term,
                 product_reward    = args.product_reward,
@@ -754,10 +753,12 @@ def main():
     env = VecMonitor(env)
 
     # ── model ─────────────────────────────────────────────────────────
+    tb_dir = None if args.no_tb else str(log_dir / "tb")
     if args.finetune:
         path = str(Path(args.finetune).with_suffix(""))
         print(f"Finetuning from: {path}")
-        model = PPO.load(path, env=env, device=args.device)
+        model = PPO.load(path, env=env, device=args.device,
+                         tensorboard_log=tb_dir)
         model.learning_rate = 1e-5
         model.ent_coef      = 0.0
         model.target_kl     = 0.005  # very conservative — small policy updates
@@ -784,8 +785,11 @@ def main():
             target_kl     = 0.015,
             device        = args.device,
             policy_kwargs = {"net_arch": [256, 256]},
+            tensorboard_log = tb_dir,
             verbose       = 0,
         )
+    if tb_dir:
+        print(f"TensorBoard logs: {tb_dir}  (run: tensorboard --logdir {tb_dir})")
 
     # ── BC warm-start ─────────────────────────────────────────────────
     if args.bc_epochs > 0 and not args.finetune:

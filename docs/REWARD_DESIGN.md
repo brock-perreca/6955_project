@@ -13,7 +13,7 @@ explains where each piece came from.
 
 ## High-level shape
 
-The reward is a **weighted sum** of several `[0, 1]` tracking terms, each
+The reward is a **weighted sum** of six `[0, 1]` tracking terms, each
 scaled by `dt` so the return is time-invariant:
 
 ```
@@ -23,15 +23,22 @@ r = w_imit · imit_r
   + w_root · root_r
   + w_cont · contact_r
   − w_swing_pen · swing_pen
-  + w_peak · peak_bonus      (optional, off by default)
-  + w_fwd  · fwd_r            (optional, off by default)
-  − w_act  · action_rate_pen  (optional, off by default)
+  − 1e-3   · ‖ctrl‖²    (small ctrl cost, not user-tunable)
 ```
 
-Each component except the optional bonuses corresponds to a specific
-biomechanical signal that, if missing, the optimizer exploits in a
-characteristic way. The reward design therefore reads as a list of
-"unconstrained DoFs and the patches that close them."
+Each component corresponds to a specific biomechanical signal that, if
+missing, the optimizer exploits in a characteristic way. The reward
+design therefore reads as a list of "unconstrained DoFs and the patches
+that close them."
+
+> **Removed terms (2026-04-28).** Three default-off terms — `peak_bonus`,
+> `fwd_r`, and `action_rate_pen` — used to live in this file and the env
+> step body. They were never enabled in any canonical run and were
+> deleted during a reward-cleanup pass (rationale: the writeup loses
+> defensibility points for tuned constants tied to flags that were never
+> turned on). If you need a high-excursion bonus or forward-velocity
+> nudge for an ablation, restore the terms in
+> `src/walker2d/ppo_walker2d_phase.py` from git history.
 
 ---
 
@@ -91,16 +98,18 @@ separate explicit swing-foot contact penalty (`swing_pen` below).
 `SWING_CLEARANCE` was lowered from −1.05 to **−1.15** (root-relative z)
 so toe-off triggers the penalty earlier.
 
-### `root_r` — torso height + pitch (default weight 2)
+### `root_r` — torso height (default weight 2)
 
 ```
-root_r = exp(−10 · (Δh² + 1·θ²))
+root_r = exp(−10 · Δh²)
 ```
 
-The pitch coefficient was lowered from 3.0 → **1.0** when the
-termination check on pitch (`|pitch| > 0.3 rad`) was added — the
-termination handles the forward-lean exploit (controlled fall), so the
-reward no longer needs to over-penalize pitch.
+Now height-only. The pitch piece (`+ 1·θ²` inside the exponent) was
+removed during the 2026-04-28 cleanup: the pitch *termination* at
+`|pitch| > 0.3 rad` already closes the controlled-fall exploit, and the
+reward-side pitch term had been progressively de-weighted (3.0 → 1.0)
+once the termination existed. Keeping a partial term does no scientific
+work and dilutes the writeup's defence of the reward.
 
 ### `contact_r` — stance-side foot force dominance (default weight 1)
 
@@ -119,36 +128,6 @@ Catches **toe-drag** forces that the alternation reward misses. The
 alternation reward is a *difference* — when both feet have small forces
 the difference is small but the swing foot is still in unwanted contact.
 The direct penalty closes that gap.
-
-### `peak_bonus` — high-excursion phase bonus (default weight 0)
-
-```
-peak_bonus = mean_j ( excursion_j[φ] · exp(−k_j · Δq_j²) )
-```
-
-where `excursion_j ∈ [0, 1]` is the per-joint normalized distance from
-the midpoint of the reference range. Bonuses match at peak knee flex,
-peak ankle push-off, etc. — the kinematically dramatic moments. Off by
-default; useful as a finetune tool when peak excursions are
-under-tracked.
-
-### `fwd_r` — forward velocity reward (default weight 0)
-
-```
-fwd_r = exp(−3 · (x_vel − v_target)²),    v_target = 1.25 m/s
-```
-
-Off by default because `contact_r` + `ee_r` already constrain forward
-speed implicitly. Useful as a gentle nudge during finetuning if drift
-appears.
-
-### `action_rate_pen` — anti-jerk penalty (default weight 0)
-
-```
-action_rate_pen = Σ_j (a_j(t) − a_j(t−1))²
-```
-
-Off by default; turn on if torque traces look noisy.
 
 ---
 
@@ -227,3 +206,79 @@ if the others compensate. We close this in two ways:
 
 The default canonical run uses the arithmetic-mean form. The flag is
 functional and exists for ablations.
+
+---
+
+## Appendix: removed reward terms
+
+These terms used to live in the active reward block. All three were
+default-weight 0 in every committed canonical run and were deleted on
+2026-04-28 during a reward-cleanup pass. The earlier `root_r` formula
+(height + pitch) was simplified at the same time. They are documented
+here so the project keeps a self-contained record without requiring a
+`git show` against the pre-cleanup commit.
+
+To restore any of these, re-add the constructor arg, the CLI flag, the
+computation block in `Walker2dPhaseAware.step`, and the corresponding
+addend in the `reward = …` weighted sum.
+
+### `peak_bonus` — high-excursion phase bonus
+
+```
+peak_bonus = mean_j ( excursion_j[φ] · exp(−k_j · Δq_j²) )
+```
+
+`excursion_j[φ] ∈ [0, 1]` is the per-joint normalized distance from the
+midpoint of the reference's range. Bonus is large at peak knee flex,
+peak ankle push-off, etc. — the kinematically dramatic moments. Was
+intended as a finetune tool when peak excursions were under-tracked but
+was never enabled in a canonical run.
+
+Default arg name: `peak_bonus_weight=0.0`. Default scaling in the
+weighted sum: `peak_bonus_weight * dt * N_REF * peak_bonus`.
+
+### `fwd_r` — forward velocity reward
+
+```
+fwd_r = exp(−3 · (x_vel − v_target)²),    v_target = 1.25 m/s
+```
+
+Off by default because `contact_r` + `ee_r` already constrain forward
+speed implicitly. Useful as a gentle nudge during finetuning if drift
+appears.
+
+Default arg name: `fwd_weight=0.0`. Default scaling: `fwd_weight * dt *
+fwd_r`. The `v_target` constant is still present in the env and used by
+the warm-start `qvel[0]` initialization.
+
+### `action_rate_pen` — anti-jerk penalty
+
+```
+action_rate_pen = Σ_j (a_j(t) − a_j(t−1))²
+```
+
+Off by default; intended for use if torque traces look noisy. Required
+maintaining a `_prev_action` buffer on the env (also removed). Default
+arg name: `action_rate_weight=0.0`. Default scaling: `−action_rate_weight
+* dt * action_rate_pen`.
+
+### `root_r` (old form) — height + pitch
+
+The pre-cleanup formula was:
+
+```
+root_r = exp(−10 · (Δh² + 1·θ²))
+```
+
+— a height tracking term combined with a pitch² penalty inside the
+exponent. The pitch coefficient was lowered from 3.0 → 1.0 when the
+`|pitch| > 0.3 rad` termination was added, and was dropped entirely on
+2026-04-28 (the termination already closes the controlled-fall
+exploit; a residual pitch term inside `root_r` did no scientific work
+and complicated the writeup defence of the reward).
+
+The current formula is height-only:
+
+```
+root_r = exp(−10 · Δh²)
+```

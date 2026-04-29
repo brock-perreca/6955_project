@@ -1,0 +1,73 @@
+[
+  {
+    "label": "stock_18M",
+    "run_dir": "results/walker2d_phase_full_sum_20260410-124935",
+    "model_path": "results\\walker2d_phase_full_sum_20260410-124935\\model",
+    "xml": "walker2d.xml",
+    "n_eps": 5,
+    "max_steps": 2000,
+    "per_episode": [
+      {
+        "n_strides_detected": 0,
+        "ep_len_steps": 22
+      },
+      {
+        "n_strides_detected": 0,
+        "ep_len_steps": 48
+      },
+      {
+        "n_strides_detected": 1,
+        "ep_len_steps": 60,
+        "stride_period_s": 0.216,
+        "cadence_steps_per_min": 555.5555555555555,
+        "double_support_frac": 0.0,
+        "peak_vgrf_bw_r": 2.2947164182657724,
+        "peak_vgrf_bw_l": 2.27830586056227,
+        "peak_vgrf_bw": 2.286511139414021,
+        "swing_drag_frac": 0.0,
+        "hip_knee_dtw": 0.18673768817003258
+      },
+      {
+        "n_strides_detected": 0,
+        "ep_len_steps": 35
+      },
+      {
+        "n_strides_detected": 0,
+        "ep_len_steps": 36
+      }
+    ],
+    "summary": {
+      "n_episodes": 5,
+      "cadence_steps_per_min__median": 555.5555555555555,
+      "cadence_steps_per_min__iqr": 0.0,
+      "cadence_steps_per_min__n": 1,
+      "double_support_frac__median": 0.0,
+      "double_support_frac__iqr": 0.0,
+      "double_support_frac__n": 1,
+      "ep_len_steps__median": 36.0,
+      "ep_len_steps__iqr": 13.0,
+      "ep_len_steps__n": 5,
+      "hip_knee_dtw__median": 0.18673768817003258,
+      "hip_knee_dtw__iqr": 0.0,
+      "hip_knee_dtw__n": 1,
+      "n_strides_detected__median": 0.0,
+      "n_strides_detected__iqr": 0.0,
+      "n_strides_detected__n": 5,
+      "peak_vgrf_bw__median": 2.286511139414021,
+      "peak_vgrf_bw__iqr": 0.0,
+      "peak_vgrf_bw__n": 1,
+      "peak_vgrf_bw_l__median": 2.27830586056227,
+      "peak_vgrf_bw_l__iqr": 0.0,
+      "peak_vgrf_bw_l__n": 1,
+      "peak_vgrf_bw_r__median": 2.2947164182657724,
+      "peak_vgrf_bw_r__iqr": 0.0,
+      "peak_vgrf_bw_r__n": 1,
+      "stride_period_s__median": 0.216,
+      "stride_period_s__iqr": 0.0,
+      "stride_period_s__n": 1,
+      "swing_drag_frac__median": 0.0,
+      "swing_drag_frac__iqr": 0.0,
+      "swing_drag_frac__n": 1
+    }
+  }
+]

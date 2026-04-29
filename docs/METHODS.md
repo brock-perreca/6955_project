@@ -164,18 +164,22 @@ tracking.
 
 ## Termination
 
-Four checks, any of which ends the episode:
+Four checks, any of which ends the episode. The termination cause for
+the step that ended an episode is exposed via `info["term_cause"]` ∈
+`{"height", "pitch", "ankle", "pose", "xvel"}` and is histogrammed by
+the TB callback as `term/<cause>`.
 
 1. **Root height out of `[0.8, 2.0]`** (inherited from Walker2d-v4's
-   default `super().step`).
+   default `super().step`). Cause: `height`.
 2. **Pitch magnitude > 0.3 rad (~17°).** Added because without it the
    agent learns a controlled forward fall — height only drops below 0.8
-   *after* the lean becomes irrecoverable.
-3. **`pose_term`** (0.9 rad) for hip/knee and looser **`ankle_term`**
-   (0.40 rad) for ankle. The looser ankle exists because the agent
-   exploits large plantarflexion for hopping if held to the hip/knee
-   threshold.
-4. **`x_vel < -0.1`** (moving backwards).
+   *after* the lean becomes irrecoverable. Cause: `pitch`.
+3. **Hip/knee `pose_term`** (0.9 rad, cause: `pose`) and **ankle**
+   `ankle_term` (0.40 rad, cause: `ankle`). The asymmetry — ankle is the
+   *tighter* threshold — exists because the agent will exploit large
+   plantarflexion for hopping if you let the ankle drift as far as
+   hip/knee.
+4. **`x_vel < -0.1`** (moving backwards). Cause: `xvel`.
 
 ---
 
@@ -214,6 +218,23 @@ Flags:
 | `--bc_only` | off | Stop after BC, save BC-only model, skip PPO |
 
 Mutually exclusive with `--finetune` (BC is skipped if finetuning).
+
+---
+
+## TensorBoard logging
+
+`PPO` is constructed with `tensorboard_log=str(log_dir / "tb")` (disable
+with `--no_tb`). Beyond SB3's built-in `train/*` and `rollout/*`
+scalars, `LogCallback` records per-rollout:
+
+- `reward/{imit_r, vel_r, ee_r, root_r, contact_r, swing_pen, ctrl_cost}`
+  — mean per-component value across all env steps in the rollout.
+- `term/{height, pitch, ankle, pose, xvel, other}` — count of episodes
+  in the rollout that ended for each termination cause.
+
+This is the lowest-cost diagnostic for catching saturated terms and
+failure-mode shifts during training. Open with
+`tensorboard --logdir results/<run-dir>/tb`.
 
 ---
 
@@ -267,19 +288,22 @@ length.
 | `--imit_weight` | 4.0 | Per-joint pose tracking weight |
 | `--vel_weight` | 1.0 | Per-joint velocity tracking weight |
 | `--ee_weight` | 4.0 | End-effector (foot x + z) tracking weight |
-| `--root_weight` | 2.0 | Root height + pitch tracking weight |
+| `--root_weight` | 2.0 | Root height tracking weight (height-only after 2026-04-28) |
 | `--contact_weight` | 1.0 | Stance-side foot contact alternation weight |
 | `--swing_pen_weight` | 2.0 | Penalty on swing-foot ground contact (anti toe-drag) |
-| `--peak_bonus_weight` | 0.0 | Bonus for matching ref at high-excursion phases |
-| `--fwd_weight` | 0.0 | Forward velocity reward (`exp(-3·(v − v_target)²)`) |
-| `--v_target` | 1.25 | Target forward speed (m/s) — Ulrich treadmill |
-| `--action_rate_weight` | 0.0 | Anti-jerk penalty on `Σ(aₜ − aₜ₋₁)²` |
+| `--v_target` | 1.25 | Treadmill speed (m/s) used by warm-start qvel |
 | `--product_reward` | off | Pose term as geometric mean (default arithmetic) |
 | `--max_phase_advance` | 4 | (Inert) accepted but unused after fixed-clock switch |
 | `--pose_term` | 0.9 rad | Hip/knee deviation termination threshold |
 | `--ankle_term` | 0.40 rad | Ankle deviation termination threshold |
 | `--no_pose_term` | off | Disable pose termination (sets pose_term=9999; ankle_term still applies) |
+| `--no_tb` | off | Disable TensorBoard logging (default: write to `<log_dir>/tb`) |
 | `--out_dir` | None | Override output directory (default: `results/<auto-stamped>`) |
+
+> **Removed flags (2026-04-28).** `--peak_bonus_weight`, `--fwd_weight`,
+> `--action_rate_weight` were default-0 and never enabled in any
+> canonical run. Removed during a reward-cleanup pass; restore from git
+> history if you need them for an ablation.
 
 ---
 
@@ -400,3 +424,4 @@ Standalone, not imported by the training pipeline. Run from the project root.
 | `diag_ref.py` | Print per-joint reference ranges and run open-loop FK at fixed pitch to confirm the reference stays upright. |
 | `diag_walker_mass.py` | Dump Walker2d per-body masses (total ≈ 23.68 kg) and the scale factor for comparing to a 75 kg subject. |
 | `extract_osim_mass.py` | Parse `*.osim` XML to pull per-subject total body mass. Used for BW-normalized GRF comparison. |
+| `eval_biomech.py` | Held-out biomech metrics for a checkpoint: stride period, cadence, double-support fraction, peak vGRF (BW-normalised, per foot), swing-drag fraction, L-R stride asymmetry, and a hip-knee phase-plane DTW distance vs the reference cycle. Run on a deterministic rollout; usage matches `render_phase.py` (`run_dir:ckpt[:label]`). Writes JSON. Use this — not training reward — to grade reward variants. |

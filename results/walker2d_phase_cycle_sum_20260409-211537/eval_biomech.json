@@ -1,0 +1,77 @@
+[
+  {
+    "label": "cycle_10M",
+    "run_dir": "results/walker2d_phase_cycle_sum_20260409-211537",
+    "model_path": "results\\walker2d_phase_cycle_sum_20260409-211537\\model",
+    "xml": "walker2d.xml",
+    "n_eps": 5,
+    "max_steps": 2000,
+    "per_episode": [
+      {
+        "n_strides_detected": 0,
+        "ep_len_steps": 16
+      },
+      {
+        "n_strides_detected": 0,
+        "ep_len_steps": 16
+      },
+      {
+        "n_strides_detected": 1,
+        "ep_len_steps": 74,
+        "stride_period_s": 0.408,
+        "cadence_steps_per_min": 294.11764705882354,
+        "double_support_frac": 0.08928571428571429,
+        "peak_vgrf_bw_r": 2.237309922644484,
+        "peak_vgrf_bw_l": 2.285456517807543,
+        "peak_vgrf_bw": 2.261383220226014,
+        "swing_drag_frac": 0.0,
+        "lr_stride_asymmetry": 1.607843137254902,
+        "hip_knee_dtw": 0.11557629933271392
+      },
+      {
+        "n_strides_detected": 0,
+        "ep_len_steps": 12
+      },
+      {
+        "n_strides_detected": 0,
+        "ep_len_steps": 37
+      }
+    ],
+    "summary": {
+      "n_episodes": 5,
+      "cadence_steps_per_min__median": 294.11764705882354,
+      "cadence_steps_per_min__iqr": 0.0,
+      "cadence_steps_per_min__n": 1,
+      "double_support_frac__median": 0.08928571428571429,
+      "double_support_frac__iqr": 0.0,
+      "double_support_frac__n": 1,
+      "ep_len_steps__median": 16.0,
+      "ep_len_steps__iqr": 21.0,
+      "ep_len_steps__n": 5,
+      "hip_knee_dtw__median": 0.11557629933271392,
+      "hip_knee_dtw__iqr": 0.0,
+      "hip_knee_dtw__n": 1,
+      "lr_stride_asymmetry__median": 1.607843137254902,
+      "lr_stride_asymmetry__iqr": 0.0,
+      "lr_stride_asymmetry__n": 1,
+      "n_strides_detected__median": 0.0,
+      "n_strides_detected__iqr": 0.0,
+      "n_strides_detected__n": 5,
+      "peak_vgrf_bw__median": 2.261383220226014,
+      "peak_vgrf_bw__iqr": 0.0,
+      "peak_vgrf_bw__n": 1,
+      "peak_vgrf_bw_l__median": 2.285456517807543,
+      "peak_vgrf_bw_l__iqr": 0.0,
+      "peak_vgrf_bw_l__n": 1,
+      "peak_vgrf_bw_r__median": 2.237309922644484,
+      "peak_vgrf_bw_r__iqr": 0.0,
+      "peak_vgrf_bw_r__n": 1,
+      "stride_period_s__median": 0.408,
+      "stride_period_s__iqr": 0.0,
+      "stride_period_s__n": 1,
+      "swing_drag_frac__median": 0.0,
+      "swing_drag_frac__iqr": 0.0,
+      "swing_drag_frac__n": 1
+    }
+  }
+]

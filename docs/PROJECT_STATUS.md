@@ -63,6 +63,18 @@ Three top-line scientific contributions (from the writeup):
     disk for comparison.
 - **Most recent training computer:** the user has alternate machines;
   the canonical run was trained on the other one.
+- **Reward cleanup (2026-04-28):** Removed three default-off terms
+  (`peak_bonus`, `fwd_r`, `action_rate_pen`) and the pitch piece inside
+  `root_r`. The reward is now 6 weighted terms + a small `‖ctrl‖²` cost.
+  Per-component reward means (`reward/*`) and per-rollout termination-
+  cause counts (`term/*`) now log to TensorBoard at
+  `results/<run-dir>/tb`.
+- **Held-out biomech eval:** `src/diagnostics/eval_biomech.py` produces
+  stride period, cadence, double-support fraction, peak vGRF/BW,
+  swing-drag fraction, L-R stride asymmetry, and a hip-knee phase-plane
+  DTW vs the reference. Use this — not training reward — to compare
+  reward variants and seeds. Sample baseline runs land in
+  `results/<run-dir>/eval_biomech.json`.
 
 ## Comparison runs on disk
 
