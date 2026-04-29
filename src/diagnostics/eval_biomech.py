@@ -267,6 +267,19 @@ def episode_metrics(
         out["hip_knee_dtw"] = _dtw(sim_cycle.astype(np.float64),
                                    ref_cycle.astype(np.float64))
 
+        # All-six-joint DTW (overnight 2026-04-29). hip_knee_dtw was hiding
+        # stiff-hip exploits because the right hip channel could be pinned at
+        # zero while right knee tracked correctly. Adding ankles + the LEFT
+        # leg widens the surface that has to match. Same gait-cycle slice.
+        sim_all = qpos[s:e, :6]
+        ref_all = reference[:, :6]
+        if len(sim_all) > 200:
+            sim_all = sim_all[:: max(1, len(sim_all) // 200)]
+        if len(ref_all) > 200:
+            ref_all = ref_all[:: max(1, len(ref_all) // 200)]
+        out["all_joints_dtw"] = _dtw(sim_all.astype(np.float64),
+                                     ref_all.astype(np.float64))
+
     # Per-joint ROM (median per-stride range, in degrees) for both legs.
     # qpos cols: 0=hip_r, 1=knee_r, 2=ankle_r, 3=hip_l, 4=knee_l, 5=ankle_l.
     joint_names = ["hip_r", "knee_r", "ankle_r", "hip_l", "knee_l", "ankle_l"]
