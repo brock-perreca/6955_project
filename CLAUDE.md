@@ -54,45 +54,29 @@ is the authoritative current writeup): a pragmatic backup track on
   §6.3) due to discriminator memorisation of the compact expert
   manifold; needs the MJX-parallelised port for stable training.
 
-**Where we are now (Phase 5, 2026-04-28).** While building a
-kinematic visualization tool we discovered the on-disk reference is
-**hip-and-ankle inverted** — `walker = -opensim` is applied to all
-six joints in `extract_gait_cycle.py` and `ulrich_loader.py`, but it's
-only correct for the knee. Hip and ankle now match OpenSim's sign on
-this Walker2d model (FK-verified). Every PPO/AMP/AIRL run on disk was
-trained against a self-contradictory target: DeepMimic pose-tracking
-pulling toward a backward-walking pattern on hip/ankle, while the
-forward-velocity reward pulled toward +x. The reward design's
-exploit-patching is partly a record of the policy escaping that
-contradiction.
+**Where we are now (Phase 5b, 2026-04-29).** On 2026-04-28 we
+discovered the on-disk reference was hip-and-ankle inverted (the
+knee-only flip is the correct sign convention; the loaders had been
+flipping all six joints). Every pre-restart PPO/AMP/AIRL run had been
+trained against a self-contradictory target. The loaders were
+corrected and the pipeline is being rebuilt from a DeepMimic-faithful
+baseline. Two batches done: the post-restart current best is
+`results/restart_b2_xvel/` (walks, but with stiff hips). The
+2026-04-29 overnight 19-experiment sweep showed the stiff-hip basin
+is **reward-driven, not optimizer-driven** — none of 8 aggregator
+ablations, 4 AMP/AIRL warm-starts, 3 preview-obs runs, or an SAC
+variant escaped it. The next move is restoring a peaked
+`forward_reward = exp(-3·(v-1.25)²)` and dropping the `xvel_term`
+floor. See:
 
-We are restarting the imitation pipeline from the ground up, building
-the simplest plausible DeepMimic-faithful method on a corrected
-reference and only adding complexity for specific failures we observe.
-Code (env, phase obs, RSI, BC, AMP/AIRL discriminators, render and
-diagnostic scripts) is intact; checkpoints, reward constants, and the
-exploit taxonomy are suspect.
-
-**Update (Phase 5b, 2026-04-29 overnight 19-experiment sweep).** The
-restart's batch-2 `xvel-5M` walks but with stiff hips (~2° ROM vs
-reference ~45°). The overnight sweep tested 8 reward-aggregator and
-termination ablations, 4 AMP/AIRL warm-started runs, 3 multi-step
-preview-obs runs, and an off-policy SAC variant. **All 19 trained
-policies fall into the same stiff-hip basin or a worse failure mode**
-under visual review (Brock, morning of 2026-04-29). The basin is
-**reward-driven, not optimizer-driven** — `xvel_term=0.3` acts as a
-*survival floor* that lets the policy earn full healthy_reward at any
-v ≥ 0.31 m/s, and the per-step pose loss isn't enough to dislodge it.
-Next move: **restore the deleted `forward_reward = exp(-3·(v-1.25)²)`
-term and remove the `xvel_term` floor** — bell-curve forward target
-replaces survival floor, so drifting at 0.4 m/s no longer pays.
-- Negative result writeup: [`docs/RESTART_LOG.md § Batch 3`](docs/RESTART_LOG.md)
-- Top-priority next step: [`docs/ROADMAP.md § 0`](docs/ROADMAP.md)
-- Reward-trap mechanism: [`docs/REWARD_DESIGN.md`](docs/REWARD_DESIGN.md)
-  (top of file, 2026-04-29 update)
-
-Full pivot history (Phase 0 → Phase 5) is in
-[`docs/PROJECT_TIMELINE.md`](docs/PROJECT_TIMELINE.md).
+- [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) — current state
+- [`docs/RESTART_LOG.md`](docs/RESTART_LOG.md) — per-batch progress
+- [`docs/REWARD_DESIGN.md § The stiff-hip trap`](docs/REWARD_DESIGN.md#the-stiff-hip-trap-2026-04-29-diagnosis)
+  — mechanism
+- [`docs/ROADMAP.md § 0`](docs/ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29)
+  — top-priority next step
+- [`docs/PROJECT_TIMELINE.md § Phase 5`](docs/PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28)
+  — full sign-error story
 
 **What we still want — the focus that has not changed.** The current
 DeepMimic reward is heavily *engineered*: every weight, exponential
@@ -206,25 +190,29 @@ project is doing or why), the writeup wins.
 ├── README.md                       ← user quickstart
 ├── .gitignore
 ├── docs/                            ← all documentation (start at docs/README.md)
+│   ├── PROJECT_STATUS.md            ←   where we are right now
 │   ├── PROJECT_TIMELINE.md          ←   how we got here
-│   ├── PROJECT_STATUS.md            ←   where we are
+│   ├── RESTART_LOG.md               ←   post-2026-04-28 batches
+│   ├── ROADMAP.md                   ←   future work
 │   ├── ARCHITECTURE.md              ←   directory map + import graph
 │   ├── METHODS.md                   ←   implementation details
 │   ├── REWARD_DESIGN.md             ←   reward + exploit taxonomy
-│   ├── ROADMAP.md                   ←   future work
-│   ├── LEGACY_TRACKS.md             ←   what each old track was
 │   ├── DATA_SOURCES.md              ←   Ulrich + OpenCap formats
-│   ├── RUN_LOG.md                   ←   past runs with reproduce/render commands
+│   ├── LEGACY_TRACKS.md             ←   what each old track was
+│   ├── RUN_LOG.md                   ←   legacy symmetry-pretrain demos
 │   ├── papers/                       ←   primary-source PDFs + index
 │   ├── reports/                      ← the writeups
-│   └── figures/                      ← diagnostic plots
+│   └── figures/                      ← diagnostic plots + curated mp4s
 ├── src/
 │   ├── walker2d/                     ← ACTIVE phase-conditioned imitation
-│   ├── diagnostics/                  ← standalone sanity checks
+│   ├── diagnostics/                  ← standalone sanity checks + biomech eval
 │   └── legacy/                       ← FROZEN: walker2d_v1/, musculoskeletal/
+├── scripts/
+│   ├── biomech_report.py             ← writeup-ready biomech table + figure
+│   └── overnight/                    ← multi-experiment sweep scaffolding
 ├── assets/
 │   ├── mjcf/                          ← MuJoCo XML (walker2d_subject1.xml is missing)
-│   └── reference/                     ← gait_cycle_reference.npy
+│   └── reference/                     ← gait_cycle_reference.npy + biomech_targets.json
 ├── requirements/
 │   ├── windows_5090.txt
 │   ├── windows_cpu.txt

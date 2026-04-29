@@ -1,11 +1,14 @@
 # Roadmap
 
-Planned future directions, prioritized roughly. **Item 0 is the new
-top priority** after the 2026-04-29 overnight (see
-[`RESTART_LOG.md § Batch 3`](RESTART_LOG.md)) — items 1-4 from the
-writeup §7 follow once the reward trap is fixed.
+**Purpose:** prioritized list of what's planned next.
+**Read this when:** picking the next experiment, scoping a writeup
+§7, or deciding whether a proposed change is on-mission.
+**Adjacent:** [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for "right now"
+· [`RESTART_LOG.md`](RESTART_LOG.md) for what just shipped.
 
-For what is *currently* working, see [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+**Item 0 is the new top priority** after the 2026-04-29 overnight
+([`RESTART_LOG.md § Batch 3`](RESTART_LOG.md#batch-3--2026-04-29--overnight-19-experiment-sweep--negative-result));
+items 1-4 from the writeup §7 follow once the reward trap is fixed.
 
 ---
 

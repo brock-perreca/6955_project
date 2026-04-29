@@ -1,5 +1,13 @@
 # `src/walker2d/` — Walker2d imitation tracks (active)
 
+**Purpose:** what each file in this directory does.
+**Read this when:** picking which file to modify, or you need a
+60-second orientation to the active pipeline.
+**Adjacent:** [`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)
+for the full directory map and import graph ·
+[`../../docs/METHODS.md`](../../docs/METHODS.md) for the implementation
+spec.
+
 The active training code. Two tracks share the same env
 (`Walker2dPhaseAware`), reference loader, and BC warm-start helpers,
 but use different reward formulations:
@@ -19,12 +27,13 @@ but use different reward formulations:
 
 | File | Role |
 |---|---|
-| `ppo_walker2d_phase.py` | **PPO + DeepMimic reward (Brock's track).** `Walker2dPhaseAware` env (25-D obs, fixed-clock phase, per-joint weighted-sum DeepMimic reward), optional BC warm-start via PD-rollout dataset, finetune support. CLI entry point. |
+| `ppo_walker2d_phase.py` | **PPO + DeepMimic reward (Brock's track).** `Walker2dPhaseAware` env (25-D obs, fixed-clock phase, DeepMimic 4-term reward), optional exploit-patches (off-by-default), BC warm-start, finetune support. CLI entry point. |
+| `sac_walker2d_phase.py` | **SAC sibling.** Same env + reward as PPO; off-policy optimizer for sample-efficiency comparisons. Imports `Walker2dPhaseAware` and `load_ref_cycle` from `ppo_walker2d_phase.py`. 1 env, 1M steps, 300k replay buffer. |
 | `amp_walker2d.py` | **AMP (Brian's track).** LSGAN discriminator over `(s, s′) = [q, dq]` transitions with zero-centered gradient penalty on expert samples. Combined reward `r = 0.35·r_task + 0.65·r_style` (paper weights) keeps a task gradient alive from step 1, so from-scratch is feasible. Subclasses `Walker2dPhaseAware` as `Walker2dAMP` (replaces imitation reward with `exp(-5·(v_x - v_target)²)`). |
 | `airl_walker2d.py` | **AIRL (Brian's track).** Discriminator with shaping potential `g(s, s′) = f(s, s′) + γ·h(s′) - h(s)` so the recovered reward is dynamics-invariant. BCE loss + WGAN-GP, label smoothing, expert-noise augmentation, and an adaptive freeze when `frac_expert < 0.05` to stop the disc from running away. Cold-start collapses without `--finetune`; warm-starting from a working PPO walker is the recommended setup. |
-| `render_phase.py` | Render one or more trained phase-aware policies side-by-side. CLI: positional `result_dir:checkpoint[:label]` specs. Works for any policy trained on `Walker2dPhaseAware` or its subclasses (AMP / AIRL). |
-| `extract_gait_cycle.py` | One-shot script: build `assets/reference/gait_cycle_reference.npy` from Subject 1 baseline IK. Detects two consecutive right heel strikes and saves the inter-strike segment. |
-| `ulrich_loader.py` | `load_sto`, `load_ulrich_reference`, `ULRICH_ROOT`, `PROJECT_ROOT`. Imported by `ppo_walker2d_phase.py`, `extract_gait_cycle.py`, and the AMP/AIRL scripts (for `--ref_all`). Was originally in the legacy `ppo_walker2d.py` — extracted to free the active pipeline from the legacy import. |
+| `render_phase.py` | Render one or more trained phase-aware policies side-by-side. CLI: positional `result_dir:checkpoint[:label]` specs. Works for any policy trained on `Walker2dPhaseAware` or its subclasses (AMP / AIRL / SAC sibling). |
+| `extract_gait_cycle.py` | One-shot script: build `assets/reference/gait_cycle_reference.npy` from Subject 1 baseline IK. Detects two consecutive right heel strikes and saves the inter-strike segment. Knee-only sign flip (corrected 2026-04-28). |
+| `ulrich_loader.py` | `load_sto`, `load_ulrich_reference`, `ULRICH_ROOT`, `PROJECT_ROOT`. Imported by `ppo_walker2d_phase.py`, `extract_gait_cycle.py`, and the AMP/AIRL scripts (for `--ref_all`). Knee-only sign flip (corrected 2026-04-28); the legacy all-six-joint flip is preserved only in `src/legacy/walker2d_v1/ppo_walker2d.py`. |
 
 ## Quickstart
 

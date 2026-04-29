@@ -1,27 +1,49 @@
 # Project status — current snapshot
 
+**Purpose:** what's running *right now* — the active code, the current
+best policy, what's known broken, and where the next move is queued.
+**Read this when:** opening the project for the first time, or coming
+back after a few days away.
+**Adjacent:** [`PROJECT_TIMELINE.md`](PROJECT_TIMELINE.md) for the
+chronological story · [`RESTART_LOG.md`](RESTART_LOG.md) for the most
+recent batches with full setup/observation/render commands ·
+[`ROADMAP.md`](ROADMAP.md) for what's queued next ·
+[`reports/writeup_filled_1.docx`](reports/writeup_filled_1.docx) for
+the formal joint writeup with Brian.
+
 *Last updated: 2026-04-29.*
 
-> **STATUS: RESTARTING.** The reference data has been corrected
-> (`extract_gait_cycle.py` and `ulrich_loader.py` now flip only the
-> knee — `walker = -opensim` was wrong for hip and ankle on this
-> Walker2d model). The on-disk
-> `assets/reference/gait_cycle_reference.npy` was regenerated and
-> verified by FK probe to encode forward walking. The imitation
-> pipeline is being rebuilt from a DeepMimic-faithful baseline; per-
-> batch progress lives in [`RESTART_LOG.md`](RESTART_LOG.md).
-> Pre-restart runs (the `walker2d_phase_*` directories below) and the
-> exploit-patch reward terms (`swing_pen`, `contact_r`, per-joint
-> sharpness) were tuned against the corrupted reference and are kept
-> only as a historical record — see
-> [`REWARD_DESIGN.md`](REWARD_DESIGN.md) for the warning at the top.
-> [`METHODS.md § Joint sign convention`](METHODS.md#joint-sign-convention)
-> documents the corrected facts.
+---
 
-For a chronological story of how we got here, see
-[`PROJECT_TIMELINE.md`](PROJECT_TIMELINE.md). For the formal writeup, see
-[`reports/writeup_filled_1.docx`](reports/writeup_filled_1.docx) (joint
-with Brian Keller).
+## Where we are
+
+**Phase 5b.** The reference data was corrected on 2026-04-28
+(`extract_gait_cycle.py` and `ulrich_loader.py` flip the knee only;
+hip and ankle now match OpenSim signs — see
+[`PROJECT_TIMELINE.md § Phase 5`](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28)).
+Every PPO/AMP/AIRL run on disk *before* the restart was trained
+against a self-contradictory target; those checkpoints and the
+pre-restart engineered-reward constants are kept only as a historical
+record.
+
+The post-restart pipeline rebuild is in progress. Two batches done
+(see [`RESTART_LOG.md`](RESTART_LOG.md) for full details):
+
+- **Batch 2** found the current best policy (`results/restart_b2_xvel/`)
+  via the `--xvel_term 0.3` floor termination. Walks, but with stiff
+  hips (~2° ROM vs reference 45°) and 3× cadence as a downstream
+  consequence.
+- **Batch 3** (2026-04-29 overnight, 19 experiments) tested 8
+  reward-aggregator/termination ablations + 4 AMP/AIRL warm-started
+  runs + 3 multi-step preview runs + an SAC variant. **All 19 fall
+  into the same stiff-hip basin or worse.** The basin is
+  reward-driven, not optimizer-driven — `xvel_term` acts as a
+  *survival floor* and the per-step pose loss isn't enough to dislodge
+  it. See [`REWARD_DESIGN.md § The stiff-hip trap`](REWARD_DESIGN.md#the-stiff-hip-trap-2026-04-29-diagnosis).
+
+**Top-priority next step:** restore `forward_reward = exp(-3·(v-1.25)²)`
+and remove the `xvel_term` floor — see
+[`ROADMAP.md § 0`](ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29).
 
 ---
 
@@ -33,36 +55,37 @@ data from the Ulrich treadmill walking dataset (Subject 1, 1.25 m/s).
 
 Two complementary imitation methods are studied:
 
-1. **Phase-conditioned PPO + multi-term DeepMimic reward** — the primary
-   track. Active code in [`../src/walker2d/`](../src/walker2d/).
-   *Working*: produces a policy with heel-strike events, bilateral foot
-   alternation, and 2000-step sustained walking.
-2. **Adversarial Motion Priors (AMP) + AIRL** — comparison track.
-   Brian's code, committed at
-   [`../src/walker2d/amp_walker2d.py`](../src/walker2d/amp_walker2d.py)
-   and
-   [`../src/walker2d/airl_walker2d.py`](../src/walker2d/airl_walker2d.py)
-   (cherry-picked from upstream `bk-37/6955_Project@3e4c3fa` on
-   2026-04-28). *Pending GPU/MJX port*: AMP collapses at 8 CPU envs;
-   the recommended workflow today is to finetune from a working
-   PPO+DeepMimic checkpoint via `--finetune`.
+1. **Phase-conditioned PPO + DeepMimic 4-term reward** — primary
+   working track. Active code in [`../src/walker2d/ppo_walker2d_phase.py`](../src/walker2d/ppo_walker2d_phase.py).
+   Off-policy SAC sibling at [`../src/walker2d/sac_walker2d_phase.py`](../src/walker2d/sac_walker2d_phase.py).
+2. **Adversarial Motion Priors (AMP) + AIRL** — comparison track
+   ([`../src/walker2d/amp_walker2d.py`](../src/walker2d/amp_walker2d.py),
+   [`../src/walker2d/airl_walker2d.py`](../src/walker2d/airl_walker2d.py),
+   cherry-picked from upstream `bk-37/6955_Project@3e4c3fa` on
+   2026-04-28). AMP collapses at 8 CPU envs (writeup §6.3); the
+   recommended workflow today is to finetune from a working
+   PPO+DeepMimic checkpoint, but the warm-started Batch 3 runs found
+   the discriminator gradient pushes the policy out of stiff-hip into
+   asymmetric kicks rather than natural gait. The full unblock is the
+   GPU/MJX port — see [`ROADMAP.md § 1`](ROADMAP.md#1-mujoco-mjx--gpu-port-for-amp-writeup-71).
 
 Three top-line scientific contributions (from the writeup):
 
 - A working phase-conditioned imitation policy on real human IK data.
-- A mechanistic taxonomy of reward-hacking failure modes (ankle paddling,
-  one-legged hopping, toe-walking) framed as canonical Goodhart's-Law
-  cases. See [`REWARD_DESIGN.md`](REWARD_DESIGN.md).
-- A characterization of AMP's discriminator collapse at small env counts
-  (writeup §6.3) and the mechanism that explains it.
+- A mechanistic taxonomy of reward-hacking failure modes (ankle
+  paddling, one-legged hopping, toe-walking, plus the post-restart
+  stiff-hip trap) framed as canonical Goodhart's-Law cases. See
+  [`REWARD_DESIGN.md`](REWARD_DESIGN.md).
+- A characterization of AMP's discriminator collapse at small env
+  counts (writeup §6.3) and the mechanism that explains it.
 
 ---
 
-## How to validate progress (the agent-facing eval loop)
+## How to validate progress
 
-Added 2026-04-29: `eval_biomech.py` now compares every checkpoint
-against a *measured* reference (computed from Subject 1's force plates
-and IK by `extract_reference_biomech.py`), and `scripts/biomech_report.py`
+`eval_biomech.py` compares every checkpoint against a *measured*
+reference (computed from Subject 1's force plates and IK by
+`extract_reference_biomech.py`), and `scripts/biomech_report.py`
 renders a writeup-ready markdown table + 6-panel figure. After any
 training batch:
 
@@ -74,61 +97,71 @@ python scripts/biomech_report.py results/<run>_eval.json --rerollout
 
 The eval JSON's `vs_reference` block carries `delta` and `pct_err` per
 metric, plus a single `progress_score` in [0, 4]. See
-[`METHODS.md § Diagnostic scripts`](METHODS.md#diagnostic-scripts-srcdiagnostics)
-for details.
+[`METHODS.md § Held-out biomechanical evaluation`](METHODS.md#held-out-biomechanical-evaluation-the-two-tool-flow).
+**Anti-Goodhart caveat from Batch 3:** `progress_score` and
+`hip_knee_dtw` flatter stand-and-wiggle policies; pair with
+`hip_r_rom_deg` and visual review.
+
+---
 
 ## What's currently running
 
 - **Active training script:** `src/walker2d/ppo_walker2d_phase.py` —
-  rewritten 2026-04-28 as a DeepMimic-faithful baseline (sum of four
-  `exp(−k·err²)` terms: pose / vel / EE / root). All exploit-patch
-  terms (swing_pen, contact_r, per-joint sharpness/weights, per-joint
-  pose/ankle thresholds, BC) are off-by-default kwargs/CLI flags. See
-  the module docstring and [`RESTART_LOG.md`](RESTART_LOG.md).
+  the DeepMimic-faithful 4-term reward (sum of `exp(−k·err²)` on pose,
+  velocity, end-effector, root height). All exploit-patch terms
+  (swing_pen, contact_r, per-joint sharpness/weights, per-joint
+  termination thresholds, BC) are off-by-default kwargs/CLI flags. See
+  [`METHODS.md § Reward`](METHODS.md#reward--deepmimic-four-term-sum)
+  and [`RESTART_LOG.md`](RESTART_LOG.md).
 - **Active reference:** `assets/reference/gait_cycle_reference.npy` —
   one clean stride from Ulrich Subject 1 baseline (56 frames @ 50 Hz,
   resampled to 140 frames @ 125 Hz inside the env). FK-verified after
   the 2026-04-28 sign fix to encode forward walking.
-- **Current best policy:**
-  `results/restart_b2_xvel/model.zip` (5M steps, stock walker2d.xml,
-  single-cycle reference, 8 envs). Diff from default DeepMimic
-  baseline: one CLI flag, `--xvel_term 0.3` (forward-velocity floor
-  termination). Visual review: best policy in the project's history
-  (Brock, 2026-04-28). Quantitative residuals:
+- **Current best policy:** `results/restart_b2_xvel/` — 5M steps,
+  stock `walker2d.xml`, single-cycle reference, 8 envs. One CLI flag
+  on top of the DeepMimic baseline: `--xvel_term 0.3`. Visual review:
+  best policy in the project's history (Brock, 2026-04-28).
+  Quantitative residuals:
   - Cadence ~3× too fast (stride 0.32 s vs reference 1.12 s).
-  - Hip excursion stiff (`hip_r ∈ [-12°, +2°]` in batch-1 diagnostic;
-    visual confirms thighs barely move). Cause and primary
-    target for the next batch — see batch 3 in
-    [`RESTART_LOG.md`](RESTART_LOG.md).
-- **Pre-restart canonical** (kept for historical comparison):
-  `results/walker2d_phase_cycle_s1scaled_sum_20260423-213031/model.zip`
-  (100M, scaled MJCF, engineered reward, **trained on the corrupted
-  reference** — kinematics are gait-inverted on hip and ankle).
+  - Hip excursion stiff (~2° ROM vs reference 45°).
+- **Pre-restart canonical** (kept for historical comparison only —
+  trained on the inverted reference; do not branch new work off
+  these): `results/walker2d_phase_cycle_s1scaled_sum_20260423-213031/`
+  (100M, scaled MJCF, engineered reward).
 
 ## Comparison runs on disk
 
+Sorted by training date; `restart_*` runs are post-restart on the
+corrected reference, `walker2d_phase_*` runs are pre-restart on the
+inverted reference and require the missing `walker2d_subject1.xml`
+MJCF to render.
+
 | Result dir | Steps | Notes |
 |---|---|---|
-| **`results/restart_b2_xvel/`** | **5M** | **Current best.** DeepMimic 4-term reward + `--xvel_term 0.3`. Stock walker2d.xml, seed=2. ep_len 2120, all-episode 2500-step survival on eval. |
-| `results/restart_b2_k30/` | 5M | DeepMimic + `--pose_scale 30`. Unstable; 4/6 eval episodes fall in <120 steps. Tighter pose alone without an xvel floor doesn't escape. |
-| `results/restart_b1_dm/` | 2M (killed at 2.5M) | Pure DeepMimic baseline. Stand-and-wiggle exploit — long episodes hide stiff hips + zero forward motion. |
-| `results/restart_b1_dm_bc/` | 2M (killed at 2.34M) | DeepMimic + 5-epoch BC. Same exploit, marginally varied across seeds. |
-| `results/walker2d_phase_cycle_s1scaled_sum_20260423-213031/` | 100M | Pre-restart canonical, scaled MJCF, single-cycle ref. **Trained on inverted reference.** From upstream commit `3e4c3fa`. |
+| **`results/restart_b2_xvel/`** | **5M** | **Current best.** DeepMimic 4-term + `--xvel_term 0.3`. Stock walker2d.xml, seed=2. ep_len 2120, all-episode 2500-step survival on eval. |
+| `results/restart_b2_k30/` | 5M | DeepMimic + `--pose_scale 30`. Unstable; 4/6 eval episodes fall in <120 steps. |
+| `results/restart_b1_dm/` | 2M (killed) | Pure DeepMimic baseline. Stand-and-wiggle exploit. |
+| `results/restart_b1_dm_bc/` | 2M (killed) | DeepMimic + 5-epoch BC. Same exploit, marginally varied across seeds. |
+| `results/walker2d_phase_cycle_s1scaled_sum_20260423-213031/` | 100M | Pre-restart canonical (inverted reference, scaled MJCF). |
 | `results/walker2d_phase_cycle_s1scaled_sum_20260422-175117/` | 60M | Earlier pre-restart canonical, scaled MJCF. |
 | `results/walker2d_phase_full_sum_20260410-124935/` | 18M | Stock Walker2d, full-trial ref, uniform-k=8 (pre-restart). |
 | `results/walker2d_phase_full_sum_20260410-105306/` | 45M | Earlier pre-restart DeepMimic-reward run. |
 | `results/walker2d_phase_cycle_sum_20260409-211537/` | 10.5M | First single-cycle reference run (pre-restart). |
 | `results/walker2d_pretrain_symmetry_20260407-172719/` | 5M | Symmetry-pretrain ankle-paddling demo (legacy). |
 
-Render any of them with (PowerShell):
+The 2026-04-29 overnight sweep produced 19 additional runs under
+`results/overnight_<TIMESTAMP>/` (not all retained on every checkout —
+see `RESTART_LOG.md § Batch 3`).
+
+Render any of them with:
 
 ```
 python src/walker2d/render_phase.py --xml walker2d.xml --live results/restart_b2_xvel:final
 python src/walker2d/render_phase.py --xml walker2d.xml --mp4 docs/figures/foo.mp4 results/restart_b2_xvel:final
 ```
 
-The default `--xml` is `walker2d_subject1.xml` (missing on this checkout).
-For all post-restart runs and stock-geometry pre-restart runs, override
+`render_phase.py` defaults to `--xml walker2d_subject1.xml`; for stock
+Walker2d runs (all post-restart and most early pre-restart), override
 with `--xml walker2d.xml`.
 
 ---
@@ -136,53 +169,56 @@ with `--xml walker2d.xml`.
 ## What still needs to happen
 
 For the **current writeup-driven scope**, see [`ROADMAP.md`](ROADMAP.md).
-Highlights:
+Top items:
 
+0. **Reward reform** (NEW priority): restore `forward_reward` peaked
+   term, drop `xvel_term` floor.
 1. **MJX/GPU port** to make AMP function (4,000-env parallelism).
-2. **Multi-step future context** in the observation
-   (`[q_ref_φ, q_ref_{φ+1}, …, q_ref_{φ+K−1}]`) to smooth wrap-around
-   jerkiness at the gait-cycle seam.
-3. **DTW-based evaluation and reference selection** — held-out
-   shape-fidelity metric independent of phase drift; clustering signal
-   for picking reference cycles from the Ulrich dataset.
+2. **Multi-step future context** in the observation — implemented as
+   `--preview_k`; ineffective on the broken reward (Batch 3); worth
+   one more pass after item 0.
+3. **DTW-based shape-fidelity evaluation** — `hip_knee_dtw` and
+   `all_joints_dtw` shipped in `eval_biomech.py`; pair with hip ROM
+   per Batch 3 caveat.
 4. **Multi-cycle / multi-subject reference** for temporal smoothness
    and robustness.
 
-For the **possibility of revisiting the original 3D / musculoskeletal
-scope**, see [`LEGACY_TRACKS.md`](LEGACY_TRACKS.md). Code is preserved
-in `src/legacy/musculoskeletal/`.
+For **revisiting the original 3D / musculoskeletal scope**, see
+[`LEGACY_TRACKS.md`](LEGACY_TRACKS.md). Code is preserved in
+`src/legacy/musculoskeletal/`.
 
 ---
 
 ## Known gaps in this checkout
 
-- `assets/mjcf/walker2d_subject1.xml` — **missing**. The current canonical
-  run was trained against it. Required for `--scale_model` and is the
-  default `--xml` for `render_phase.py`. Must be regenerated or copied
-  from the user's other machine before training/rendering the canonical
-  policy. Stock-Walker2d runs (`walker2d_phase_full_sum_*` and
-  `walker2d_phase_cycle_sum_*`) load and roll out fine without it —
-  pass `--xml walker2d.xml` to `render_phase.py`.
-- `amp_walker2d.py` and `airl_walker2d.py` — checked in (cherry-picked
-  from upstream commit `3e4c3fa` on 2026-04-28). Both relocated from
-  the repo root into `src/walker2d/` and rewired to import the active
-  loader; `--ref_cycle` works out-of-the-box, `--ref_all` no longer
-  receives per-trial segment lengths (boundary transitions are not
-  filtered out of the expert buffer).
-- `Ulrich_Treadmill_Data/` — gitignored. Users supply their own copy at
-  `<repo>/Ulrich_Treadmill_Data/Subject{1..10}/IK/walking_*/output/results_ik.sto`.
+- **`assets/mjcf/walker2d_subject1.xml` is missing.** The pre-restart
+  canonical run was trained against it; required for `--scale_model`
+  and is the default `--xml` for `render_phase.py`. Must be
+  regenerated or copied from the user's other machine before training
+  / rendering with scaled geometry. Stock-Walker2d runs (the entire
+  `restart_*` family and most pre-restart full-trial runs) load and
+  roll out fine without it — pass `--xml walker2d.xml` to
+  `render_phase.py`.
+- **`amp_walker2d.py` and `airl_walker2d.py`** were cherry-picked from
+  upstream commit `3e4c3fa` on 2026-04-28; relocated from the repo
+  root into `src/walker2d/` and rewired to import the active loader.
+  `--ref_cycle` works out-of-the-box; `--ref_all` does not receive
+  per-trial segment lengths from the loader, so boundary transitions
+  are not filtered out of the expert buffer.
+- **`Ulrich_Treadmill_Data/`** is gitignored. Users supply their own
+  copy at `<repo>/Ulrich_Treadmill_Data/Subject{1..10}/IK/walking_*/output/results_ik.sto`.
   See [`DATA_SOURCES.md`](DATA_SOURCES.md).
 
 ### Per-machine setup notes
 
-- **Current laptop (no GPU, Python 3.13):** `Ulrich_Treadmill_Data/`
-  is a directory junction to `CoordinationRetrainingData/forSimTK/`.
-  Venv at `.venv/` was built with the CPU build of PyTorch 2.7.0 and
+- **Current laptop (no GPU, Python 3.13):** `Ulrich_Treadmill_Data/` is
+  a directory junction to `CoordinationRetrainingData/forSimTK/`. Venv
+  at `.venv/` was built with the CPU build of PyTorch 2.7.0 and
   `requirements/windows_cpu.txt`. MyoSuite is **not** in this venv —
-  it pins `gymnasium==1.2.3` / `mujoco==3.6.0` (incompatible with
-  the active Walker2d stack) and requires Python 3.10–3.12. For the
-  legacy `src/legacy/musculoskeletal/` track, a sibling venv lives
-  at `.venv-myo/` (Python 3.12, MyoSuite 2.12.1, verified
+  it pins `gymnasium==1.2.3` / `mujoco==3.6.0` (incompatible with the
+  active Walker2d stack) and requires Python 3.10–3.12. For the
+  legacy `src/legacy/musculoskeletal/` track, a sibling venv lives at
+  `.venv-myo/` (Python 3.12, MyoSuite 2.12.1, verified
   `myoLegWalk-v0` reset+step). See `README.md` "MyoAssist (legacy
   musculoskeletal track)" for the recipe.
 - **numpy must be 2.x** to load existing checkpoints — their pickle

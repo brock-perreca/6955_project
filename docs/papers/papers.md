@@ -1,5 +1,11 @@
 # Reference papers
 
+**Purpose:** index of the primary-source PDFs in this folder, with a
+"when to read" line for each.
+**Read this when:** you need to verify a formula, ground a project
+claim in the original literature, or are choosing among adjacent
+methods.
+
 PDFs of the papers this project leans on. They live here so an agent
 working in the repo can read the actual primary sources rather than
 relying on summaries. Each entry below says **what the paper is** and

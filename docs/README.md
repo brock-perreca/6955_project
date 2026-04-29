@@ -1,54 +1,64 @@
 # Documentation index
 
-This is the documentation root. The project is structured for AI-first
-navigation: every important fact about the project lives in one of these
-files, and `CLAUDE.md` at the repo root points here as the first stop.
+This is the documentation root. The repo is structured for AI-first
+navigation: `CLAUDE.md` at the repo root is the orientation hub and
+points here as the first stop.
 
-## Where to start
+## Doc roles at a glance
 
-| If you want to… | Read |
-|---|---|
-| Understand what this project *currently* is | [`PROJECT_STATUS.md`](PROJECT_STATUS.md) |
-| Understand how it got here (proposal → pivot → now) | [`PROJECT_TIMELINE.md`](PROJECT_TIMELINE.md) |
-| Find the file that does X | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
-| Understand the env, reward, and training loop | [`METHODS.md`](METHODS.md) |
-| Understand why each reward term exists | [`REWARD_DESIGN.md`](REWARD_DESIGN.md) |
-| Look up a past run / failure mode / demo | [`RUN_LOG.md`](RUN_LOG.md) |
-| Know what's planned next | [`ROADMAP.md`](ROADMAP.md) |
-| Understand a legacy script before touching it | [`LEGACY_TRACKS.md`](LEGACY_TRACKS.md) |
-| Know where reference data lives + how it's loaded | [`DATA_SOURCES.md`](DATA_SOURCES.md) |
-| Read primary-source papers (DeepMimic, GAIL, AMP×2, AIRL, OpenCap, KinTwin, KINESIS) | [`papers/papers.md`](papers/papers.md) |
-| Read the formal writeup | [`reports/`](reports/) |
+Each doc has a single authoritative role. **If two docs disagree on a
+fact, fix the one that's straying out of its lane** rather than
+duplicating content.
 
-## Quick navigation
+| Doc | Role | Read it for |
+|---|---|---|
+| [`PROJECT_STATUS.md`](PROJECT_STATUS.md) | "right now" | What's running today, current best policy, known gaps |
+| [`PROJECT_TIMELINE.md`](PROJECT_TIMELINE.md) | "how we got here" | Chronological narrative across phases 0–5 |
+| [`RESTART_LOG.md`](RESTART_LOG.md) | "recent batches" | Per-batch setup, observation, render commands since the 2026-04-28 restart |
+| [`ROADMAP.md`](ROADMAP.md) | "what's queued next" | Prioritized future work |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | "where things live" | Directory map, import graph, entry-point commands |
+| [`METHODS.md`](METHODS.md) | "how the code works" | Env, reward formula, RSI, BC, optimizer, CLI flags |
+| [`REWARD_DESIGN.md`](REWARD_DESIGN.md) | "why each reward term" | Term-by-term rationale + Goodhart's-Law exploit taxonomy |
+| [`DATA_SOURCES.md`](DATA_SOURCES.md) | "where the data lives" | Ulrich layout, OpenCap layout, joint sign convention |
+| [`LEGACY_TRACKS.md`](LEGACY_TRACKS.md) | "what's frozen and why" | `src/legacy/` contents and re-run requirements |
+| [`RUN_LOG.md`](RUN_LOG.md) | "legacy demos" | The four symmetry-pretrain failure-mode demos with reproduce commands |
+| [`papers/papers.md`](papers/papers.md) | "primary sources" | Per-paper "what it is + when to read it" index |
+| [`reports/`](reports/) | "writeups" | Original proposal PDF + current authoritative `.docx` |
 
-- **Active code:** [`../src/walker2d/`](../src/walker2d/) — the phase-conditioned
-  PPO pipeline that produces the current canonical walking policy.
-- **Diagnostics:** [`../src/diagnostics/`](../src/diagnostics/) — standalone
-  sanity-check scripts for the reference cycle, Walker2d masses, and OSIM mass.
-- **Legacy code:** [`../src/legacy/`](../src/legacy/) — earlier Walker2d
-  attempts and the original 3D musculoskeletal track. Frozen for reference;
+## Quick navigation to non-doc content
+
+- **Active code:** [`../src/walker2d/`](../src/walker2d/) — phase-conditioned
+  PPO + AMP/AIRL.
+- **Diagnostics:** [`../src/diagnostics/`](../src/diagnostics/) — sanity
+  checks, biomech evaluation, the gait-cycle viewer.
+- **Sweep scaffolding:** [`../scripts/overnight/`](../scripts/overnight/)
+  — multi-experiment wrappers used by [`RESTART_LOG.md § Batch 3`](RESTART_LOG.md#batch-3--2026-04-29--overnight-19-experiment-sweep--negative-result).
+- **Legacy code:** [`../src/legacy/`](../src/legacy/) — frozen tracks;
   see [`LEGACY_TRACKS.md`](LEGACY_TRACKS.md) before extending.
-- **Assets:** [`../assets/`](../assets/) — MuJoCo MJCF files and the gait-cycle
-  reference array.
-- **Results:** [`../results/`](../results/) — training output directories
-  (model.zip, checkpoints/, reference.npy). The current canonical run is
-  documented in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
-- **Writeups:** [`reports/`](reports/) — the original proposal and the
-  current authoritative writeup.
-- **Papers:** [`papers/`](papers/) — primary-source PDFs (DeepMimic,
-  GAIL, AMP-for-animation, AMP-for-robots, AIRL, OpenCap, KinTwin,
-  KINESIS, smartphone-mocap validation) plus
-  [`papers/papers.md`](papers/papers.md), an index describing what each
-  one is and when to read it.
+- **Assets:** [`../assets/`](../assets/) — MuJoCo MJCFs and the
+  gait-cycle reference array + measured biomech targets.
+- **Results:** [`../results/`](../results/) — training output dirs.
 
-## Cross-reference conventions
+## Conventions for AI agents working in these docs
 
-When a doc cites a code fact, it cites the file path (e.g.
-`src/walker2d/ppo_walker2d_phase.py:103`). Treat that as the source of
-truth — if a doc and the code disagree, fix the doc, not the code.
-
-When a doc cites a number that comes from the writeup (return curves,
-hypothesis labels, scale-collapse claims), it cites the section
-(e.g. "writeup §6.3"). The writeup is authoritative for *scope, methods,
-and results*; the code is authoritative for *what is currently running*.
+1. **One source of truth per fact.** If a constant, flag, or behavior
+   is described in two places, one of them is going to drift.
+   Cross-link instead of restating.
+2. **Code wins over docs on values.** When a doc cites a code fact, it
+   cites the file path (e.g. `src/walker2d/ppo_walker2d_phase.py:103`).
+   If a doc and the code disagree on a default flag, weight, or
+   threshold, fix the doc.
+3. **Writeup wins over docs on narrative.** When a doc cites a
+   writeup section ("writeup §6.3"), the writeup is authoritative for
+   *scope, methods, and results narrative*. Update writeups when
+   project narrative changes; update docstrings when operational
+   detail changes.
+4. **Each doc starts with `**Purpose:** … **Read this when:** …`.**
+   This lets a fresh agent decide in 3 seconds whether to keep
+   reading.
+5. **Don't repeat the Phase-5 sign-error story across files.** It
+   lives canonically in [`PROJECT_TIMELINE.md § Phase 5`](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28).
+   Other docs link to that anchor in a single sentence.
+6. **Don't write ephemeral handoff docs into `docs/`.** Per-run
+   working notes belong in the run dir under `results/`, not in the
+   permanent doc tree.

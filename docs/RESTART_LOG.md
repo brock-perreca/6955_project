@@ -1,21 +1,17 @@
 # Restart log — rebuilding the imitation pipeline on the corrected reference
 
-> **Why this file exists.** On 2026-04-28 we discovered that
-> `assets/reference/gait_cycle_reference.npy` had been computed with
-> `walker = -opensim` applied to all six joints — a flip that's correct
-> only for the knee. Hip and ankle were inverted, so every PPO/AMP/AIRL
-> run on disk was trained against a self-contradictory target. See
-> [`PROJECT_TIMELINE.md` § Phase 5](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28).
->
-> The data is fixed (verified by FK probe on 2026-04-28: at peak
-> hip_r flexion the right foot is at +0.69 m relative to root, i.e.
-> in front of the body — forward walking). This log records the
-> ground-up rebuild of the imitation pipeline against the corrected
-> reference.
->
-> **Format.** One entry per batch. Each entry: setup, expectation,
-> observation, render command. Optimised for "user opens 4 mp4s and
-> forms an opinion in 10 minutes."
+**Purpose:** per-batch progress on the post-2026-04-28 rebuild — what
+was tried, what happened, render commands.
+**Read this when:** picking the next batch, or coming back to compare
+"the old engineered reward did X" vs "the new DeepMimic baseline does
+Y." For the trigger event (the sign-error discovery), see
+[`PROJECT_TIMELINE.md § Phase 5`](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28).
+For the current best policy, see
+[`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+
+**Format.** One entry per batch. Each entry: setup, expectation,
+observation, render command. Optimised for "user opens 4 mp4s and
+forms an opinion in 10 minutes."
 
 ---
 
@@ -366,49 +362,37 @@ results/overnight_20260429-0211/OVERNIGHT_SUMMARY.md (post-review writeup)
 
 ---
 
-## Batch 4 — planned — restore forward_reward + remove xvel_term floor
+## Batch 4 — planned — restore forward_reward + drop xvel_term floor
 
 ### Setup
 
-`xvel-5M` walks but with stiff hips (and as a downstream consequence,
-3× cadence). The mean-of-squares pose reward gives ~0.44 even when
-hips are stuck at 0° because the other 4 joints (knees + ankles)
-satisfy the per-step mean. Two things to test:
+After Batch 3's negative result, the diagnosis is that the reward
+*structure* is the trap, not any of the reward weights or aggregators.
+Per [`REWARD_DESIGN.md § The stiff-hip trap`](REWARD_DESIGN.md#the-stiff-hip-trap-2026-04-29-diagnosis)
+and [`ROADMAP.md § 0`](ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29):
 
-| Variant | Change (on top of `xvel-5M` config) | Rationale |
+| Variant | Change (vs `xvel-5M` config) | Rationale |
 |---|---|---|
-| `hip2x` | `--pose_weight_hip 2.0` (need to add this CLI flag) — per-joint pose weighting `[2,1,1,2,1,1]` | Up-weight the bilateral hip channels in mean pose; stiff hips now cost ~2× more reward. |
-| `ee30`  | `--ee_weight 0.30 --ee_scale 20`                                  | Double EE weight, halve k_e so r_ee is non-saturated and contributes a real foot-position gradient (currently 0.072 — saturated near zero, no useful gradient). |
+| `fwd` | Drop `--xvel_term`. Add `--fwd_weight 0.15` and `fwd_r = exp(-3·(v-1.25)²)` (term + CLI flag need to be re-added; existed before the 2026-04-28 cleanup). | Replace the survival floor with a peaked forward-velocity target. Drift-at-0.4 m/s no longer maxes out reward; only matching v_target does. |
 
-Plus a candidate combined run (`hip2x_ee30`) if either single-knob run
-shows promise but neither is sufficient.
-
-Implementation note: `pose_weight` is currently a single scalar in the
-env. Need to either (a) convert to per-joint vector with a `--pose_weights`
-CLI flag accepting 6 floats, defaulting to `[1,1,1,1,1,1]`; or (b)
-expose a single `--hip_weight` knob that multiplies hip terms only.
-Option (b) is simpler and more aligned with "one knob per ablation".
+ONE training run from scratch with the change above, otherwise the
+proven xvel-5M recipe (8 envs, 5M steps, single-cycle reference, stock
+walker2d.xml, RSI + warm-start qvel, height + |pitch|>0.3 termination,
+no swing_pen, no contact_r, no BC). If hip ROM > 15° in visual
+review, the trap is broken; queue stacked variants with
+`--product_reward` and warm-started AMP. If still stiff-hip, the trap
+is deeper than reward (frame rate? phase obs?) and we move to a
+diagnostic experiment.
 
 ### Expectation
 
-- `hip2x`: hip excursion grows toward reference range; cadence drops
-  toward reference 1.12 s; r_pose may *drop* slightly (because the
-  stiff-hip basin no longer earns 0.44 via 4-of-6 joints) but ep_len
-  stays high.
-- `ee30`: r_ee should rise from 0.07 to a more useful 0.3+, and the
-  policy should learn to put the foot at the right x-relative-to-root
-  position — which structurally requires hip flexion.
+- Hip ROM grows toward reference 45° as the policy can no longer earn
+  full reward from drifting.
+- Cadence drops toward reference 1.12 s as a downstream consequence
+  of larger hip excursion.
+- `r_pose` may *drop* slightly (the stand-and-wiggle basin no longer
+  earns easy ~0.55) but `r_ee` and the new `fwd_r` rise to compensate.
 
 ### Render / eval
 
 (pending)
-
-### Render
-
-```
-# Live MuJoCo viewer (requires display):
-python src/walker2d/render_phase.py --xml walker2d.xml results/restart_b1_dm:final results/restart_b1_dm_bc:final --live
-
-# Held-out biomech metrics (deterministic rollouts → JSON):
-python src/diagnostics/eval_biomech.py --xml walker2d.xml results/restart_b1_dm:final results/restart_b1_dm_bc:final --out results/restart_b1_eval.json
-```

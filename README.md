@@ -165,52 +165,46 @@ python src/walker2d/extract_gait_cycle.py
 
 ### 2. Train phase-aware imitation (from scratch)
 
-> **Throughput tip (CPU box, 16 logical cores):** the script defaults
-> to `--num_envs 32` (the value used to train the validated checkpoints
-> in `results/`). On a 16-CPU desktop, sweeping showed `--num_envs 48`
-> is the throughput peak (~7,600 vs ~7,200 env-steps/sec, +5%). Note
-> that `num_envs × n_steps (=512)` sets the PPO rollout buffer, so
-> changing `num_envs` shifts learning dynamics — bumping to 48 is fine
-> for new experiments but for like-for-like comparisons against
-> existing runs, stay at 32. Setting `OMP_NUM_THREADS=1` /
-> `MKL_NUM_THREADS=1` was tested and **hurt** throughput by ~15% on
-> this stack (PPO update on the main process benefits from BLAS
-> threading on the 4096-batch update); leave them at default.
+The current best policy was trained with the recipe below
+(`results/restart_b2_xvel/`):
 
-Stock Walker2d geometry:
-
-```bash
-python src/walker2d/ppo_walker2d_phase.py \
-    --ref_cycle assets/reference/gait_cycle_reference.npy \
-    --num_envs 32 --total_steps 5e6
+```powershell
+python src/walker2d/ppo_walker2d_phase.py `
+    --ref_cycle assets/reference/gait_cycle_reference.npy `
+    --xvel_term 0.3 --num_envs 8 --total_steps 5e6
 ```
 
-Subject-1-scaled geometry (matches the current canonical run; requires
-`assets/mjcf/walker2d_subject1.xml` to exist):
+Stock `walker2d.xml` is the default geometry. To use the
+Subject-1-scaled body proportions, add `--scale_model` (requires
+`assets/mjcf/walker2d_subject1.xml`, which is missing on this
+checkout — see [`docs/PROJECT_STATUS.md § Known gaps`](docs/PROJECT_STATUS.md#known-gaps-in-this-checkout)).
 
-```bash
-python src/walker2d/ppo_walker2d_phase.py \
-    --ref_cycle assets/reference/gait_cycle_reference.npy \
-    --scale_model --num_envs 32 --total_steps 5e6
-```
+> **Throughput tip (CPU box, 16 logical cores):** the script default is
+> `--num_envs 16`. On a 16-CPU desktop, sweeping showed `--num_envs 48`
+> is the throughput peak (~7,600 vs ~7,200 env-steps/sec, +5%) at the
+> cost of larger PPO rollout buffer (`num_envs × n_steps=512`); for
+> like-for-like comparisons against existing runs, stay at 8 (Batch 2
+> recipe) or 16 (script default). `OMP_NUM_THREADS=1` /
+> `MKL_NUM_THREADS=1` were tested and **hurt** throughput by ~15% on
+> this stack — leave them at default.
 
 With BC warm-start (collects ~200k PD-rollout samples, supervised MSE
 for 10 epochs, then PPO):
 
-```bash
-python src/walker2d/ppo_walker2d_phase.py \
-    --ref_cycle assets/reference/gait_cycle_reference.npy \
-    --scale_model --bc_epochs 10 --bc_steps 200000 \
-    --num_envs 32 --total_steps 5e6
+```powershell
+python src/walker2d/ppo_walker2d_phase.py `
+    --ref_cycle assets/reference/gait_cycle_reference.npy `
+    --xvel_term 0.3 --bc_epochs 10 --bc_steps 200000 `
+    --num_envs 8 --total_steps 5e6
 ```
 
-### 3. Finetune from the current canonical checkpoint
+### 3. Finetune from the current best checkpoint
 
-```bash
-python src/walker2d/ppo_walker2d_phase.py \
-    --ref_cycle assets/reference/gait_cycle_reference.npy --scale_model \
-    --finetune results/walker2d_phase_cycle_s1scaled_sum_20260422-175117/model.zip \
-    --num_envs 32 --total_steps 5e6
+```powershell
+python src/walker2d/ppo_walker2d_phase.py `
+    --ref_cycle assets/reference/gait_cycle_reference.npy `
+    --finetune results/restart_b2_xvel/model.zip `
+    --num_envs 8 --total_steps 5e6
 ```
 
 Finetune mode lowers `learning_rate` to 1e-5, `target_kl` to 0.005,
@@ -218,27 +212,26 @@ and zeroes `ent_coef`.
 
 ### 4. Render a trained policy
 
-```bash
-# Single run, model.zip
-python src/walker2d/render_phase.py \
-    results/walker2d_phase_cycle_s1scaled_sum_20260422-175117:final
+```powershell
+# Single run (post-restart, stock walker2d.xml)
+python src/walker2d/render_phase.py --xml walker2d.xml `
+    results/restart_b2_xvel:final
 
 # Specific checkpoint with a custom label
-python src/walker2d/render_phase.py \
-    results/walker2d_phase_cycle_s1scaled_sum_20260422-175117:60000000:"60M steps"
+python src/walker2d/render_phase.py --xml walker2d.xml `
+    results/restart_b2_xvel:1000000:"1M steps"
 
-# Compare multiple runs / checkpoints back-to-back
-python src/walker2d/render_phase.py \
-    results/walker2d_phase_cycle_s1scaled_sum_20260422-175117:50000000:"50M" \
-    results/walker2d_phase_cycle_s1scaled_sum_20260422-175117:60000000:"60M"
+# Compare multiple runs back-to-back (any track — they share the env)
+python src/walker2d/render_phase.py --xml walker2d.xml `
+    results/restart_b2_xvel:final results/restart_b2_k30:final
 
-# Render an older stock-Walker2d run — must override --xml
-python src/walker2d/render_phase.py --xml walker2d.xml \
-    results/walker2d_phase_full_sum_20260410-124935:18000000
+# Pre-restart scaled-MJCF run (requires walker2d_subject1.xml)
+python src/walker2d/render_phase.py `
+    results/walker2d_phase_cycle_s1scaled_sum_20260423-213031:final
 
 # Pretrain / vanilla Walker2d (legacy renderer)
-python src/legacy/walker2d_v1/render_walker.py \
-    --model results/walker2d_pretrain_symmetry_<timestamp>/model.zip \
+python src/legacy/walker2d_v1/render_walker.py `
+    --model results/walker2d_pretrain_symmetry_20260407-172719/model.zip `
     --vanilla --steps 500
 ```
 
@@ -260,34 +253,35 @@ python src/diagnostics/diag_walker_mass.py  # Walker2d body masses
 
 ## Key flags — `ppo_walker2d_phase.py`
 
+The current default reward is the DeepMimic 4-term sum (Eq. 6); see
+[`docs/METHODS.md § Reward`](docs/METHODS.md#reward--deepmimic-four-term-sum).
+Most exploit-patch terms are off by default and gated behind explicit
+CLI flags — [`docs/METHODS.md § Full CLI reference`](docs/METHODS.md#full-cli-reference-ppo_walker2d_phasepy)
+has the complete table. The most common flags:
+
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--ref_cycle` | — | Path to gait cycle `.npy` (required unless `--ref_all`) |
-| `--num_envs` | 32 | Parallel environments |
+| `--ref_cycle` | — | Path to gait cycle `.npy` (mutex with `--ref_all`) |
+| `--num_envs` | 16 | Parallel environments |
 | `--total_steps` | 5e6 | Total env steps |
+| `--seed` | 0 | RNG seed |
 | `--scale_model` | off | Use `walker2d_subject1.xml` instead of stock |
 | `--finetune` | None | Pretrained `.zip` to finetune from |
 | `--bc_epochs` | 0 | If >0, BC warm-start before PPO |
-| `--bc_steps` | 200000 | PD-rollout samples for BC |
-| `--bc_only` | off | Stop after BC, save BC-only model |
-| `--imit_weight` | 4.0 | Per-joint pose tracking weight |
-| `--vel_weight` | 1.0 | Per-joint velocity tracking weight |
-| `--ee_weight` | 4.0 | End-effector (foot x + z) tracking weight |
-| `--root_weight` | 2.0 | Root height + pitch tracking weight |
-| `--contact_weight` | 1.0 | Stance-side contact alternation weight |
-| `--swing_pen_weight` | 2.0 | Penalty on swing-foot ground contact |
-| `--peak_bonus_weight` | 0.0 | Bonus at high-excursion phases |
-| `--fwd_weight` | 0.0 | Forward velocity reward (off by default) |
-| `--v_target` | 1.25 | Target forward speed (m/s) |
-| `--action_rate_weight` | 0.0 | Anti-jerk penalty |
-| `--product_reward` | off | Geometric mean of per-joint exps for `imit_r` |
-| `--pose_term` | 0.9 rad | Hip/knee deviation termination |
-| `--ankle_term` | 0.40 rad | Ankle deviation termination |
-| `--no_pose_term` | off | Disable pose termination |
+| `--pose_weight` | 0.65 | `r_p` weight |
+| `--vel_weight`  | 0.10 | `r_v` weight |
+| `--ee_weight`   | 0.15 | `r_e` weight |
+| `--root_weight` | 0.10 | `r_c` weight |
+| `--pose_scale`  | 10.0 | `k_p` |
+| `--xvel_term`   | -∞ | Forward-velocity floor termination (the `0.3` recipe is the current best run) |
+| `--pitch_term`  | 0.3 | Pitch-magnitude termination (rad) |
+| `--product_reward` / `--min_joint_pose` | off | Aggregator alternatives for `r_p` |
+| `--preview_k`   | 1 | Frames of upcoming `q_ref` exposed in obs |
+| `--out_dir`     | None | Override output directory |
 
-For the full flag list and the schedule details (LR decay, finetune
-overrides), see [`docs/METHODS.md`](docs/METHODS.md) or
-`python src/walker2d/ppo_walker2d_phase.py --help`.
+For everything else (BC parameters, exploit-patch weights, joint-term
+thresholds, AMP/AIRL flags), use `--help` or
+[`docs/METHODS.md`](docs/METHODS.md).
 
 ---
 

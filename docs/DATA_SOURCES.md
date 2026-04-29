@@ -1,7 +1,9 @@
 # Data sources
 
-Where the reference data lives, what format it's in, and how the active
-pipeline consumes it.
+**Purpose:** where the reference data lives, what format it's in, and
+how the active pipeline consumes it.
+**Read this when:** the loader fails to find files, you need to know
+the joint-column order, or you're considering a new dataset.
 
 The actual data directories are **gitignored** — users supply their own
 copies on disk. The paths and layouts below are conventions the loaders
@@ -79,14 +81,15 @@ Note that the trial directories in the SimTK dump are named
 - Filters by `subjects` (default 1..10) and `trial_filter` (substring,
   e.g. `"baseline"`).
 - Each trial's IK is parsed via `load_sto`, resampled to `control_hz`,
-  converted to radians, and sign-flipped via `walker = -opensim` on
-  every joint. **As of 2026-04-28 this flip is known to be wrong for
-  hip and ankle and correct only for the knee** — see
-  [`METHODS.md § Joint sign convention`](METHODS.md#joint-sign-convention)
-  and [`PROJECT_TIMELINE.md § Phase 5`](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28).
-  The loader still applies the all-six-joint flip; it has not yet been
-  corrected so that existing checkpoints keep loading against the same
-  conventions they were trained on.
+  converted to radians, and sign-converted via the **knee-only flip**
+  that aligns OpenSim and Walker2d sign conventions (see
+  [`METHODS.md § Joint sign convention`](METHODS.md#joint-sign-convention)).
+  The pre-2026-04-28 loader applied an all-six-joint flip; that was
+  wrong for hip and ankle and was corrected during the Phase 5
+  restart. Pre-restart checkpoints under `results/walker2d_phase_*/`
+  were trained against the corrupted sign and are kept as a historical
+  record only — see
+  [`PROJECT_TIMELINE.md § Phase 5`](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28).
 - All matching trials are concatenated end-to-end into a single
   `(T, 6)` array with column order
   `[hip_r, knee_r, ankle_r, hip_l, knee_l, ankle_l]`.

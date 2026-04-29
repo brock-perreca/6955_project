@@ -1,12 +1,14 @@
 # Project timeline
 
-The project's scope has changed substantially since the original proposal.
-This timeline is the authoritative record of what was tried, what worked,
-what didn't, and *why* the current scope is what it is.
-
-For the current state of the project right now, see
-[`PROJECT_STATUS.md`](PROJECT_STATUS.md). For each individual run with
-reproduce/render commands, see [`RUN_LOG.md`](RUN_LOG.md).
+**Purpose:** the authoritative chronological record of how this
+project's scope evolved, what was tried, what worked, what didn't, and
+why we're where we are.
+**Read this when:** you find a legacy file or stale assumption and
+want to know "why is this still here / why was this ever here." For
+*right now*, see [`PROJECT_STATUS.md`](PROJECT_STATUS.md). For per-run
+reproduce/render commands on the legacy symmetry-pretrain runs, see
+[`RUN_LOG.md`](RUN_LOG.md). For per-batch progress on the post-restart
+rebuild, see [`RESTART_LOG.md`](RESTART_LOG.md).
 
 ---
 
@@ -260,11 +262,14 @@ specific failures. Treat the new run as a clean ablation: every
 reward term, termination condition, and BC choice has to be
 re-justified on the corrected reference.
 
-**The visualization-only fix in `view_reference.py`** (commit
-`<pending>`) re-applies the negation on hip and ankle on load to make
-playback show natural forward walking; the on-disk `.npy` is
-unchanged. This is purely a diagnostic. The proper fix lives upstream
-in `extract_gait_cycle.py` and `ulrich_loader.py`.
+**Aftermath (still 2026-04-28).** The loaders were corrected:
+`extract_gait_cycle.py` and `ulrich_loader.py` now flip only the
+knee. The on-disk `assets/reference/gait_cycle_reference.npy` was
+regenerated and FK-verified to encode forward walking. Per-batch
+progress on the rebuild is in [`RESTART_LOG.md`](RESTART_LOG.md). The
+`src/legacy/walker2d_v1/ppo_walker2d.py` file still contains the old
+all-six-joint flip — it's preserved as historical evidence and is not
+on the active import path.
 
 ---
 

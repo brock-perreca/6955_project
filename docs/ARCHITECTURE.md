@@ -1,14 +1,17 @@
 # Code architecture
 
-The project is split by *status* (active / diagnostic / legacy), not by
-topic. This makes the safe-to-modify surface obvious — anything under
-`src/walker2d/` is the live pipeline; anything under `src/legacy/` is
-frozen.
+**Purpose:** directory map, import graph, path constants, and entry
+points.
+**Read this when:** you want to know "where does X live" or "what
+imports what."
+**Adjacent:** [`METHODS.md`](METHODS.md) for env/reward internals ·
+[`REWARD_DESIGN.md`](REWARD_DESIGN.md) for the reward formula and
+exploit taxonomy.
 
-For implementation details (frequencies, joint conventions, reward
-internals, RSI, BC warm-start mechanics), see [`METHODS.md`](METHODS.md).
-For the reward formula and exploit taxonomy, see
-[`REWARD_DESIGN.md`](REWARD_DESIGN.md).
+The project is split by *status* (active / diagnostic / legacy), not
+by topic. This makes the safe-to-modify surface obvious — anything
+under `src/walker2d/` is the live pipeline; anything under
+`src/legacy/` is frozen.
 
 ---
 
@@ -19,25 +22,28 @@ For the reward formula and exploit taxonomy, see
 │
 ├── CLAUDE.md                           # AI orientation hub (read first)
 ├── README.md                            # User-facing setup + quickstart
-├── .gitignore                            # data/, *.pyc, .venv, etc.
+├── .gitignore
 │
 ├── docs/                                # All project documentation
 │   ├── README.md                        #   ← index
-│   ├── PROJECT_TIMELINE.md
-│   ├── PROJECT_STATUS.md
+│   ├── PROJECT_STATUS.md                #   ← right now
+│   ├── PROJECT_TIMELINE.md              #   ← chronological history
+│   ├── RESTART_LOG.md                   #   ← post-2026-04-28 batches
+│   ├── ROADMAP.md                       #   ← what's queued next
 │   ├── ARCHITECTURE.md                  #   ← you are here
-│   ├── METHODS.md
-│   ├── REWARD_DESIGN.md
-│   ├── ROADMAP.md
-│   ├── LEGACY_TRACKS.md
-│   ├── DATA_SOURCES.md
-│   ├── RUN_LOG.md
+│   ├── METHODS.md                       #   ← implementation reference
+│   ├── REWARD_DESIGN.md                 #   ← reward + exploit taxonomy
+│   ├── DATA_SOURCES.md                  #   ← Ulrich + OpenCap layouts
+│   ├── LEGACY_TRACKS.md                 #   ← what's frozen in src/legacy/
+│   ├── RUN_LOG.md                       #   ← legacy symmetry-pretrain demos
 │   ├── reports/                          # Original proposal + current writeup
-│   └── figures/                          # Diagnostic plot outputs (cycle, reference, etc.)
+│   ├── papers/                           # Primary-source PDFs + index
+│   └── figures/                          # Diagnostic plot outputs
 │
-├── src/                                  # All Python code
+├── src/
 │   ├── walker2d/                         # ── ACTIVE: phase-conditioned imitation ──
-│   │   ├── ppo_walker2d_phase.py        #   PPO + DeepMimic engineered reward (Brock's track)
+│   │   ├── ppo_walker2d_phase.py        #   PPO + DeepMimic 4-term reward (Brock's track)
+│   │   ├── sac_walker2d_phase.py        #   Off-policy SAC sibling (same env + reward)
 │   │   ├── amp_walker2d.py              #   AMP — LSGAN disc, paper combined reward (Brian's track)
 │   │   ├── airl_walker2d.py             #   AIRL — disc with shaping potential, BCE+GP (Brian's track)
 │   │   ├── render_phase.py              #   Render one or more trained policies
@@ -48,11 +54,15 @@ For the reward formula and exploit taxonomy, see
 │   │   ├── diag_cycle.py                 #   3-cycle plot + seam discontinuity
 │   │   ├── diag_ref.py                   #   Per-joint ranges + open-loop FK upright check
 │   │   ├── diag_walker_mass.py           #   Walker2d body-mass dump
-│   │   └── extract_osim_mass.py          #   Per-subject body mass from .osim XML
+│   │   ├── extract_osim_mass.py          #   Per-subject body mass from .osim XML
+│   │   ├── view_reference.py             #   MuJoCo-viewer playback of the on-disk gait cycle
+│   │   ├── compare_tb.py                 #   Side-by-side TensorBoard scalar comparison
+│   │   ├── extract_reference_biomech.py  #   Measured biomech targets from GRF + IK + .osim
+│   │   └── eval_biomech.py               #   Held-out biomech metrics + vs_reference + progress_score
 │   │
 │   └── legacy/                           # ── FROZEN: do NOT extend without confirmation ──
 │       ├── walker2d_v1/                   # Earlier Walker2d attempts (Phase 1 + 2)
-│       │   ├── ppo_walker2d.py           #   Phase-blind imitation (failed)
+│       │   ├── ppo_walker2d.py           #   Phase-blind imitation (failed; still has all-six-joint flip)
 │       │   ├── pretrain_walker2d.py      #   Symmetry-reward shaping (dead end)
 │       │   ├── gail_walker2d.py          #   GAIL approach (superseded by AMP/AIRL)
 │       │   └── render_walker.py          #   Renderer for legacy env
@@ -66,23 +76,36 @@ For the reward formula and exploit taxonomy, see
 │           ├── data_utils.py             #   OpenCap / SimTK loading
 │           └── evaluate.py
 │
+├── scripts/                              # Wrappers + reporting
+│   ├── biomech_report.py                 #   Render writeup-ready biomech table + 6-panel figure
+│   └── overnight/                        #   Multi-experiment sweep scaffolding
+│       ├── run_experiment.py             #     train + eval_biomech + preview.mp4 + meta
+│       ├── rank_runs.py                  #     composite-score ranking
+│       ├── write_report.py               #     fill REPORT.md from eval JSON
+│       ├── REPORT_TEMPLATE.md
+│       └── STATUS_TEMPLATE.md
+│
 ├── assets/                              # Static project assets
 │   ├── mjcf/                              # MuJoCo MJCF files
 │   │   ├── walker2d_subject1.xml         #   (missing on this checkout — see PROJECT_STATUS.md)
-│   │   └── walker2d_custom.xml           #   Legacy custom MJCF (predates stick-with-stock decision)
+│   │   └── walker2d_custom.xml           #   Legacy custom MJCF
 │   └── reference/
-│       └── gait_cycle_reference.npy       # Single Ulrich stride @ 50Hz, (56, 6)
+│       ├── gait_cycle_reference.npy      #   Single Ulrich stride @ 50Hz, (56, 6)
+│       ├── biomech_targets.json          #   Measured Subject 1 stride/cadence/ROM/vGRF targets
+│       └── biomech_targets.vgrf_curves.npz #  Normalised stance-phase vGRF curves
 │
 ├── requirements/                          # Pip requirement files by platform
 │   ├── windows_5090.txt
 │   ├── windows_cpu.txt
 │   └── macos.txt
 │
-└── results/                              # Training outputs (gitignored)
+└── results/                              # Training outputs (mostly gitignored)
     └── <run_dir>/
-        ├── model.zip                       #   Final SB3 PPO policy
+        ├── model.zip                       #   Final SB3 PPO/SAC policy
         ├── reference.npy                  #   Reference array used at training time
-        └── checkpoints/                    #   Periodic snapshots, ~5M steps apart
+        ├── env_kwargs.json                #   Env construction kwargs (so renderer can reconstruct)
+        ├── tb/                             #   TensorBoard event files
+        └── checkpoints/
             └── model_<N>_steps.zip
 ```
 
@@ -95,6 +118,9 @@ For the reward formula and exploit taxonomy, see
 ```
 ppo_walker2d_phase.py
   └─ from ulrich_loader import load_ulrich_reference
+
+sac_walker2d_phase.py
+  └─ from ppo_walker2d_phase import Walker2dPhaseAware, load_ref_cycle, CTRL_HZ, MJCF_ROOT
 
 airl_walker2d.py
   ├─ from ppo_walker2d_phase import Walker2dPhaseAware, load_ref_cycle, CTRL_HZ,
@@ -114,11 +140,10 @@ extract_gait_cycle.py
   └─ from ulrich_loader import load_sto, ULRICH_ROOT, PROJECT_ROOT
 ```
 
-`amp_walker2d.py` reuses `extract_airl_state` and `make_expert_buffer`
-from `airl_walker2d.py` because the (s, s′) feature extraction and
-expert-buffer construction are identical between the two methods —
-only the discriminator architecture, loss, and reward formulation
-differ.
+`ppo_walker2d_phase.py` is the spine — every other active script
+imports from it. AMP reuses `extract_airl_state` and
+`make_expert_buffer` from AIRL because the (s, s′) feature extraction
+and expert-buffer construction are identical between the two methods.
 
 The active pipeline does not import from any file in `src/legacy/`.
 Path resolution: each active script computes
@@ -144,21 +169,26 @@ The env is configurable via `xml_file=`:
 1. `"walker2d.xml"` → looked up in gymnasium's MuJoCo asset dir (stock).
 2. Absolute path → used as-is.
 3. Bare filename (e.g. `"walker2d_subject1.xml"`) → looked up in
-   `assets/mjcf/` first, then falls back to `PROJECT_ROOT` for backward
-   compatibility with older runs that placed the MJCF at the repo root.
+   `assets/mjcf/` first, then falls back to `PROJECT_ROOT` for
+   backward compatibility with older runs that placed the MJCF at the
+   repo root.
 
 ### Training-output layout
 
 Every run writes a self-contained directory under `results/`:
 
-- `results/<run_name>/reference.npy` — the reference used at training time.
-  `render_phase.py` re-loads this so the renderer's env matches the
-  training env exactly.
+- `results/<run_name>/reference.npy` — the reference used at training
+  time. `render_phase.py` and `eval_biomech.py` re-load this so the
+  evaluation env matches the training env exactly.
+- `results/<run_name>/env_kwargs.json` — the kwargs used to construct
+  `Walker2dPhaseAware` (including `preview_k`, `pose_joint_weights`,
+  `xvel_term_thresh`, etc.). Renderer/eval read this so they don't
+  need to be told the env config separately.
 - `results/<run_name>/model.zip` — final policy. Loaded via
   `<run-dir>:final`.
 - `results/<run_name>/checkpoints/model_<N>_steps.zip` — periodic
-  checkpoints (~every 5M env steps). Loaded via
-  `<run-dir>:<N>:"label"`.
+  checkpoints (~every 1M env steps).
+- `results/<run_name>/tb/` — TensorBoard event files.
 
 ---
 
@@ -169,18 +199,23 @@ Run all of these from the project root.
 | Action | Command |
 |---|---|
 | Build the gait-cycle reference (one-time) | `python src/walker2d/extract_gait_cycle.py` |
-| Train PPO + DeepMimic from scratch (stock Walker2d) | `python src/walker2d/ppo_walker2d_phase.py --ref_cycle assets/reference/gait_cycle_reference.npy --num_envs 32 --total_steps 5e6` |
-| Train PPO + DeepMimic from scratch (Subject-1-scaled) | …add `--scale_model` |
+| Train PPO + DeepMimic from scratch (stock Walker2d, current best recipe) | `python src/walker2d/ppo_walker2d_phase.py --ref_cycle assets/reference/gait_cycle_reference.npy --xvel_term 0.3 --num_envs 8 --total_steps 5e6` |
+| Train PPO + DeepMimic from scratch (Subject-1-scaled MJCF) | …add `--scale_model` |
 | Train PPO + DeepMimic with BC warm-start | …add `--bc_epochs 10 --bc_steps 200000` |
 | Finetune PPO + DeepMimic from a checkpoint | …add `--finetune results/<run-dir>/model.zip` |
+| Train SAC + DeepMimic (off-policy sibling) | `python src/walker2d/sac_walker2d_phase.py --ref_cycle assets/reference/gait_cycle_reference.npy --xvel_term 0.3 --total_steps 1e6` |
 | Train AMP (paper weights, finetuned from a working walker) | `python src/walker2d/amp_walker2d.py --ref_cycle assets/reference/gait_cycle_reference.npy --finetune results/<phase-run>/model.zip --num_envs 32 --total_steps 5e6` |
 | Train AIRL (same finetune pattern; cold-start collapses) | `python src/walker2d/airl_walker2d.py --ref_cycle assets/reference/gait_cycle_reference.npy --finetune results/<phase-run>/model.zip --num_envs 32 --total_steps 5e6` |
-| Render a single trained run (any track — they share the env) | `python src/walker2d/render_phase.py results/<run-dir>:final` |
-| Compare multiple runs back-to-back | `python src/walker2d/render_phase.py results/<run-A>:final results/<run-B>:60000000:"60M"` |
+| Render a single trained run (any track — they share the env) | `python src/walker2d/render_phase.py --xml walker2d.xml results/<run-dir>:final` |
+| Compare multiple runs back-to-back | `python src/walker2d/render_phase.py --xml walker2d.xml results/<run-A>:final results/<run-B>:1000000:"1M"` |
 | Sanity-check the reference | `python src/diagnostics/diag_cycle.py` &nbsp;&nbsp;and&nbsp;&nbsp;`python src/diagnostics/diag_ref.py` |
+| View the on-disk reference cycle on a Walker2d skeleton | `python src/diagnostics/view_reference.py` |
+| Compute measured biomech targets (one-time per subject) | `python src/diagnostics/extract_reference_biomech.py` |
+| Evaluate a checkpoint vs measured targets | `python src/diagnostics/eval_biomech.py --xml walker2d.xml results/<run>:final --out results/<run>_eval.json` |
+| Writeup-ready table + figure | `python scripts/biomech_report.py results/<run>_eval.json --rerollout` |
 
 For the full set of `ppo_walker2d_phase.py` flags and their defaults,
-see [`METHODS.md`](METHODS.md) or `python src/walker2d/ppo_walker2d_phase.py --help`.
-The AMP/AIRL CLIs are documented in their respective module docstrings
-and via `--help`; the AMP/AIRL discriminator + reward design is
-covered in [`METHODS.md`](METHODS.md).
+see [`METHODS.md § Full CLI reference`](METHODS.md#full-cli-reference-ppo_walker2d_phasepy)
+or `python src/walker2d/ppo_walker2d_phase.py --help`. The AMP/AIRL
+CLIs are documented in their respective module docstrings and via
+`--help`.

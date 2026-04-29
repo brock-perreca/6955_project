@@ -1,10 +1,15 @@
 # Legacy tracks
 
-Code under [`../src/legacy/`](../src/legacy/) is preserved for historical
-reference. **Do not extend without confirming with the user first.** If
-you find yourself wanting to add features here, the right move is almost
-always to ask whether the new feature should go into the active pipeline
-under [`../src/walker2d/`](../src/walker2d/) instead.
+**Purpose:** describe what's frozen in [`../src/legacy/`](../src/legacy/),
+why it's frozen, and what to verify before re-running.
+**Read this when:** you find yourself reaching into a legacy file to
+add or extend a feature, or you're considering revisiting the original
+3D / musculoskeletal scope.
+
+**Do not extend without confirming with the user first.** If you want
+to add features here, the right move is almost always to ask whether
+the new feature should go into the active pipeline under
+[`../src/walker2d/`](../src/walker2d/) instead.
 
 For the chronological story of why each track exists, see
 [`PROJECT_TIMELINE.md`](PROJECT_TIMELINE.md).
@@ -20,7 +25,7 @@ different reward designs** that were superseded.
 
 | File | Status | Why it's legacy | Safe to delete? |
 |---|---|---|---|
-| `ppo_walker2d.py` | Frozen | Phase-blind imitation. Three compounding bugs (no resampling, phase-blind obs, concatenated 413k-frame ref) all closed in `ppo_walker2d_phase.py`. Loaders extracted to `src/walker2d/ulrich_loader.py`. | No — preserved for historical reference + blame |
+| `ppo_walker2d.py` | Frozen | Phase-blind imitation. Three compounding bugs (no resampling, phase-blind obs, concatenated 413k-frame ref) all closed in `ppo_walker2d_phase.py`. Loaders extracted to `src/walker2d/ulrich_loader.py`. **Still applies the old all-six-joint sign flip** that the active loader corrected on 2026-04-28; do not re-import these helpers. | No — preserved for historical reference + blame |
 | `pretrain_walker2d.py` | Dead end | Symmetry-reward pretraining without a reference. Hit four canonical local optima (hopping, paddling, standing). The fix turned out to be phase conditioning, not reward shaping. | No — produces the demo runs in `RUN_LOG.md` |
 | `gail_walker2d.py` | Dead end | GAIL approach for Walker2d. Not part of the writeup. Superseded in the active code by `src/walker2d/amp_walker2d.py` (LSGAN-style AMP) and `src/walker2d/airl_walker2d.py` (AIRL with shaping potential). | No — kept as a comparison baseline against the current AMP / AIRL implementations |
 | `render_walker.py` | Frozen | Renderer for the legacy `Walker2dImitation` env and vanilla Walker2d-v4 (`--vanilla`). Still useful for rendering legacy checkpoints (e.g. `results/walker2d_pretrain_symmetry_*/`). | No |

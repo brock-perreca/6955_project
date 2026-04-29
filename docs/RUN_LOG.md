@@ -1,254 +1,73 @@
-# Walker2d Run Log
+# Run log — pre-restart demo runs and failure modes
 
-> **2026-04-28 — every run on this page trained on a corrupted
-> reference.** Hip and ankle channels of `gait_cycle_reference.npy`
-> are gait-inverted; only the knee is correct (see
-> [`PROJECT_TIMELINE.md § Phase 5`](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28)).
-> The "first walking policy" and the canonical 100M run still walk —
-> but they walk on a target that fights itself, which is part of why
-> the reward had to be so heavily engineered to suppress exploits.
-> Treat the entries below as a historical record. Do not branch off
-> these checkpoints for new work without first regenerating the
-> reference and retraining.
+**Purpose:** preserve the four canonical exploit demos from the Phase
+2 symmetry-pretrain detour, with reproduce/render commands.
+**Read this when:** writing about reward-hacking failure modes, or
+you want to see the local-optima taxonomy in motion (literally — each
+run has a 500-frame keepsake video).
+**Adjacent:** [`REWARD_DESIGN.md § Exploit taxonomy`](REWARD_DESIGN.md#exploit-taxonomy-writeup-62-goodharts-law-cases)
+for the analysis of these failure modes ·
+[`PROJECT_TIMELINE.md § Phase 2`](PROJECT_TIMELINE.md#phase-2--symmetry-reward-pretraining-detour-april-78-2026)
+for the chronological story · [`RESTART_LOG.md`](RESTART_LOG.md) for
+post-restart batches.
 
-This file is the project's run log. It covers (1) why the earliest
-phase-blind imitation runs failed, (2) the symmetry-reward pretrain
-detour and the local optima it found, and (3) the path to the first
-walking policy.
-
-For the **current canonical walking policy**
-(`walker2d_phase_cycle_s1scaled_sum_20260423-213031`, 100M steps,
-single-cycle reference, Subject-1-scaled MJCF, per-joint reward,
-2026-04-23 — pulled in from upstream commit `3e4c3fa`), see
-[`PROJECT_STATUS.md`](PROJECT_STATUS.md) and the project
-[`README.md`](../README.md). The previous 60M run
-(`walker2d_phase_cycle_s1scaled_sum_20260422-175117`, 2026-04-22) is
-still on disk for comparison. The reward and training setup have
-evolved since the earliest "first walking policy" mentioned below —
-see [`PROJECT_TIMELINE.md`](PROJECT_TIMELINE.md) for the chronology
-and [`REWARD_DESIGN.md`](REWARD_DESIGN.md) for the current reward.
-
-> **Note:** Commands in this log were updated for the post-reorganization
-> file layout. Active scripts now live under `src/walker2d/`, legacy
-> Walker2d scripts under `src/legacy/walker2d_v1/`. Run all commands
-> from the project root.
+> Every run on this page (and every PPO/AMP/AIRL run under
+> `results/walker2d_phase_*/` not listed here) was trained against
+> the **inverted reference** (hip + ankle channels gait-flipped).
+> See [`PROJECT_TIMELINE.md § Phase 5`](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28).
+> Don't branch new work off these checkpoints. They are kept as
+> behavioral demos.
 
 ---
 
-## Background: why the first approach failed
+## Setup
 
-The earliest runs (`walker2d_ulrich_all_*`) used `ppo_walker2d.py`, which fed the Ulrich
-IK reference directly as a joint-angle imitation target. These all failed to produce walking
-and are archived as a single representative example below.
+Run from the project root with the active venv. The render entry
+point is the legacy renderer (these runs were trained on the legacy
+`Walker2dContactWalk` env, not the active phase-aware env):
 
-Three compounding problems caused the failure:
-
-1. **2.5× speed mismatch** — the Ulrich reference is at 50 Hz but Walker2d runs at 125 Hz
-   (frame_skip=4). The reference was not resampled, so the gait cycle played out 2.5× too
-   fast. The policy was chasing joint targets that changed faster than it could respond.
-
-2. **Phase blindness** — the policy observation contained no information about where in the
-   gait cycle the agent currently was. It could only learn an average response, which
-   collapses to a partial-extension of the stance leg regardless of context.
-
-3. **Full concatenated reference** — 413k frames from many trials concatenated end-to-end,
-   creating discontinuous jumps at trial boundaries that corrupted the reward signal.
-
-The result: the agent kicks one leg back (partial imitation reward for hip extension) and
-falls over. The reward gradient is too noisy to climb toward actual walking.
-
-**Representative failure — `walker2d_ulrich_all_20260406-221644`**
-*(last and most developed run before switching approach)*
-```bash
-python src/legacy/walker2d_v1/render_walker.py --model results/walker2d_ulrich_all_20260406-221644/model.zip --steps 500
+```
+python src/legacy/walker2d_v1/render_walker.py \
+    --model results/walker2d_pretrain_symmetry_<TIMESTAMP>/model.zip \
+    --vanilla --steps 500
 ```
 
-The symmetry reward-shaping experiments (`pretrain_walker2d.py`) were a detour to see if
-walking could be bootstrapped without any reference, but hit their own local optima (hopping,
-ankle-paddling, standing). The actual fix was `ppo_walker2d_phase.py`, which resampled the
-reference to 125 Hz, added phase encoding to the observation, and used adaptive phase
-tracking — producing the first walking policy (`walker2d_phase_cycle_20260408-115434`).
+All four runs were trained with `pretrain_walker2d.py --mode symmetry`
+on PPO, 32 envs, 5M steps. Differences are in `--weight`, gravity
+multiplier, and ankle torque cap (set in `make_env()` of
+`pretrain_walker2d.py`). The single training command is:
 
----
-
-## Symmetry pretrain runs
-
-Behavioral summary of the four keeper checkpoints from the `pretrain_walker2d.py`
-symmetry-mode reward shaping experiments. All runs used PPO on `Walker2d-v4` with
-the `Walker2dContactWalk` symmetry wrapper (no reference data required).
-
----
-
-## Common setup
-
-```bash
-conda activate OpenCap_RL
-# cd to the project root (path will differ per machine)
 ```
-
-Render any checkpoint:
-```bash
-python src/legacy/walker2d_v1/render_walker.py --model results/walker2d_pretrain_symmetry_<timestamp>/model.zip --vanilla --steps 500
+python src/legacy/walker2d_v1/pretrain_walker2d.py --mode symmetry \
+    --num_envs 32 --total_steps 5e6 [--weight W]
 ```
 
 ---
 
-## Run 1 — Two-legged hopping with some swing
-**Directory:** `results/walker2d_pretrain_symmetry_20260407-111838/`
+## The four demos
 
-**Behavior:** Bilateral hopping driven by ankle plantarflexion. Both feet leave the ground
-simultaneously. Some hip/knee swing visible — first run to break out of one-legged hopping
-into a symmetric (if still airborne) pattern. The hip anti-phase and hip ROM rewards were
-being collected, but symmetry weight was too weak to overcome the hopping local optimum.
+| Run dir | Failure mode | `--weight` | Gravity | Ankle cap | Reward at 5M |
+|---|---|---|---|---|---|
+| `walker2d_pretrain_symmetry_20260407-111838` | **Two-legged hopping** with some swing | 3.0 | 2× | ±0.3 | 1611 |
+| `walker2d_pretrain_symmetry_20260407-114136` | **One-legged hopping**, trailing leg stabilising | 3.0 | 2× | ±0.3 | 3271 |
+| `walker2d_pretrain_symmetry_20260407-172719` | **Ankle paddling** (no aerial phase) | 8.0 | 2.5× | ±0.3 | ~1280 |
+| `walker2d_pretrain_symmetry_20260408-110759` | **Stands still and taps feet** | 8.0 | 2.5× | ±0.3 | ~1140 |
 
-**Reward config:** `--mode symmetry --weight 3.0` (default), `forward_reward_weight=0.5`,
-gravity = 2× normal (−19.62 m/s²), ankle torques hard-capped at ±0.3
+The two `weight=3.0` runs have identical commands; the seed differs
+(reward landscape has both basins). The two `weight=8.0` runs differ
+only in `forward_reward_weight` (lowered interactively during the
+standing-and-tapping run; exact value not logged — try 0.1 in
+`make_env()` to reproduce).
 
-**Training curve:**
-| Steps | ep_r | ep_len |
-|-------|------|--------|
-| 327k  | 82.6 | 94     |
-| 983k  | 300  | 198    |
-| 1.97M | 430  | 226    |
-| 3.28M | 1155 | 411    |
-| 5.0M  | 1611 | 490    |
-
-**Reproduce:**
-```bash
-python src/legacy/walker2d_v1/pretrain_walker2d.py --mode symmetry --num_envs 32 --total_steps 5e6
-```
-
-**Render:**
-```bash
-python src/legacy/walker2d_v1/render_walker.py --model results/walker2d_pretrain_symmetry_20260407-111838/model.zip --vanilla --steps 500
-```
+Each demo is referenced by [`REWARD_DESIGN.md`](REWARD_DESIGN.md) as
+the visual evidence for the corresponding Goodhart's-Law case.
 
 ---
 
-## Run 2 — One-legged hopping, back leg stabilizing
-**Directory:** `results/walker2d_pretrain_symmetry_20260407-114136/`
+## Pre-restart phase-aware canonical runs
 
-**Behavior:** Strong one-legged hop: the dominant leg does all propulsion while the trailing
-leg makes occasional stabilizing ground contacts but carries no load. Much higher return
-(~3300) than Run 1 because the asymmetric strategy is more reward-efficient — the agent
-maximizes forward velocity (high forward reward) without paying the symmetry penalty enough
-to change strategy.
-
-**Reward config:** Same as Run 1 — `--mode symmetry --weight 3.0`, same gravity/ankle cap.
-Identical hyperparameters; different random seed led to a different local optimum.
-
-**Training curve:**
-| Steps | ep_r | ep_len |
-|-------|------|--------|
-| 327k  | 90.3 | 96     |
-| 1.97M | 610  | 267    |
-| 2.95M | 2026 | 698    |
-| 3.93M | 2795 | 807    |
-| 5.0M  | 3271 | 865    |
-
-**Reproduce:**
-```bash
-python src/legacy/walker2d_v1/pretrain_walker2d.py --mode symmetry --num_envs 32 --total_steps 5e6
-```
-*(Same command as Run 1 — outcome varies by seed)*
-
-**Render:**
-```bash
-python src/legacy/walker2d_v1/render_walker.py --model results/walker2d_pretrain_symmetry_20260407-114136/model.zip --vanilla --steps 500
-```
-
----
-
-## Run 3 — Ankle paddling
-**Directory:** `results/walker2d_pretrain_symmetry_20260407-172719/`
-
-**Behavior:** Legs stay low to the ground; hips and knees show some alternating motion but
-all forward propulsion comes from ankle plantarflexion pushing backward against the ground
-like paddles. No aerial phase — the increased gravity (2.5×) and hop suppression penalty
-made leaving the ground too costly, so the agent found a flat-ground ankle-shuffle instead.
-Fastest convergence of any run (ep_len ~850 by just 983k steps).
-
-**Reward config:** `--mode symmetry --weight 8.0`, gravity = 2.5× normal (−24.525 m/s²),
-ankle torques hard-capped at ±0.3, `forward_reward_weight=0.5`
-
-**Training curve:**
-| Steps | ep_r | ep_len |
-|-------|------|--------|
-| 327k  | 76.9 | 79     |
-| 655k  | 351  | 343    |
-| 983k  | 904  | 850    |
-| 1.64M | 1075 | 891    |
-| 3.28M | 1281 | 942    |
-| 5.0M  | ~1280 | ~960  |
-
-**Reproduce:**
-```bash
-python src/legacy/walker2d_v1/pretrain_walker2d.py --mode symmetry --num_envs 32 --total_steps 5e6 --weight 8.0
-```
-
-**Render:**
-```bash
-python src/legacy/walker2d_v1/render_walker.py --model results/walker2d_pretrain_symmetry_20260407-172719/model.zip --vanilla --steps 500
-```
-
----
-
-## Run 4 — Stands still and taps feet
-**Directory:** `results/walker2d_pretrain_symmetry_20260408-110759/`
-
-**Behavior:** Near-stationary policy: agent balances upright and alternates foot contacts
-without meaningfully translating forward. The reduced forward velocity incentive (relative
-to symmetry/height rewards) meant standing and tapping collected more reward per unit effort
-than actually locomoting. A "reward hacking" equilibrium — maximizes height reward
-(stays near z=1.25m), collects bilateral contact reward, avoids any risky movement.
-
-**Reward config:** `--mode symmetry --weight 8.0`, gravity = 2.5× normal, ankle cap ±0.3.
-Forward reward further reduced vs Run 3 during mid-session tuning.
-
-**Training curve:**
-| Steps | ep_r | ep_len |
-|-------|------|--------|
-| 327k  | 92.8 | 74     |
-| 655k  | 177  | 108    |
-| 1.64M | 872  | 738    |
-| 1.97M | 1099 | 950    |
-| 3.28M | 1138 | 969    |
-| 5.0M  | ~1140 | ~970  |
-
-**Reproduce:**
-```bash
-python src/legacy/walker2d_v1/pretrain_walker2d.py --mode symmetry --num_envs 32 --total_steps 5e6 --weight 8.0
-```
-*(Same command as Run 3 — the forward_reward_weight was reduced interactively during this
-session; exact value not logged. To reproduce the standing behavior, try lowering it further:)*
-```bash
-python src/legacy/walker2d_v1/pretrain_walker2d.py --mode symmetry --num_envs 32 --total_steps 5e6 --weight 8.0
-```
-*(Edit `forward_reward_weight=0.1` in `pretrain_walker2d.py:make_env()` to reproduce)*
-
-**Render:**
-```bash
-python src/legacy/walker2d_v1/render_walker.py --model results/walker2d_pretrain_symmetry_20260408-110759/model.zip --vanilla --steps 500
-```
-
----
-
-## Cleanup
-
-Delete intermediate checkpoints (keep only `model.zip` for each keeper run):
-```bash
-rm -rf results/walker2d_pretrain_symmetry_20260407-111838/checkpoints
-rm -rf results/walker2d_pretrain_symmetry_20260407-114136/checkpoints
-rm -rf results/walker2d_pretrain_symmetry_20260407-172719/checkpoints
-rm -rf results/walker2d_pretrain_symmetry_20260408-110759/checkpoints
-```
-
-Delete all other pretrain_symmetry runs:
-```bash
-for d in results/walker2d_pretrain_symmetry_*/; do
-  case "$d" in
-    *20260407-111838*|*20260407-114136*|*20260407-172719*|*20260408-110759*) ;;
-    *) rm -rf "$d" ;;
-  esac
-done
-```
+Listed in [`PROJECT_STATUS.md § Comparison runs on disk`](PROJECT_STATUS.md#comparison-runs-on-disk).
+All trained against the inverted reference; rendering them works (with
+`--xml walker2d.xml` for stock-geometry runs, or with the missing
+`walker2d_subject1.xml` for scaled runs) but the kinematics are
+hip-and-ankle-inverted relative to OpenSim.

@@ -1,6 +1,11 @@
 # Reports
 
-Formal write-ups associated with this project. The on-disk layout is:
+**Purpose:** index of formal write-ups.
+**Read this when:** you need the canonical methods/results description
+for a writeup section, or to compare current scope against the
+original proposal.
+
+The on-disk layout is:
 
 | File | What it is | Status |
 |---|---|---|

@@ -1,249 +1,263 @@
 # Reward design + exploit taxonomy
 
-> **2026-04-29 update — the reward structure is a trap, not just a
-> historical artifact.** The 19-experiment overnight sweep
-> (`docs/RESTART_LOG.md` § Batch 3) confirmed that the *current*
-> `xvel_term=0.3` + `r_pose = exp(-k·mean(diff²))` + `r_root` setup
-> is a strong attractor for **stiff-hip walking**: thighs pinned at
-> ~0° vs reference ~45°. Eight aggregator/weighting/termination knobs
-> failed to escape. SAC failed too — confirming the trap is reward,
-> not optimizer. The diagnosis below explains why.
+**Purpose:** the *why* behind every term in the imitation reward, and a
+catalogue of the failure modes each term closes (or fails to close).
+**Read this when:** adding/removing a reward term, debugging a policy
+that scores well numerically but looks wrong on video, or writing the
+methods/results section.
+**Adjacent:** [`METHODS.md`](METHODS.md) for the implementation-level
+formula and CLI flags · [`RESTART_LOG.md`](RESTART_LOG.md) for the
+recent batches that probed the current reward · DeepMimic
+([`papers/Peng_2018_DeepMimic.pdf`](papers/Peng_2018_DeepMimic.pdf))
+for the original tracking-reward design.
 
-> **The mechanism:** `xvel_term=0.3` is a *floor* — once the policy
-> moves at v ≥ 0.31 m/s it earns full survival reward, regardless of
-> joint kinematics. Standing-with-knee-wiggle that drifts forward at
-> 0.4 m/s collects ~1.0 healthy_reward + ~0.5 r_pose (mean over 6
-> joints lets 5 wiggling joints hide one stiff hip) + ~0.95 r_root
-> (height tracks fine since the body doesn't fall) per step. The
-> per-step pose loss from a stiff hip is ~0.07 reward (the difference
-> between r_pose=0.55 and r_pose=0.62), which is *less than the
-> survival increment from staying alive*. The policy's optimum is
-> "stay alive, keep collecting healthy_reward, ignore hip flexion."
-
-> **What likely fixes this** (queued as Batch 4): replace the
-> `xvel_term` floor with a peaked `forward_reward = exp(-3·(v-v_target)²)`.
-> A bell-curve forward target penalises *both* standing still AND
-> moving too fast or too slow, so the policy can no longer earn full
-> reward by drifting at 0.4 m/s. The `forward_reward` term lived in
-> the codebase before the 2026-04-28 cleanup pass and was deleted as
-> "default-off"; restoring it is the obvious next step.
-
-> **2026-04-28 — read this before trusting anything below.** Every
-> weight, sharpness, threshold, and "added this term to close exploit
-> X" decision on this page was tuned against a reference whose hip and
-> ankle channels are gait-inverted (see
-> [`PROJECT_TIMELINE.md § Phase 5`](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28)).
-> The exploit taxonomy is partly a record of how the policy escaped a
-> *self-contradictory* reward — DeepMimic pose-tracking pulling toward
-> a backward-walking pattern on hip/ankle while
-> `forward_reward = +x_velocity` pulled toward +x motion. Some of
-> these terms likely vanish on a corrected reference. Treat this file
-> as a historical artifact pending the restart described in
-> [`PROJECT_TIMELINE.md § Phase 5`](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28).
-
-This is the *why* of the reward. For the implementation-level details,
-see [`METHODS.md`](METHODS.md). For the failure runs that motivated each
-term, see [`RUN_LOG.md`](RUN_LOG.md). The reward is a Walker2d-on-IK
-adaptation of DeepMimic — the original tracking-reward formulation
-(per-joint pose, end-effector, root, RSI) lives in
-[`papers/Peng_2018_DeepMimic.pdf`](papers/Peng_2018_DeepMimic.pdf);
-[`papers/papers.md § Active pipeline`](papers/papers.md#1-active-pipeline)
-explains where each piece came from.
+The current reward is a Walker2d-on-IK adaptation of DeepMimic. After
+the 2026-04-28 restart it was simplified back to the literal DeepMimic
+4-term sum; exploit-patches that the older engineered reward used to
+ship with are preserved as off-by-default knobs. This file is organised
+around (1) the current default reward, (2) the optional patches with
+the exploit each was built to close, and (3) the **structural
+stiff-hip trap** the 2026-04-29 sweep diagnosed in this reward family.
 
 ---
 
-## High-level shape
+## Current default reward (DeepMimic 4-term sum)
 
-The reward is a **weighted sum** of six `[0, 1]` tracking terms, each
-scaled by `dt` so the return is time-invariant:
+Per-step reward, in roughly `[0, 1]` (no `dt` scaling):
 
 ```
-r = w_imit · imit_r
-  + w_vel  · vel_r
-  + w_ee   · ee_r
-  + w_root · root_r
-  + w_cont · contact_r
-  − w_swing_pen · swing_pen
-  − 1e-3   · ‖ctrl‖²    (small ctrl cost, not user-tunable)
+r = 0.65 · r_p + 0.10 · r_v + 0.15 · r_e + 0.10 · r_c   − 1e-3 · ‖ctrl‖²
+
+r_p = exp(−10 · mean_j (q_j − q_ref_j)²)         pose tracking, 6 joints
+r_v = exp(−0.1 · mean_j (dq_j − dq_ref_j)²)      velocity tracking
+r_e = exp(−40 · sum_foot ((Δx)² + (Δz)²))        end-effector (root-relative)
+r_c = exp(−10 · (h − h_ref)²)                    root height tracking
 ```
 
-Each component corresponds to a specific biomechanical signal that, if
-missing, the optimizer exploits in a characteristic way. The reward
-design therefore reads as a list of "unconstrained DoFs and the patches
-that close them."
+Each term targets a biomechanical signal that, when missing, the
+optimizer exploits in a characteristic way (see "Exploit taxonomy"
+below). Defaults match DeepMimic Eq. 6 weights/scales as closely as
+the Walker2d obs/joint structure allows.
 
-> **Removed terms (2026-04-28).** Three default-off terms — `peak_bonus`,
-> `fwd_r`, and `action_rate_pen` — used to live in this file and the env
-> step body. They were never enabled in any canonical run and were
-> deleted during a reward-cleanup pass (rationale: the writeup loses
-> defensibility points for tuned constants tied to flags that were never
-> turned on). If you need a high-excursion bonus or forward-velocity
-> nudge for an ablation, restore the terms in
-> `src/walker2d/ppo_walker2d_phase.py` from git history.
+### Why each term
+
+- **`r_p` (pose).** Joint tracking is the load-bearing imitation signal.
+  Without it the policy just collects forward velocity and falls.
+- **`r_v` (velocity).** Without velocity tracking the policy can hit
+  the right joint *positions* via a slow, high-impedance trajectory
+  with the wrong derivative profile (push-off and loading dynamics
+  vanish).
+- **`r_e` (end-effector).** Foot positions in root-relative frame
+  constrain the *spatial* gait shape independently of joint angles.
+  Without it, ankle posture exploits open up (toe-walking, paddling).
+- **`r_c` (root height).** A simple height tracking term keeps the
+  body upright. The pre-restart code added a pitch² piece inside the
+  exponent; it was removed because the pitch *termination* (next
+  section) already closes the controlled-fall exploit and a residual
+  pitch reward did no scientific work.
+- **`ctrl_cost` (DeepMimic-style).** Tiny. Keeps the value baseline
+  well-behaved.
 
 ---
 
-## Per-joint scaling
+## Termination as part of reward design
 
-Pose and velocity terms use **per-joint sharpness `k_j`** and **per-joint
-weights `w_j`**:
+Termination is not a reward term but it shapes optimisation pressure
+just as strongly. The active default is **height + pitch** (see
+[`METHODS.md § Termination`](METHODS.md#termination)):
 
-```python
-_JSCALE   = [10, 20, 40, 10, 20, 40]      # hip / knee / ankle, bilateral
-_JWEIGHTS = [0.4, 1.0, 2.5, 0.4, 1.0, 2.5]  # ankle weighted 2.5×
-_KVSCALE  = [0.05, 0.1, 0.2, 0.05, 0.1, 0.2]  # vel: tighter on ankle
-```
+- `height ∉ [0.8, 2.0]` → `term_cause="height"`. Walker2d-v4 default.
+- `|pitch| > 0.3 rad` → `term_cause="pitch"`. **The controlled-fall
+  guard.** Without it the agent learns to lean forward indefinitely
+  because the height bound only fires *after* the lean is
+  irrecoverable.
 
-- `k=10` → 50% reward at ≈ 0.26 rad (15°) — slow postural joint (hip).
-- `k=20` → 50% reward at ≈ 0.19 rad (11°) — moderate (knee).
-- `k=40` → 50% reward at ≈ 0.13 rad (7°) — tight (ankle, heel-strike timing).
-
-Heel-strike timing is the most temporally sensitive event in human
-walking — small ankle errors translate to large differences in foot
-contact dynamics. Hip posture is comparatively forgiving.
+All other terminations (`pose`, `ankle`, `hip`, `xvel`) are
+off-by-default sentinels (`9999`, `−∞`). They re-enter the picture
+when a specific exploit appears in visual review.
 
 ---
 
-## Components
+## Optional exploit-patch reward terms
 
-### `imit_r` — per-joint pose tracking (default weight 4)
+These were standard in the pre-restart engineered reward; they're now
+kept as gated patches because each one solves a specific failure mode
+that's predictable from the missing biomechanical signal.
 
-```
-imit_r = mean_j ( w_j · exp(−k_j · (q_j − q_ref_j)²) )
-```
-
-Replaces the earlier uniform `exp(−8 · Δq²)` formulation, which weighted
-hip/knee/ankle equally and let the agent earn most of the imitation
-reward by parking hip and knee while ignoring ankle.
-
-### `vel_r` — per-joint velocity tracking (default weight 1)
+### `swing_pen` — direct swing-foot contact penalty
 
 ```
-vel_r = mean_j ( exp(−kv_j · (q̇_j − q̇_ref_j)²) )
+swing_pen = tanh(F_swing/50)         (added with weight ≥ 0)
 ```
 
-Velocity tracking prevents the policy from matching pose statically while
-missing push-off and loading dynamics. Without it, the agent can hit the
-right joint *positions* via a slow, high-impedance trajectory that has
-the wrong derivative profile.
+`r = … − w_swing_pen · swing_pen`. Swing detection uses
+`ref_foot_zrel > -1.15` to flag whichever foot is supposed to be aerial
+at this phase. **Closes ankle-paddling and toe-drag exploits** —
+without it the agent rapidly oscillates the ankle through the full
+gait phase angle while keeping both feet planted, satisfying ankle
+tracking with no aerial phase.
 
-### `ee_r` — end-effector foot tracking (default weight 4)
-
-Forward kinematics is precomputed at init to obtain reference foot
-positions (x relative to root, z relative to root) for each reference
-frame. During rollout, foot world positions are queried from MuJoCo
-geometry and tracked with `k=40`.
-
-The **earlier swing-phase k=200 sharpening was removed** in favor of a
-separate explicit swing-foot contact penalty (`swing_pen` below).
-`SWING_CLEARANCE` was lowered from −1.05 to **−1.15** (root-relative z)
-so toe-off triggers the penalty earlier.
-
-### `root_r` — torso height (default weight 2)
+### `contact_r` — stance-side foot dominance reward
 
 ```
-root_r = exp(−10 · Δh²)
+contact_r = max(0, tanh(F_stance/50) − tanh(F_swing/50))
 ```
 
-Now height-only. The pitch piece (`+ 1·θ²` inside the exponent) was
-removed during the 2026-04-28 cleanup: the pitch *termination* at
-`|pitch| > 0.3 rad` already closes the controlled-fall exploit, and the
-reward-side pitch term had been progressively de-weighted (3.0 → 1.0)
-once the termination existed. Keeping a partial term does no scientific
-work and dilutes the writeup's defence of the reward.
+`r += w_contact · contact_r`. Stance side per frame is precomputed at
+reset from reference hip angles. **Closes one-legged-hopping** — the
+agent learns to plant one foot and use the other as a balance pole if
+contact alternation isn't rewarded. Stable failure mode, hard to
+escape once converged.
 
-### `contact_r` — stance-side foot force dominance (default weight 1)
+### Per-joint pose weighting (`pose_joint_weights`, `product_reward`, `min_joint_pose`)
 
-Contact forces on each foot are extracted from MuJoCo's `cfrc_ext`. The
-reward is `tanh(F_stance/50) − tanh(F_swing/50)`, gated by a precomputed
-`stance_right[t]` array. The tanh normalization prevents reward from
-growing unboundedly with contact force magnitude.
+Three alternative aggregators for `r_p`, all gated. The structural
+issue they target is described under "The stiff-hip trap" below.
 
-### `swing_pen` — direct swing-foot contact penalty (default weight 2)
+| Aggregator | Formula | When useful |
+|---|---|---|
+| Default arithmetic mean | `r_p = exp(−k · mean_j(w_j · diff_j²))` | DeepMimic-style; forgiving on a single outlier joint |
+| Geometric mean | `r_p = (∏_j exp(−k · w_j · diff_j²))^(1/6)` | Closer to DeepMimic's multiplicative form; one bad joint costs more |
+| Worst-joint floor | `r_p = min_j exp(−k · w_j · diff_j²)` | Hardest fix for "5 joints carry 1 stiff joint"; risks instability |
+
+`pose_joint_weights` `[w_hip_r, w_knee_r, w_ankle_r, w_hip_l, …]` works
+inside any of the three. Pre-restart engineered runs used per-joint
+sharpness `(10, 20, 40, 10, 20, 40)` weighted `(0.4, 1, 2.5, …)` —
+sharper on ankle because heel-strike timing matters far more than hip
+posture. The current default (1's, k=10 globally) reverts to the
+DeepMimic-faithful baseline.
+
+### `energy_weight` — torque-squared penalty
+
+`r −= w · sum(action²)`. Off by default. Useful if torque traces look
+noisy or the policy is dissipating power inefficiently.
+
+### Per-joint termination thresholds
+
+`pose_term_thresh`, `ankle_term_thresh`, `hip_term_thresh` (and
+`xvel_term_thresh` for the floor termination from
+[`RESTART_LOG.md § Batch 2`](RESTART_LOG.md#batch-2--2026-04-28--escape-the-stand-still-basin)).
+The asymmetry — ankle tighter than hip/knee — exists in pre-restart
+configs because the agent will exploit large plantarflexion for
+hopping if you let the ankle drift as far as hip/knee.
+
+---
+
+## The stiff-hip trap (2026-04-29 diagnosis)
+
+The 19-experiment overnight sweep
+([`RESTART_LOG.md § Batch 3`](RESTART_LOG.md#batch-3--2026-04-29--overnight-19-experiment-sweep--negative-result))
+demonstrated that the current reward family — DeepMimic 4-term + the
+`xvel_term=0.3` survival floor that produced the best policy
+(`results/restart_b2_xvel/`) — is a **strong attractor for stiff-hip
+walking**: hips pinned at ~0° vs reference ~45°, knees and ankles
+wiggling around the reference, body translating forward at v_target.
+Eight reward-aggregator/weighting/termination knobs and an SAC
+optimizer swap all failed to escape.
+
+### The mechanism
+
+`xvel_term=0.3` is a **floor**, not a target. Any forward velocity
+≥ 0.31 m/s satisfies survival. A standing-with-knee-wiggle policy
+that drifts at 0.4 m/s collects:
+
+- ~1.0 healthy_reward per step (from staying alive)
+- ~0.55 r_pose (mean-of-squares over 6 joints lets 5 wiggling joints
+  hide one stiff hip — `mean_squared_error` stays small)
+- ~0.95 r_root (height tracks fine because the body doesn't fall)
+
+The per-step pose loss from a stiff hip is ~0.07 reward (`r_pose=0.55`
+vs `r_pose=0.62`), which is *less than the survival increment from
+staying alive*. The policy's optimum is "stay alive, keep collecting
+healthy_reward, ignore hip flexion."
+
+### Why metrics missed it
+
+| Metric | What it said | What was actually true |
+|---|---|---|
+| `ep_rew_mean` | High ✓ | Survival reward dominates; pose/EE near-saturated |
+| `r_pose ≈ 0.55` | Mediocre but plausible | Hides a single stiff joint behind 5 compliant ones |
+| `progress_score 2.5/4` | "Closer to walking" | Body barely translates |
+| `hip_knee_dtw` | "OK" | Finds the closest cyclic alignment; stand-and-wiggle scores well if any one stride matches |
+| **`hip_r_rom_deg`** | **2°** | **Hip is stuck. The one metric that didn't lie.** |
+
+Visual review (Brock, morning of 2026-04-29) is what cleanly
+distinguished the trap from real progress. The headline numbers
+flattered every Phase 1 variant.
+
+### What likely fixes this (Batch 4, queued)
+
+Replace the `xvel_term` floor with a **peaked** forward-velocity
+reward:
 
 ```
-swing_pen = tanh(F_swing/50)
+fwd_r = exp(−3 · (v_x − 1.25)²)
 ```
 
-Catches **toe-drag** forces that the alternation reward misses. The
-alternation reward is a *difference* — when both feet have small forces
-the difference is small but the swing foot is still in unwanted contact.
-The direct penalty closes that gap.
+Bell-curve forward target penalises *both* standing still AND moving
+too fast or too slow, so the policy can no longer earn full reward by
+drifting at 0.4 m/s. The `fwd_r` term existed in the pre-restart code
+and was deleted as default-off on 2026-04-28; restoring it is the
+minimal-risk path. See [`ROADMAP.md § 0`](ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29).
 
 ---
 
 ## Exploit taxonomy (writeup §6.2, Goodhart's-Law cases)
 
-The multi-term reward design is the result of an iterative
-visual-inspection loop: each unconstrained DoF in the partial reward
-produced a characteristic degenerate strategy that was locally optimal
-for the partial reward but biomechanically implausible. The three
-canonical cases:
+The history of this reward is an iterative visual-inspection loop:
+each unconstrained DoF in a partial reward produced a characteristic
+degenerate strategy that was locally optimal for the partial reward
+but biomechanically implausible. The canonical cases:
 
 ### Ankle paddling (closed by `swing_pen`)
 
-Before the swing-foot contact penalty was added, the agent exploited the
-ankle joint tracking term by producing rapid ankle oscillation with no
-net ground loading. The reference ankle oscillates through the full gait
-cycle regardless of foot contact, so ankle motion alone satisfies the
-tracking reward while generating no forward progress.
-
-> **Demo:** `results/walker2d_pretrain_symmetry_20260407-172719/` (from
-> the symmetry-pretrain detour, but the same exploit pattern applied to
-> phase imitation before `swing_pen` was added).
+The agent exploits ankle joint tracking by oscillating the ankle
+rapidly with no net ground loading. The reference ankle oscillates
+through the full gait cycle regardless of foot contact, so ankle
+motion alone satisfies the tracking reward while generating no forward
+progress. Demo: `results/walker2d_pretrain_symmetry_20260407-172719/`
+(symmetry-pretrain detour, no reference; same pattern resurfaces under
+phase imitation if `swing_pen=0` and the agent is bumped off the
+walking basin).
 
 ### One-legged hopping (closed by `contact_r` + `swing_pen`)
 
-Without an explicit contact-alternation reward, the agent discovered that
-planting one foot and using the other as a balance pole satisfied the
-joint tracking reward for the stance leg while requiring no bilateral
-coordination. This strategy is stable over long episodes and difficult
-to dislodge once converged.
+Without an explicit contact-alternation reward, the agent plants one
+foot and uses the other as a balance pole. Stable over long episodes
+and difficult to dislodge once converged.
 
-### Toe-walking (closed by `ee_r` + tighter `_JSCALE` on ankle)
+### Toe-walking (closed by `r_e` + tighter ankle weighting)
 
-Without explicit end-effector tracking, the agent satisfied the ankle
-joint reward by maintaining a permanently plantarflexed posture,
-effectively walking on its toes. Foot placement constraints (the EE
-term, with the foot z-relative-to-root signal) close this DoF.
+Without explicit end-effector tracking, the agent satisfies the ankle
+joint reward by maintaining permanent plantarflexion — walking on its
+toes. The EE term (foot z-relative-to-root) closes this DoF.
 
 ### Forward fall / controlled lean (closed by pitch termination)
 
-Without a pitch *termination* (just a pitch reward penalty), the agent
-learns a controlled forward fall — the lean is irrecoverable but the
-height-out-of-bounds termination only triggers after the fall already
-started, so the agent collects pitch-penalized but otherwise positive
-reward during the lean. Adding a hard termination at `|pitch| > 0.3 rad`
-closes this.
+Without a hard pitch *termination*, the agent learns a controlled
+forward fall — the lean is irrecoverable but the height-out-of-bounds
+termination only triggers after the fall has already started. A
+`|pitch| > 0.3 rad` termination is the load-bearing fix.
+
+### Standing-and-tapping (`pretrain_walker2d.py` failure mode)
+
+When forward reward is too low and bilateral contact is rewarded, the
+agent stands still and alternates foot contacts without translating.
+A symmetry-pretrain artefact; the active pipeline closes it with
+phase conditioning + reference imitation (the reference moves through
+1.25 m/s of forward kinematics every cycle). Three keeper checkpoints
+demonstrate this failure mode under the symmetry-pretrain reward.
 
 ### Stiff-hip drift (the structural trap, 2026-04-29)
 
 After the 2026-04-28 reference-sign correction, the policy converged
 on a *new* exploit specific to the post-correction reward: walking
 forward at v_target with thighs pinned at ~0° (reference ~45°) and
-knees+ankles wiggling around the reference. This is *not* the
-inverted-reference exploit and is *not* fixed by per-joint
-weighting, geometric mean, worst-joint floor, or hip-only termination
-(see overnight Batch 3). It is fixed by replacing the `xvel_term`
-floor with a peaked `forward_reward` so a barely-translating drift no
-longer earns full survival.
-
-**Why metrics missed it:** `r_pose = exp(-k · mean(diff²))` averages
-over 6 joints; with hip dev=0.45 rad and knee/ankle dev≈0, the mean
-squared error is 0.034 → r_pose ≈ exp(-0.34) ≈ 0.71. Five joints
-wiggling at 0.05 rad RMS lower the mean a bit; r_pose hovers around
-0.55. None of those numbers scream "broken." Visual review (Brock,
-2026-04-29) is the only thing that catches it cleanly.
-
-### Standing-and-tapping (from the symmetry-pretrain detour)
-
-When forward reward is too low and bilateral contact is rewarded, the
-agent stands still and alternates foot contacts without translating.
-This was a **`pretrain_walker2d.py`** failure mode (no reference) — see
-[`RUN_LOG.md`](RUN_LOG.md) "Run 4". The fix in the active pipeline is
-phase conditioning + reference imitation, which makes standing
-incompatible with the reward (the reference moves through 1.25 m/s of
-forward kinematics every cycle).
+knees+ankles wiggling. **Not fixed by per-joint weighting, geometric
+mean, worst-joint floor, hip-only termination, energy penalty, AMP
+warm-start, or SAC optimizer** (see [Batch 3](RESTART_LOG.md#batch-3--2026-04-29--overnight-19-experiment-sweep--negative-result)).
+Mechanism in "The stiff-hip trap" above; planned fix in
+[`ROADMAP.md § 0`](ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29).
 
 ---
 
@@ -251,94 +265,10 @@ forward kinematics every cycle).
 
 DeepMimic's original paper used a multiplicative reward
 (`exp(−Σ wⱼ kⱼ Δqⱼ²)`), which requires *all* tracking terms to be
-satisfied simultaneously to earn any reward. Our weighted-sum form
-(arithmetic mean within each term, then summed across terms) is more
-forgiving: the agent gets partial credit for partial success.
+satisfied simultaneously to earn any reward. The default here is a
+weighted sum (arithmetic mean within each term, then summed across
+terms): more forgiving and gives partial credit for partial success.
 
-The trade-off: arithmetic mean lets the agent ignore individual joints
-if the others compensate. We close this in two ways:
-
-1. **Per-joint weights** (`_JWEIGHTS`) — under-tracking the ankle costs
-   2.5× as much reward as under-tracking the hip.
-2. **`--product_reward` flag** — switches `imit_r` to the geometric mean
-   of per-joint exps, giving a DeepMimic-style multiplicative form on
-   demand.
-
-The default canonical run uses the arithmetic-mean form. The flag is
-functional and exists for ablations.
-
----
-
-## Appendix: removed reward terms
-
-These terms used to live in the active reward block. All three were
-default-weight 0 in every committed canonical run and were deleted on
-2026-04-28 during a reward-cleanup pass. The earlier `root_r` formula
-(height + pitch) was simplified at the same time. They are documented
-here so the project keeps a self-contained record without requiring a
-`git show` against the pre-cleanup commit.
-
-To restore any of these, re-add the constructor arg, the CLI flag, the
-computation block in `Walker2dPhaseAware.step`, and the corresponding
-addend in the `reward = …` weighted sum.
-
-### `peak_bonus` — high-excursion phase bonus
-
-```
-peak_bonus = mean_j ( excursion_j[φ] · exp(−k_j · Δq_j²) )
-```
-
-`excursion_j[φ] ∈ [0, 1]` is the per-joint normalized distance from the
-midpoint of the reference's range. Bonus is large at peak knee flex,
-peak ankle push-off, etc. — the kinematically dramatic moments. Was
-intended as a finetune tool when peak excursions were under-tracked but
-was never enabled in a canonical run.
-
-Default arg name: `peak_bonus_weight=0.0`. Default scaling in the
-weighted sum: `peak_bonus_weight * dt * N_REF * peak_bonus`.
-
-### `fwd_r` — forward velocity reward
-
-```
-fwd_r = exp(−3 · (x_vel − v_target)²),    v_target = 1.25 m/s
-```
-
-Off by default because `contact_r` + `ee_r` already constrain forward
-speed implicitly. Useful as a gentle nudge during finetuning if drift
-appears.
-
-Default arg name: `fwd_weight=0.0`. Default scaling: `fwd_weight * dt *
-fwd_r`. The `v_target` constant is still present in the env and used by
-the warm-start `qvel[0]` initialization.
-
-### `action_rate_pen` — anti-jerk penalty
-
-```
-action_rate_pen = Σ_j (a_j(t) − a_j(t−1))²
-```
-
-Off by default; intended for use if torque traces look noisy. Required
-maintaining a `_prev_action` buffer on the env (also removed). Default
-arg name: `action_rate_weight=0.0`. Default scaling: `−action_rate_weight
-* dt * action_rate_pen`.
-
-### `root_r` (old form) — height + pitch
-
-The pre-cleanup formula was:
-
-```
-root_r = exp(−10 · (Δh² + 1·θ²))
-```
-
-— a height tracking term combined with a pitch² penalty inside the
-exponent. The pitch coefficient was lowered from 3.0 → 1.0 when the
-`|pitch| > 0.3 rad` termination was added, and was dropped entirely on
-2026-04-28 (the termination already closes the controlled-fall
-exploit; a residual pitch term inside `root_r` did no scientific work
-and complicated the writeup defence of the reward).
-
-The current formula is height-only:
-
-```
-root_r = exp(−10 · Δh²)
-```
+The trade-off is exactly the stiff-hip trap above. `--product_reward`
+switches to the geometric mean inside `r_p`, recovering DeepMimic's
+multiplicative form on demand for ablations.
