@@ -135,6 +135,7 @@ musculoskeletal track — as on-mission, not scope creep.
 | Why is the codebase shaped this way? Original proposal vs current scope. | [`docs/PROJECT_TIMELINE.md`](docs/PROJECT_TIMELINE.md) |
 | Where does file X live? What's the import graph? | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Implementation details: env, reward, RSI, BC, optimizer, termination | [`docs/METHODS.md`](docs/METHODS.md) |
+| **How do I validate progress against real biomechanics?** Two-tool flow: `extract_reference_biomech.py` → `eval_biomech.py --targets` → `scripts/biomech_report.py`. Emits `vs_reference` deltas, a 0–4 progress score, and a writeup-ready figure. | [`docs/METHODS.md § Held-out biomechanical evaluation`](docs/METHODS.md#held-out-biomechanical-evaluation-the-two-tool-flow), [`src/diagnostics/README.md`](src/diagnostics/README.md) |
 | Why does each reward term exist? What exploit closes which gap? | [`docs/REWARD_DESIGN.md`](docs/REWARD_DESIGN.md) |
 | Past runs / failure modes / curated demos with reproduce commands | [`docs/RUN_LOG.md`](docs/RUN_LOG.md) |
 | Future work (MJX, multi-step preview, DTW, multi-cycle) | [`docs/ROADMAP.md`](docs/ROADMAP.md) |

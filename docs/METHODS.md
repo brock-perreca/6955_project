@@ -460,4 +460,24 @@ Standalone, not imported by the training pipeline. Run from the project root.
 | `diag_ref.py` | Print per-joint reference ranges and run open-loop FK at fixed pitch to confirm the reference stays upright. |
 | `diag_walker_mass.py` | Dump Walker2d per-body masses (total ≈ 23.68 kg) and the scale factor for comparing to a 75 kg subject. |
 | `extract_osim_mass.py` | Parse `*.osim` XML to pull per-subject total body mass. Used for BW-normalized GRF comparison. |
-| `eval_biomech.py` | Held-out biomech metrics for a checkpoint: stride period, cadence, double-support fraction, peak vGRF (BW-normalised, per foot), swing-drag fraction, L-R stride asymmetry, and a hip-knee phase-plane DTW distance vs the reference cycle. Run on a deterministic rollout; usage matches `render_phase.py` (`run_dir:ckpt[:label]`). Writes JSON. Use this — not training reward — to grade reward variants. |
+| `extract_reference_biomech.py` | Compute *measured* biomech targets from a subject's GRF + IK + scaled OpenSim model. Writes `assets/reference/biomech_targets.json` (stride period, cadence, double-support, peak vGRF/BW, per-joint ROM) + `.vgrf_curves.npz` (normalised stance-phase vGRF curves). Run once per subject/trial. Defaults: Subject 1, `walking_baseline1`. |
+| `eval_biomech.py` | Held-out biomech metrics for a checkpoint: stride period, cadence, double-support fraction, peak vGRF (BW-normalised, per foot), swing-drag fraction, L-R stride asymmetry, hip-knee phase-plane DTW vs the reference cycle, and per-joint ROM (degrees) for all six joints. With `assets/reference/biomech_targets.json` present, also emits a `vs_reference` block (`delta` and `pct_err` per metric) plus a `progress_score` in [0, 4]. `--csv` appends one row per eval to a history file. Run on a deterministic rollout; usage matches `render_phase.py` (`run_dir:ckpt[:label]`). Use this — not training reward — to grade reward variants. |
+| `scripts/biomech_report.py` | Convert one or more `eval_biomech` JSONs into (a) a markdown comparison table (sim columns + measured-reference column) and (b) a 6-panel figure overlaying sim hip/knee/ankle traces and stance-vGRF curve on the Ulrich reference. Defaults write to `docs/figures/biomech_report.{md,png}`. `--rerollout` adds policy traces to the figure (slower); without it the figure shows reference + per-run bars only. **The drop-in for the writeup.** |
+
+### Held-out biomechanical evaluation: the two-tool flow
+
+The validation loop the agent should run after every batch:
+
+```
+python src/diagnostics/extract_reference_biomech.py            # once per subject/trial
+python src/diagnostics/eval_biomech.py --xml walker2d.xml --eps 6 --steps 2500 \
+    results/<run>:final:<label> --out results/<run>_eval.json --csv results/biomech_history.csv
+python scripts/biomech_report.py results/<run>_eval.json --rerollout
+```
+
+The `vs_reference` block in `<run>_eval.json` is the answer to "are we
+making progress" — every metric has a measured Subject 1 target and a
+`pct_err`. The `progress_score` is a single 0–4 number so an agent can
+compare runs without interpreting nine metrics. The targets are
+*measured*, not bibliographic — they come from the same Ulrich force
+plates and IK files our reference cycle was extracted from.

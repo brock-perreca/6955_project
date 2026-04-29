@@ -1,6 +1,6 @@
 # Project status — current snapshot
 
-*Last updated: 2026-04-28.*
+*Last updated: 2026-04-29.*
 
 > **STATUS: RESTARTING.** The reference data has been corrected
 > (`extract_gait_cycle.py` and `ulrich_loader.py` now flip only the
@@ -57,6 +57,25 @@ Three top-line scientific contributions (from the writeup):
   (writeup §6.3) and the mechanism that explains it.
 
 ---
+
+## How to validate progress (the agent-facing eval loop)
+
+Added 2026-04-29: `eval_biomech.py` now compares every checkpoint
+against a *measured* reference (computed from Subject 1's force plates
+and IK by `extract_reference_biomech.py`), and `scripts/biomech_report.py`
+renders a writeup-ready markdown table + 6-panel figure. After any
+training batch:
+
+```
+python src/diagnostics/eval_biomech.py --xml walker2d.xml --eps 6 --steps 2500 \
+    results/<run>:final:<label> --out results/<run>_eval.json --csv results/biomech_history.csv
+python scripts/biomech_report.py results/<run>_eval.json --rerollout
+```
+
+The eval JSON's `vs_reference` block carries `delta` and `pct_err` per
+metric, plus a single `progress_score` in [0, 4]. See
+[`METHODS.md § Diagnostic scripts`](METHODS.md#diagnostic-scripts-srcdiagnostics)
+for details.
 
 ## What's currently running
 

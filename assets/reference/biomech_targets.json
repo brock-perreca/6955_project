@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "subject": 1,
+  "trial": "walking_baseline1",
+  "source": {
+    "grf_mot": "Ulrich_Treadmill_Data\\Subject1\\ExpmtlData\\GRF\\walking_baseline1_forces.mot",
+    "ik_sto": "Ulrich_Treadmill_Data\\Subject1\\IK\\walking_baseline1\\output\\results_ik.sto",
+    "osim": "Ulrich_Treadmill_Data\\Subject1\\Models\\RajagopalModified_scaled.osim"
+  },
+  "body_mass_kg": 86.04000000000002,
+  "body_weight_n": 844.0524000000003,
+  "contact_thresh_n": 42.20262000000002,
+  "grf_sample_hz": 50.0,
+  "ik_sample_hz": 50.0,
+  "spatiotemporal": {
+    "stride_period_s": 1.12,
+    "cadence_steps_per_min": 107.14285714285714,
+    "double_support_frac": 0.22655217965653898,
+    "n_fp1_strikes": 55,
+    "n_fp2_strikes": 55
+  },
+  "vgrf": {
+    "peak_bw_fp1": 1.0960981238519398,
+    "peak_bw_fp2": 1.1054173226901336,
+    "peak_bw": 1.1007577232710366,
+    "stance_curve_path": "assets\\reference\\biomech_targets.vgrf_curves.npz",
+    "stance_resample_n": 100
+  },
+  "kinematics_rom": {
+    "hip_r": {
+      "full_trial_min_deg": -15.68187457,
+      "full_trial_max_deg": 29.72130757,
+      "full_trial_range_deg": 45.40318214,
+      "per_stride_fp1": {
+        "min_deg": -13.328697745000001,
+        "max_deg": 27.031296809999997,
+        "range_deg": 40.59658180000001,
+        "n_strides": 54
+      },
+      "per_stride_fp2": {
+        "min_deg": -13.385605185,
+        "max_deg": 27.031296809999997,
+        "range_deg": 40.667248369999996,
+        "n_strides": 54
+      }
+    },
+    "knee_r": {
+      "full_trial_min_deg": -65.89089879,
+      "full_trial_max_deg": -0.18633667,
+      "full_trial_range_deg": 65.70456211999999,
+      "per_stride_fp1": {
+        "min_deg": -63.23197142500001,
+        "max_deg": -0.27299966000000003,
+        "range_deg": 62.91750192000001,
+        "n_strides": 54
+      },
+      "per_stride_fp2": {
+        "min_deg": -63.12285782,
+        "max_deg": -0.27013382500000005,
+        "range_deg": 62.869117935000006,
+        "n_strides": 54
+      }
+    },
+    "ankle_r": {
+      "full_trial_min_deg": -28.4258367,
+      "full_trial_max_deg": 11.571353210000002,
+      "full_trial_range_deg": 39.99718991,
+      "per_stride_fp1": {
+        "min_deg": -23.30103436,
+        "max_deg": 7.885536490000002,
+        "range_deg": 31.45109271,
+        "n_strides": 54
+      },
+      "per_stride_fp2": {
+        "min_deg": -23.28598625,
+        "max_deg": 8.434348775,
+        "range_deg": 31.471361405000003,
+        "n_strides": 54
+      }
+    },
+    "hip_l": {
+      "full_trial_min_deg": -15.52699108,
+      "full_trial_max_deg": 29.940157220000003,
+      "full_trial_range_deg": 45.467148300000005,
+      "per_stride_fp1": {
+        "min_deg": -13.880788345000001,
+        "max_deg": 27.108283189999998,
+        "range_deg": 40.82783836,
+        "n_strides": 54
+      },
+      "per_stride_fp2": {
+        "min_deg": -13.880788345000001,
+        "max_deg": 27.108283189999998,
+        "range_deg": 40.82783836,
+        "n_strides": 54
+      }
+    },
+    "knee_l": {
+      "full_trial_min_deg": -66.31959844,
+      "full_trial_max_deg": -0.24008061000000003,
+      "full_trial_range_deg": 66.07951782999999,
+      "per_stride_fp1": {
+        "min_deg": -64.5150858,
+        "max_deg": -0.5399134600000001,
+        "range_deg": 63.85913698,
+        "n_strides": 54
+      },
+      "per_stride_fp2": {
+        "min_deg": -64.5150858,
+        "max_deg": -0.5399134600000001,
+        "range_deg": 63.85913698,
+        "n_strides": 54
+      }
+    },
+    "ankle_l": {
+      "full_trial_min_deg": -23.03914057,
+      "full_trial_max_deg": 17.840990720000004,
+      "full_trial_range_deg": 40.88013129,
+      "per_stride_fp1": {
+        "min_deg": -17.16967437,
+        "max_deg": 13.917992095,
+        "range_deg": 31.103198185000004,
+        "n_strides": 54
+      },
+      "per_stride_fp2": {
+        "min_deg": -17.16967437,
+        "max_deg": 13.014341310000002,
+        "range_deg": 30.168747155000002,
+        "n_strides": 54
+      }
+    }
+  }
+}

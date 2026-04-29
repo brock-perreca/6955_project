@@ -15,13 +15,23 @@ Goodhart's-Law squared. These metrics are:
     swing_drag_frac        — fraction of swing-phase frames with foot force >5% BW
     lr_stride_asymmetry    — |R-L| / mean of mean step interval (R→L vs L→R)
     hip_knee_dtw           — DTW distance, sim (hip,knee)-cycle vs reference cycle
+    {hip,knee,ankle}_{r,l}_rom_deg — per-joint range of motion within a stride
+    vgrf_shape_dtw         — DTW distance, sim stance-phase vGRF curve vs reference
     n_strides_detected     — sanity check; gait must be detected at all
+
+If `assets/reference/biomech_targets.json` exists (from
+`extract_reference_biomech.py`), the per-run summary also gets a
+`vs_reference` block with `delta` and `pct_err` for every metric that has a
+measured Ulrich target. That block is what an agent should read to decide
+whether progress was made: numbers, not eyeballs.
 
 Usage
 ─────
     python src/diagnostics/eval_biomech.py <run_dir>:<ckpt>[:<label>] [<run_dir>:...] ...
         [--xml walker2d.xml | walker2d_subject1.xml]
         [--eps 5] [--steps 2000] [--out eval.json]
+        [--targets assets/reference/biomech_targets.json]
+        [--csv results/biomech_history.csv]
 
     <ckpt> is "final" or an integer step (matches render_phase.py spec syntax).
 
@@ -71,6 +81,9 @@ def _dtw(a: np.ndarray, b: np.ndarray) -> float:
 
 # ── per-episode collection ─────────────────────────────────────────────────────
 
+STANCE_RESAMPLE_N = 100  # match extract_reference_biomech.py
+
+
 def rollout_episode(
     env: Walker2dPhaseAware,
     model: PPO,
@@ -96,6 +109,43 @@ def rollout_episode(
         "vgrf_r": np.asarray(vgrf_r_log),     # (T,)
         "vgrf_l": np.asarray(vgrf_l_log),     # (T,)
     }
+
+
+def _stance_curve(force: np.ndarray, in_contact: np.ndarray,
+                  min_len: int = 5) -> np.ndarray:
+    """Mean stance-phase force curve, time-normalised to STANCE_RESAMPLE_N."""
+    idx = np.where(in_contact)[0]
+    if len(idx) == 0:
+        return np.array([])
+    breaks = np.where(np.diff(idx) > 1)[0]
+    starts = np.r_[idx[0], idx[breaks + 1]] if len(breaks) else np.array([idx[0]])
+    ends   = np.r_[idx[breaks], idx[-1]] if len(breaks) else np.array([idx[-1]])
+    curves = []
+    for s, e in zip(starts, ends):
+        if e - s + 1 < min_len:
+            continue
+        bout = force[s:e + 1]
+        new_x = np.linspace(0, len(bout) - 1, STANCE_RESAMPLE_N)
+        curves.append(np.interp(new_x, np.arange(len(bout)), bout))
+    if not curves:
+        return np.array([])
+    return np.mean(np.stack(curves, axis=0), axis=0)
+
+
+def _per_stride_rom_deg(angle_rad: np.ndarray,
+                        strikes: np.ndarray) -> float | None:
+    """Median per-stride ROM (degrees) across detected strides on this leg."""
+    if len(strikes) < 2:
+        return None
+    ranges = []
+    for i in range(len(strikes) - 1):
+        s, e = int(strikes[i]), int(strikes[i + 1])
+        if e - s < 5:
+            continue
+        ranges.append(float(angle_rad[s:e].max() - angle_rad[s:e].min()))
+    if not ranges:
+        return None
+    return float(np.rad2deg(np.median(ranges)))
 
 
 def episode_metrics(
@@ -189,16 +239,43 @@ def episode_metrics(
         out["hip_knee_dtw"] = _dtw(sim_cycle.astype(np.float64),
                                    ref_cycle.astype(np.float64))
 
+    # Per-joint ROM (median per-stride range, in degrees) for both legs.
+    # qpos cols: 0=hip_r, 1=knee_r, 2=ankle_r, 3=hip_l, 4=knee_l, 5=ankle_l.
+    joint_names = ["hip_r", "knee_r", "ankle_r", "hip_l", "knee_l", "ankle_l"]
+    leg_strikes = {"r": r_strikes, "l": l_strikes}
+    for ji, jname in enumerate(joint_names):
+        leg = jname.split("_")[1]
+        rom = _per_stride_rom_deg(qpos[:, ji], leg_strikes[leg])
+        if rom is not None:
+            out[f"{jname}_rom_deg"] = rom
+
+    # Stance-phase vGRF shape, time-normalised to STANCE_RESAMPLE_N samples,
+    # BW-normalised. Stored on the episode dict (not aggregated by aggregate(),
+    # which only handles scalars) so the per-run summary can compare it to
+    # the reference curve via DTW.
+    sim_curve_r = _stance_curve(vgrf_r, r_in) / bw if r_in.any() else np.array([])
+    sim_curve_l = _stance_curve(vgrf_l, l_in) / bw if l_in.any() else np.array([])
+    if sim_curve_r.size:
+        out["_vgrf_curve_r"] = sim_curve_r.tolist()
+    if sim_curve_l.size:
+        out["_vgrf_curve_l"] = sim_curve_l.tolist()
+
     return out
 
 
 # ── per-run aggregation ────────────────────────────────────────────────────────
 
 def aggregate(per_ep: list[dict]) -> dict:
-    """Median + IQR across episodes. Skip episodes with no detected strides."""
+    """Median + IQR across episodes. Skip episodes with no detected strides.
+
+    Keys starting with `_` are private (e.g., per-episode vGRF curves) and
+    handled separately by `aggregate_curves`.
+    """
     keys = set().union(*per_ep)
     out: dict = {"n_episodes": len(per_ep)}
     for k in sorted(keys):
+        if k.startswith("_"):
+            continue
         vs = [ep[k] for ep in per_ep if k in ep and ep[k] is not None]
         vs = [v for v in vs if isinstance(v, (int, float)) and np.isfinite(v)]
         if not vs:
@@ -208,6 +285,111 @@ def aggregate(per_ep: list[dict]) -> dict:
         out[f"{k}__iqr"]    = float(np.percentile(arr, 75) - np.percentile(arr, 25))
         out[f"{k}__n"]      = int(len(arr))
     return out
+
+
+def aggregate_curves(per_ep: list[dict]) -> dict:
+    """Mean of per-episode stance-vGRF curves (one mean curve per leg)."""
+    out: dict = {}
+    for leg, key in [("r", "_vgrf_curve_r"), ("l", "_vgrf_curve_l")]:
+        curves = [np.asarray(ep[key]) for ep in per_ep
+                  if key in ep and len(ep[key]) == STANCE_RESAMPLE_N]
+        if curves:
+            out[f"vgrf_curve_{leg}"] = np.mean(np.stack(curves), axis=0).tolist()
+    return out
+
+
+# ── reference comparison ───────────────────────────────────────────────────────
+
+# Maps eval_biomech metric -> path inside biomech_targets.json. Per-joint ROM
+# is special-cased via `range_deg` extraction.
+_TARGET_MAP = {
+    "stride_period_s":       ("spatiotemporal", "stride_period_s"),
+    "cadence_steps_per_min": ("spatiotemporal", "cadence_steps_per_min"),
+    "double_support_frac":   ("spatiotemporal", "double_support_frac"),
+    "peak_vgrf_bw":          ("vgrf",           "peak_bw"),
+    "peak_vgrf_bw_r":        ("vgrf",           "peak_bw_fp1"),
+    "peak_vgrf_bw_l":        ("vgrf",           "peak_bw_fp2"),
+}
+
+
+def _ref_target_value(targets: dict, metric: str) -> float | None:
+    """Return the reference target for a sim metric, or None if not mapped."""
+    if metric in _TARGET_MAP:
+        a, b = _TARGET_MAP[metric]
+        return targets.get(a, {}).get(b)
+    if metric.endswith("_rom_deg"):
+        joint = metric[:-len("_rom_deg")]  # "hip_r", "knee_r", ...
+        rom = targets.get("kinematics_rom", {}).get(joint, {})
+        return rom.get("full_trial_range_deg")
+    return None
+
+
+def vs_reference(summary: dict, curves: dict, targets: dict | None) -> dict:
+    """Compute delta + pct_err for every summary metric that has a target.
+
+    Adds `vgrf_shape_dtw_{r,l}` from the per-run mean stance curves vs the
+    reference stance curves saved in `<targets>.vgrf_curves.npz`.
+    """
+    if not targets:
+        return {}
+    out: dict = {}
+    for k_med, v in summary.items():
+        if not k_med.endswith("__median"):
+            continue
+        metric = k_med[:-len("__median")]
+        ref = _ref_target_value(targets, metric)
+        if ref is None or not np.isfinite(v):
+            continue
+        delta = v - ref
+        pct_err = 100.0 * delta / ref if ref else float("nan")
+        out[metric] = {"sim": v, "ref": float(ref),
+                       "delta": float(delta), "pct_err": float(pct_err)}
+
+    # vGRF shape DTW
+    curve_path = targets.get("vgrf", {}).get("stance_curve_path")
+    if curve_path:
+        full = PROJECT_ROOT / curve_path
+        if full.exists():
+            ref_curves = np.load(full)
+            for leg, ref_key in [("r", "fp1"), ("l", "fp2")]:
+                sim_curve = curves.get(f"vgrf_curve_{leg}")
+                if sim_curve and ref_key in ref_curves.files:
+                    a = np.asarray(sim_curve).reshape(-1, 1)
+                    b = ref_curves[ref_key].reshape(-1, 1)
+                    out[f"vgrf_shape_dtw_{leg}"] = {
+                        "sim_dtw_vs_ref": _dtw(a.astype(np.float64),
+                                               b.astype(np.float64)),
+                    }
+    return out
+
+
+# ── progress score (mirrors scripts/overnight/rank_runs.py) ────────────────────
+
+def progress_score(summary: dict, max_steps: int) -> float:
+    """One-number "is this run good?" score in [0, 4]. Higher is better.
+
+    Components (all clipped to [0, 1]):
+      - survival             = ep_len / max_steps
+      - cadence match        = 1 - |stride_period - 1.12| / 1.12
+      - shape fidelity       = 1 - hip_knee_dtw / 0.30
+      - symmetry             = 1 - lr_stride_asymmetry / 0.30
+
+    The 1.12 / 0.30 reference values match scripts/overnight/rank_runs.py
+    so external batch-ranking and the eval JSON agree.
+    """
+    def clip01(x):
+        return float(max(0.0, min(1.0, x)))
+
+    ep_len   = summary.get("ep_len_steps__median", 0.0)
+    stride_s = summary.get("stride_period_s__median", float("nan"))
+    dtw      = summary.get("hip_knee_dtw__median", float("nan"))
+    asym     = summary.get("lr_stride_asymmetry__median", float("nan"))
+
+    s_survive = clip01(ep_len / max_steps) if max_steps else 0.0
+    s_cadence = clip01(1.0 - abs(stride_s - 1.12) / 1.12) if np.isfinite(stride_s) else 0.0
+    s_shape   = clip01(1.0 - dtw / 0.30) if np.isfinite(dtw) else 0.0
+    s_sym     = clip01(1.0 - asym / 0.30) if np.isfinite(asym) else 0.0
+    return s_survive + s_cadence + s_shape + s_sym
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
@@ -225,6 +407,46 @@ def parse_spec(spec: str) -> tuple[str, str, str]:
     return label, run_dir, model_path
 
 
+def _load_targets(path: Path) -> dict | None:
+    if not path.exists():
+        print(f"[targets] {path} not found; skipping vs_reference block. "
+              "Run src/diagnostics/extract_reference_biomech.py to create it.")
+        return None
+    print(f"[targets] {path.relative_to(PROJECT_ROOT)}")
+    return json.loads(path.read_text())
+
+
+def _append_csv(csv_path: Path, label: str, summary: dict, vs_ref: dict,
+                score: float) -> None:
+    """Append one row per run. Header is rewritten if columns change."""
+    cols = ["timestamp", "label", "score"]
+    row: dict = {"label": label, "score": f"{score:.3f}"}
+    from datetime import datetime
+    row["timestamp"] = datetime.now().isoformat(timespec="seconds")
+
+    for k in ["ep_len_steps", "n_strides_detected", "stride_period_s",
+              "cadence_steps_per_min", "double_support_frac",
+              "peak_vgrf_bw", "lr_stride_asymmetry", "hip_knee_dtw",
+              "swing_drag_frac",
+              "hip_r_rom_deg", "knee_r_rom_deg", "ankle_r_rom_deg",
+              "hip_l_rom_deg", "knee_l_rom_deg", "ankle_l_rom_deg"]:
+        cols.append(k)
+        row[k] = summary.get(f"{k}__median", "")
+    for k, blk in vs_ref.items():
+        if "pct_err" in blk:
+            cn = f"{k}__pct_err"
+            cols.append(cn)
+            row[cn] = f"{blk['pct_err']:.1f}"
+
+    write_header = not csv_path.exists()
+    with open(csv_path, "a", newline="") as f:
+        import csv as _csv
+        w = _csv.DictWriter(f, fieldnames=cols)
+        if write_header:
+            w.writeheader()
+        w.writerow(row)
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("specs", nargs="+", help="run_dir:ckpt[:label] (one or more)")
@@ -234,9 +456,16 @@ def main() -> None:
     p.add_argument("--steps", type=int, default=2000, help="max steps per episode")
     p.add_argument("--out", default=None,
                    help="JSON output path (default: prints to stdout only)")
+    p.add_argument("--targets",
+                   default=str(PROJECT_ROOT / "assets" / "reference"
+                               / "biomech_targets.json"),
+                   help="Reference biomech targets JSON. Skipped if missing.")
+    p.add_argument("--csv", default=None,
+                   help="Append a one-row summary to this CSV (default: no CSV).")
     args = p.parse_args()
 
     runs = [parse_spec(s) for s in args.specs]
+    targets = _load_targets(Path(args.targets))
 
     all_results: list[dict] = []
     for label, run_dir, model_path in runs:
@@ -272,14 +501,33 @@ def main() -> None:
                   f"vGRF/BW={mets.get('peak_vgrf_bw', float('nan')):.2f}")
 
         env.close()
-        agg = aggregate(per_ep)
+        agg     = aggregate(per_ep)
+        curves  = aggregate_curves(per_ep)
+        vs_ref  = vs_reference(agg, curves, targets)
+        score   = progress_score(agg, args.steps)
         result = {"label": label, "run_dir": run_dir, "model_path": model_path,
                   "xml": args.xml, "n_eps": args.eps, "max_steps": args.steps,
-                  "per_episode": per_ep, "summary": agg}
+                  "per_episode": per_ep, "summary": agg,
+                  "vgrf_curves": curves,
+                  "vs_reference": vs_ref,
+                  "progress_score": score}
         all_results.append(result)
         print(f"[{label}] summary:")
         for k, v in agg.items():
             print(f"    {k}: {v}")
+        if vs_ref:
+            print(f"[{label}] vs_reference (sim - ref, % err):")
+            for k, blk in vs_ref.items():
+                if "pct_err" in blk:
+                    print(f"    {k}: sim={blk['sim']:.3f} "
+                          f"ref={blk['ref']:.3f} delta={blk['delta']:+.3f} "
+                          f"pct_err={blk['pct_err']:+.1f}%")
+                elif "sim_dtw_vs_ref" in blk:
+                    print(f"    {k}: dtw_vs_ref={blk['sim_dtw_vs_ref']:.4f}")
+        print(f"[{label}] progress_score: {score:.3f} / 4.000")
+        if args.csv:
+            _append_csv(Path(args.csv), label, agg, vs_ref, score)
+            print(f"[{label}] appended row to {args.csv}")
         print()
 
     if args.out:

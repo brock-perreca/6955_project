@@ -199,17 +199,30 @@ Both runs ran the full 5M cleanly in ~30 min each (alone on the box).
 
 `eval_biomech` over 6 deterministic episodes × 2500 steps:
 
-| metric                  | xvel-5M    | k30-5M     | reference target  |
+Reference targets in the right column are now *measured* (added
+2026-04-29) — they come from Subject 1's GRF + IK files via
+`src/diagnostics/extract_reference_biomech.py`. Per-joint ROM,
+stride period, cadence, double-support, and peak vGRF/BW are all
+computed from the same Ulrich data the gait cycle was extracted from.
+Earlier versions of this table used bibliographic ranges — those are
+preserved in the git history of this file. See `METHODS.md` for the
+two-tool eval flow.
+
+| metric                  | xvel-5M    | k30-5M     | reference (measured)  |
 |---|---|---|---|
-| ep_len_steps (median)   | 2500       | 60         | —                 |
-| n_strides (median)      | 61.5       | 1.0        | 17 in 20 s        |
-| stride_period_s         | 0.323      | 0.246      | **1.120**         |
-| cadence (steps/min)     | 371        | 488        | ~107              |
-| double_support_frac     | 0.079      | 0.125      | 0.20–0.30         |
-| LR_stride_asymmetry     | 0.066      | 1.465      | < 0.10            |
+| ep_len_steps (median)   | 2500       | 92         | —                 |
+| n_strides (median)      | 61         | 1          | —                 |
+| stride_period_s         | 0.323      | 0.252      | **1.120**         |
+| cadence (steps/min)     | 372        | 476        | **107.1**         |
+| double_support_frac     | 0.074      | 0.298      | **0.227**         |
+| LR_stride_asymmetry     | 0.099      | 0.330      | < 0.10            |
 | swing_drag_frac         | 0.0        | 0.0        | 0.0               |
-| hip_knee_dtw            | 0.145      | 0.203      | lower is better   |
-| peak_vgrf_bw            | 3.31       | 3.30       | ~1.2              |
+| hip_knee_dtw            | 0.148      | 0.185      | lower is better   |
+| peak_vgrf_bw            | 3.20       | 2.58       | **1.10**          |
+| hip_r ROM (deg)         | 1.8        | 1.6        | **45.4**          |
+| knee_r ROM (deg)        | 21.2       | 18.0       | **65.7**          |
+| ankle_r ROM (deg)       | 20.3       | 11.7       | **40.0**          |
+| progress_score (0–4)    | 2.466      | 0.644      | **4.000**         |
 
 **`xvel`** survives every episode (6/6 hit the 2500-step cap), is
 symmetric (LR_asymmetry 0.066), and never drags the swing foot. It is
@@ -241,11 +254,15 @@ without a forward-motion constraint.
 ```
 python src/walker2d/render_phase.py --xml walker2d.xml --live results/restart_b2_xvel:final results/restart_b2_k30:final
 
-python src/diagnostics/eval_biomech.py --xml walker2d.xml --eps 6 --steps 2500 results/restart_b2_xvel:final:xvel-5M results/restart_b2_k30:final:k30-5M --out results/restart_b2_eval.json
+python src/diagnostics/eval_biomech.py --xml walker2d.xml --eps 6 --steps 2500 results/restart_b2_xvel:final:xvel-5M results/restart_b2_k30:final:k30-5M --out results/restart_b2_eval.json --csv results/biomech_history.csv
+
+python scripts/biomech_report.py results/restart_b2_eval.json --rerollout
 ```
 
 Pre-rendered mp4: `docs/figures/restart_b2_xvel-5M.mp4`,
-`docs/figures/restart_b2_k30-5M.mp4`.
+`docs/figures/restart_b2_k30-5M.mp4`. Pre-rendered comparison
+figure: `docs/figures/biomech_report.png` (shows the stiff-hip basin
+and the single-peak vGRF vs the reference's classic double-hump).
 
 ---
 
