@@ -573,7 +573,7 @@ def pretrain_bc(
         if epoch == n_epochs // 2:
             for g in opt.param_groups:
                 g["lr"] = lr / 10
-            print(f"  [lr → {lr/10:.0e}]")
+            print(f"  [lr -> {lr/10:.0e}]")
         total = 0.0
         for obs_b, act_b in loader:
             dist     = model.policy.get_distribution(obs_b)
@@ -805,8 +805,8 @@ def main():
             # Save as both model_bc.zip (labelled) and model.zip (for render_phase.py :final)
             model.save(str(log_dir / "model_bc"))
             model.save(str(log_dir / "model"))
-            print(f"BC-only model saved → {log_dir}/model_bc.zip")
-            print(f"  (also → {log_dir}/model.zip for render_phase.py :final)")
+            print(f"BC-only model saved -> {log_dir}/model_bc.zip")
+            print(f"  (also -> {log_dir}/model.zip for render_phase.py :final)")
             env.close()
             return
 
@@ -828,7 +828,7 @@ def main():
 
     save_path = str(log_dir / "model")
     model.save(save_path)
-    print(f"Model saved → {save_path}.zip")
+    print(f"Model saved -> {save_path}.zip")
 
 
 if __name__ == "__main__":

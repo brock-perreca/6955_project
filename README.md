@@ -165,6 +165,18 @@ python src/walker2d/extract_gait_cycle.py
 
 ### 2. Train phase-aware imitation (from scratch)
 
+> **Throughput tip (CPU box, 16 logical cores):** the script defaults
+> to `--num_envs 32` (the value used to train the validated checkpoints
+> in `results/`). On a 16-CPU desktop, sweeping showed `--num_envs 48`
+> is the throughput peak (~7,600 vs ~7,200 env-steps/sec, +5%). Note
+> that `num_envs × n_steps (=512)` sets the PPO rollout buffer, so
+> changing `num_envs` shifts learning dynamics — bumping to 48 is fine
+> for new experiments but for like-for-like comparisons against
+> existing runs, stay at 32. Setting `OMP_NUM_THREADS=1` /
+> `MKL_NUM_THREADS=1` was tested and **hurt** throughput by ~15% on
+> this stack (PPO update on the main process benefits from BLAS
+> threading on the 4096-batch update); leave them at default.
+
 Stock Walker2d geometry:
 
 ```bash
