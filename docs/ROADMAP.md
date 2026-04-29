@@ -6,45 +6,58 @@
 **Adjacent:** [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for "right now"
 · [`RESTART_LOG.md`](RESTART_LOG.md) for what just shipped.
 
-**Item 0 is the new top priority** after the 2026-04-29 overnight
-([`RESTART_LOG.md § Batch 3`](RESTART_LOG.md#batch-3--2026-04-29--overnight-19-experiment-sweep--negative-result));
-items 1-4 from the writeup §7 follow once the reward trap is fixed.
+**Item 0 is the new top priority** after the 2026-04-29 Tier 0
+diagnostic ([`TIER0_DIAGNOSTICS.md`](TIER0_DIAGNOSTICS.md) and
+[`RESTART_LOG.md § Batch 4`](RESTART_LOG.md#batch-4--2026-04-29--tier-0-morphology-ablation-hip-range-relaxation));
+items 1-4 from the writeup §7 follow once the residual reward trap
+is fixed.
 
 ---
 
-## 0. Structural reward reform: forward_reward + remove xvel_term floor (NEW, 2026-04-29)
+## 0. Structural reward reform on `walker2d_hiprelax.xml` (UPDATED, 2026-04-29 post-Tier-0)
 
 **Why:** the 19-experiment overnight sweep
-([`RESTART_LOG.md § Batch 3`](RESTART_LOG.md)) demonstrated that the
-current reward structure is a strong attractor for stiff-hip walking.
-Eight reward-aggregator/weighting/termination knobs and an SAC
-optimizer swap all failed to escape. The diagnosis: `xvel_term=0.3` is
-a *floor* — once the policy moves at v ≥ 0.31 m/s it earns full
-survival reward, regardless of joint kinematics. The per-step pose
-gradient toward hip flexion is smaller than the survival reward, so
-the policy's optimum is "drift forward stiffly, collect survival."
+([`RESTART_LOG.md § Batch 3`](RESTART_LOG.md)) initially diagnosed
+the stiff-hip basin as reward-driven. The 2026-04-29 Tier 0
+diagnostic ([`TIER0_DIAGNOSTICS.md`](TIER0_DIAGNOSTICS.md)) showed
+the **dominant** cause was actually the joint-range ceiling — stock
+`walker2d.xml` `thigh_joint range="-150 0"` made ~68 % of every
+reference cycle unreachable. Tier 0 experiment C (3 seeds × 5M
+steps with `walker2d_hiprelax.xml`, `range="-150 35"`) confirmed it:
+hip ROM 10×, flat-topped clamping gone, trace tracks reference
+shape+frequency. **But amplitude plateaued at ~40 % of reference
+and cadence stayed ~3× too fast** — `xvel_term=0.3` is a *floor*
+(once v ≥ 0.31 m/s, full survival reward) and the policy's optimum
+is "drift fast and short," even with the wall removed. Reward is
+**still binding on top of morphology**.
 
 **Plan:** Restore the `forward_reward = exp(-3·(v-1.25)²)` term that
 was deleted as default-off on 2026-04-28
 ([`REWARD_DESIGN.md § Removed terms`](REWARD_DESIGN.md#fwd_r--forward-velocity-reward)).
 Drop `xvel_term`. The bell-curve forward target replaces a survival
 floor with a peaked reward — drifting at v=0.4 no longer maxes out;
-only matching v_target does. Restoring as a CLI flag `--fwd_weight`
-(default ~0.10–0.20) is the minimal-risk path.
+only matching v_target does. **Train on `walker2d_hiprelax.xml`,
+not stock walker2d.xml** — the wall must stay relaxed for hip
+amplitude to grow toward reference. Restoring `fwd_r` as a CLI flag
+`--fwd_weight` (default ~0.10–0.20) is the minimal-risk path.
 
-**Test plan:** ONE training run from scratch with `--fwd_weight 0.15`,
-no `--xvel_term`, otherwise the xvel-5M recipe. If hip ROM > 15° in
-visual review, the trap is broken; queue stacked variants with
-`--product_reward` and warm-started AMP. If still stiff-hip, the trap
-is deeper than reward (frame rate? phase obs?) and we move to a
-diagnostic experiment.
+**Test plan:** ONE training run from scratch with
+`--xml walker2d_hiprelax.xml --fwd_weight 0.15`, no `--xvel_term`,
+otherwise the xvel-5M recipe. Best baseline to compare against is
+`results/restart_b4_hiprelax_s11/` (Tier 0 canonical pick — hip ROM
+17-20°, cadence 333). If hip ROM > 30° AND cadence < 200 in eval,
+the residual reward trap is broken; queue stacked variants with
+`--product_reward` and warm-started AMP on the new policy. If hip
+amplitude still plateaus at ~20°, the trap is deeper than
+reward+range — frame rate, phase obs rate, or body-mass scaling vs
+the 75 kg subject — and Tier 2 begins.
 
 **Owner:** Brock. Code change is small (~10 LOC; the `fwd_r` term and
 its CLI flag previously existed and are git-recoverable).
 
 **Skip:** more aggregator variants, hip_term, energy penalty, reverse
-curriculum, preview_k > 1. The data says these are not where the trap
-is.
+curriculum, preview_k > 1. Tier 0 + Batch 3 say these are not where
+the trap is.
 
 ---
 

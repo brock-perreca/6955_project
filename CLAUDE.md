@@ -54,27 +54,43 @@ is the authoritative current writeup): a pragmatic backup track on
   §6.3) due to discriminator memorisation of the compact expert
   manifold; needs the MJX-parallelised port for stable training.
 
-**Where we are now (Phase 5b, 2026-04-29).** On 2026-04-28 we
-discovered the on-disk reference was hip-and-ankle inverted (the
+**Where we are now (Phase 5b, post-Tier-0, 2026-04-29).** On 2026-04-28
+we discovered the on-disk reference was hip-and-ankle inverted (the
 knee-only flip is the correct sign convention; the loaders had been
 flipping all six joints). Every pre-restart PPO/AMP/AIRL run had been
 trained against a self-contradictory target. The loaders were
 corrected and the pipeline is being rebuilt from a DeepMimic-faithful
-baseline. Two batches done: the post-restart current best is
-`results/restart_b2_xvel/` (walks, but with stiff hips). The
-2026-04-29 overnight 19-experiment sweep showed the stiff-hip basin
-is **reward-driven, not optimizer-driven** — none of 8 aggregator
-ablations, 4 AMP/AIRL warm-starts, 3 preview-obs runs, or an SAC
-variant escaped it. The next move is restoring a peaked
-`forward_reward = exp(-3·(v-1.25)²)` and dropping the `xvel_term`
-floor. See:
+baseline.
+
+The 2026-04-29 overnight 19-experiment sweep concluded the residual
+stiff-hip basin was reward-driven; the **2026-04-29 Tier 0 diagnostic
+session falsified that conclusion in part.** Stock `walker2d.xml`
+caps `thigh_joint range="-150 0"`, but the reference asks for hip
+flexion up to +29.97°. ~68 % of every gait cycle was therefore
+*outside the joint range*. xvel-5M's hip was parked at +0° for 95.3 %
+of frames. The dominant cause of stiff-hip in every pre-Tier-0 run
+was a **kinematic ceiling**, not the reward. Tier 0 experiment C
+(three seeds × 5M steps with `assets/mjcf/walker2d_hiprelax.xml`,
+`thigh_joint range="-150 35"`) confirmed it: hip ROM grew ~10×
+(1.8° → 17-20°), the flat-topping disappeared, and policies tracked
+reference shape and frequency. Amplitude still hit only ~40 % of the
+reference's 45° (cadence ~3× too fast, vGRF too high) — so the
+verdict is **mixed**: morphology was the dominant cause but reward
+is binding on top.
+
+The current best policy is **`results/restart_b4_hiprelax_s11/`**,
+canonical of the three Tier 0 C seeds (best LR symmetry, DTW,
+progress score, vGRF). The next step is the planned Tier 1 reward
+reform — `forward_reward = exp(-3·(v-1.25)²)` + drop `xvel_term` —
+**on top of `walker2d_hiprelax.xml`**, not stock walker2d.xml. See:
 
 - [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) — current state
-- [`docs/RESTART_LOG.md`](docs/RESTART_LOG.md) — per-batch progress
+- [`docs/TIER0_DIAGNOSTICS.md`](docs/TIER0_DIAGNOSTICS.md) — per-experiment ledger + verdict
+- [`docs/RESTART_LOG.md § Batch 4`](docs/RESTART_LOG.md#batch-4--2026-04-29--tier-0-morphology-ablation-hip-range-relaxation) — Tier 0 C in the per-batch log
 - [`docs/REWARD_DESIGN.md § The stiff-hip trap`](docs/REWARD_DESIGN.md#the-stiff-hip-trap-2026-04-29-diagnosis)
-  — mechanism
+  — pre-Tier-0 reward analysis (now superseded as the *dominant* cause; reward is the *secondary* cause per Tier 0 C)
 - [`docs/ROADMAP.md § 0`](docs/ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29)
-  — top-priority next step
+  — top-priority next step (must run on `walker2d_hiprelax.xml`)
 - [`docs/PROJECT_TIMELINE.md § Phase 5`](docs/PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28)
   — full sign-error story
 
@@ -133,6 +149,7 @@ musculoskeletal track — as on-mission, not scope creep.
 | Task / question | Read |
 |---|---|
 | What is this project right now? | [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) |
+| **Tier 0 morphology-vs-reward diagnostic (2026-04-29).** Why we're now training on `walker2d_hiprelax.xml`, what xvel-5M's stiff hip really was, the experiment-C verdict. | [`docs/TIER0_DIAGNOSTICS.md`](docs/TIER0_DIAGNOSTICS.md) |
 | **What's been tried since the 2026-04-28 restart?** Per-batch setup + observations + render commands. | [`docs/RESTART_LOG.md`](docs/RESTART_LOG.md) |
 | Why is the codebase shaped this way? Original proposal vs current scope. | [`docs/PROJECT_TIMELINE.md`](docs/PROJECT_TIMELINE.md) |
 | Where does file X live? What's the import graph? | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |

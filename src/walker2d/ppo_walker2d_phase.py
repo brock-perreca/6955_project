@@ -146,6 +146,7 @@ class Walker2dPhaseAware(Walker2dEnv):
         vel_scale:           float = 0.1,
         ee_scale:            float = 40.0,
         root_scale:          float = 10.0,
+        ref_root_drop:        float = 0.0,
         # Treadmill speed for the RSI warm-start.
         v_target:            float = 1.25,
         # Termination.
@@ -187,6 +188,7 @@ class Walker2dPhaseAware(Walker2dEnv):
         self._k_vel              = float(vel_scale)
         self._k_ee               = float(ee_scale)
         self._k_root             = float(root_scale)
+        self._ref_root_drop      = float(ref_root_drop)
 
         self._v_target           = float(v_target)
         self._pitch_term_thresh  = float(pitch_term_thresh)
@@ -294,7 +296,7 @@ class Walker2dPhaseAware(Walker2dEnv):
         qvel_save = self.data.qvel.copy()
         for t in range(n):
             self.data.qpos[:]   = 0.0
-            self.data.qpos[1]   = 1.28        # nominal standing height
+            self.data.qpos[1]   = 1.28 - self._ref_root_drop
             self.data.qpos[3:9] = self._reference[t]
             self.data.qvel[:]   = 0.0
             mujoco.mj_kinematics(self.model, self.data)
@@ -679,6 +681,11 @@ def main():
     p.add_argument("--vel_scale",  type=float, default=0.1)
     p.add_argument("--ee_scale",   type=float, default=40.0)
     p.add_argument("--root_scale", type=float, default=10.0)
+    p.add_argument("--ref_root_drop", type=float, default=0.0,
+                   help="Lower the FK-derived reference root-height target "
+                        "by this many meters. Use as a stock-geometry "
+                        "contact-clearance ablation; default preserves "
+                        "the pinned 1.28 m reference.")
 
     # Treadmill speed (RSI warm-start qvel[0]).
     p.add_argument("--v_target", type=float, default=1.25)
@@ -724,7 +731,12 @@ def main():
                         "obs_space; finetune from a K=1 model will not load.")
 
     p.add_argument("--scale_model", action="store_true",
-                   help="Use Subject-1-scaled MJCF (assets/mjcf/walker2d_subject1.xml)")
+                   help="Use Subject-1-scaled MJCF (assets/mjcf/walker2d_subject1.xml). "
+                        "Mutually exclusive with --xml.")
+    p.add_argument("--xml", default=None,
+                   help="MJCF override. Bare filename resolves against "
+                        "assets/mjcf/, absolute path is used as-is. Default: "
+                        "stock walker2d.xml. Mutually exclusive with --scale_model.")
     p.add_argument("--no_tb",   action="store_true")
     p.add_argument("--out_dir", default=None)
     args = p.parse_args()
@@ -740,6 +752,8 @@ def main():
             control_hz=CTRL_HZ,
         )
 
+    if args.scale_model and args.xml:
+        raise SystemExit("--scale_model and --xml are mutually exclusive")
     if args.scale_model:
         xml_path = str(MJCF_ROOT / "walker2d_subject1.xml")
         if not Path(xml_path).exists():
@@ -748,6 +762,9 @@ def main():
             xml_path = "walker2d.xml"
         else:
             print(f"Using scaled model: {xml_path}")
+    elif args.xml:
+        xml_path = args.xml
+        print(f"Using MJCF override: {xml_path}")
     else:
         xml_path = "walker2d.xml"
 
@@ -777,6 +794,7 @@ def main():
         vel_scale          = args.vel_scale,
         ee_scale           = args.ee_scale,
         root_scale         = args.root_scale,
+        ref_root_drop      = args.ref_root_drop,
         v_target           = args.v_target,
         pitch_term_thresh  = args.pitch_term,
         swing_pen_weight   = args.swing_pen_weight,
@@ -802,6 +820,8 @@ def main():
         "product_reward":     args.product_reward,
         "min_joint_pose":     args.min_joint_pose,
         "v_target":           args.v_target,
+        "ref_root_drop":      args.ref_root_drop,
+        "xml_file":           xml_path,
     }
     (log_dir / "env_kwargs.json").write_text(
         json.dumps(env_kwargs_meta, indent=2), encoding="utf-8"

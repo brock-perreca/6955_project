@@ -273,7 +273,9 @@ def main():
                                    / "gait_cycle_reference.npy")
 
     extras = _load_env_kwargs(run_dir)
-    env = Walker2dPhaseAware(reference=reference, xml_file=args.xml, **extras)
+    # Saved xml_file wins over CLI default; --xml on CLI is the override.
+    xml_file = extras.pop("xml_file", args.xml)
+    env = Walker2dPhaseAware(reference=reference, xml_file=xml_file, **extras)
     body_weight_n = float(np.sum(env.model.body_mass)) * abs(
         float(env.model.opt.gravity[2]))
 

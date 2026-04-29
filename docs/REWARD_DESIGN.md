@@ -143,17 +143,38 @@ hopping if you let the ankle drift as far as hip/knee.
 
 ---
 
-## The stiff-hip trap (2026-04-29 diagnosis)
+## The stiff-hip trap (2026-04-29 diagnosis, revised after Tier 0)
+
+> **2026-04-29 revision (post-Tier-0).** The pre-Tier-0 conclusion
+> below — that the stiff hip was *primarily* reward-driven — is
+> partially wrong. The Tier 0 diagnostic
+> ([`TIER0_DIAGNOSTICS.md`](TIER0_DIAGNOSTICS.md)) showed that stock
+> `walker2d.xml` `thigh_joint range="-150 0"` made ~68 % of every
+> reference cycle **physically unreachable**, and xvel-5M's hip was
+> actively pushing into the +0° upper limit (95.3 % of frames within
+> 0.5° of the wall). Tier 0 experiment C — same recipe, only the
+> joint range relaxed to `-150 35` — recovered ~10× hip ROM and the
+> reference shape; pre-Tier-0 reward sweeps had been incapable of
+> producing hip flexion regardless of what they tweaked. The
+> mechanism analysis below is still correct as the *secondary* cause
+> — reward is binding *on top of* the kinematic ceiling, which is
+> why Tier 0 C amplitude only reached ~40 % of reference. Read this
+> section as "why xvel-5M's reward is *also* a problem", not "why
+> xvel-5M's reward was *the* problem". The Tier 1 fix
+> ([`ROADMAP.md § 0`](ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29))
+> must run on `walker2d_hiprelax.xml`, not stock walker2d.xml.
 
 The 19-experiment overnight sweep
 ([`RESTART_LOG.md § Batch 3`](RESTART_LOG.md#batch-3--2026-04-29--overnight-19-experiment-sweep--negative-result))
 demonstrated that the current reward family — DeepMimic 4-term + the
-`xvel_term=0.3` survival floor that produced the best policy
-(`results/restart_b2_xvel/`) — is a **strong attractor for stiff-hip
-walking**: hips pinned at ~0° vs reference ~45°, knees and ankles
-wiggling around the reference, body translating forward at v_target.
-Eight reward-aggregator/weighting/termination knobs and an SAC
-optimizer swap all failed to escape.
+`xvel_term=0.3` survival floor that produced the (pre-Tier-0) best
+policy `results/restart_b2_xvel/` — is a **strong attractor for
+stiff-hip walking**: hips pinned at ~0° vs reference ~45°, knees and
+ankles wiggling around the reference, body translating forward at
+v_target. Eight reward-aggregator/weighting/termination knobs and an
+SAC optimizer swap all failed to escape — but as of Tier 0 we know
+this is partly because the joint range physically prevented hip
+flexion regardless of what those knobs did.
 
 ### The mechanism
 

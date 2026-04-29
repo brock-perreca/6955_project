@@ -87,6 +87,7 @@ under `src/walker2d/` is the live pipeline; anything under
 │
 ├── assets/                              # Static project assets
 │   ├── mjcf/                              # MuJoCo MJCF files
+│   │   ├── walker2d_hiprelax.xml         #   Active baseline (post-2026-04-29 Tier 0). thigh_joint range="-150 35".
 │   │   ├── walker2d_subject1.xml         #   (missing on this checkout — see PROJECT_STATUS.md)
 │   │   └── walker2d_custom.xml           #   Legacy custom MJCF
 │   └── reference/
@@ -210,9 +211,11 @@ Run all of these from the project root.
 | Compare multiple runs back-to-back | `python src/walker2d/render_phase.py --xml walker2d.xml results/<run-A>:final results/<run-B>:1000000:"1M"` |
 | Sanity-check the reference | `python src/diagnostics/diag_cycle.py` &nbsp;&nbsp;and&nbsp;&nbsp;`python src/diagnostics/diag_ref.py` |
 | View the on-disk reference cycle on a Walker2d skeleton | `python src/diagnostics/view_reference.py` |
+| **Check whether the reference is reachable under an MJCF's joint ranges** (Tier 0 reachability gate, 2026-04-29) | `python src/diagnostics/check_reference_jnt_range.py --xml walker2d_hiprelax.xml` |
 | Compute measured biomech targets (one-time per subject) | `python src/diagnostics/extract_reference_biomech.py` |
-| Evaluate a checkpoint vs measured targets | `python src/diagnostics/eval_biomech.py --xml walker2d.xml results/<run>:final --out results/<run>_eval.json` |
+| Evaluate a checkpoint vs measured targets | `python src/diagnostics/eval_biomech.py results/<run>:final --out results/<run>_eval.json` |
 | Writeup-ready table + figure | `python scripts/biomech_report.py results/<run>_eval.json --rerollout` |
+| Tier 0 experiment-C end-to-end (dashboards, eval, mp4s, comparison panel, summary) | `python scripts/tier0/evaluate_C.py` |
 
 For the full set of `ppo_walker2d_phase.py` flags and their defaults,
 see [`METHODS.md § Full CLI reference`](METHODS.md#full-cli-reference-ppo_walker2d_phasepy)

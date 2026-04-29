@@ -75,6 +75,10 @@ def load_env_kwargs(result_dir: str) -> dict:
         out["min_joint_pose"] = bool(meta["min_joint_pose"])
     if "v_target" in meta:
         out["v_target"] = float(meta["v_target"])
+    if "ref_root_drop" in meta:
+        out["ref_root_drop"] = float(meta["ref_root_drop"])
+    if "xml_file" in meta:
+        out["xml_file"] = str(meta["xml_file"])
     return out
 
 
@@ -107,8 +111,10 @@ def run_live(runs, args):
     dt = 1.0 / CTRL_HZ
     for run in runs:
         ref      = np.load(f"{run['result_dir']}/reference.npy")
-        xml_file = run["xml_file"]
         extras   = load_env_kwargs(run["result_dir"])
+        # Saved xml_file (from training-time env_kwargs.json) wins over the
+        # CLI default; --xml on CLI is the explicit override.
+        xml_file = extras.pop("xml_file", run["xml_file"])
         env = Walker2dPhaseAware(
             reference=ref, xml_file=xml_file,
             pose_term_thresh=9999.0, ankle_term_thresh=9999.0,
@@ -194,8 +200,9 @@ def main():
 
     for run in runs:
         ref      = np.load(f"{run['result_dir']}/reference.npy")
-        xml_file = run["xml_file"]
         extras   = load_env_kwargs(run["result_dir"])
+        # Saved xml_file wins over CLI default; --xml on CLI is the override.
+        xml_file = extras.pop("xml_file", run["xml_file"])
         env = Walker2dPhaseAware(
             reference=ref, xml_file=xml_file, render_mode="rgb_array",
             pose_term_thresh=9999.0, ankle_term_thresh=9999.0,

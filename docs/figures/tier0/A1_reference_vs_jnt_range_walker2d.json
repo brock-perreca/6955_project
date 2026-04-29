@@ -1,0 +1,77 @@
+{
+  "mjcf": "walker2d.xml (gym default)",
+  "stats": {
+    "hip_r": {
+      "ref_lo_deg": -13.488986015319824,
+      "ref_hi_deg": 29.686954498291016,
+      "ref_rom_deg": 43.17593765258789,
+      "jnt_lo_deg": -149.99999734394112,
+      "jnt_hi_deg": 0.0,
+      "frac_above": 0.6857142857142857,
+      "frac_below": 0.0,
+      "frac_outside": 0.6857142857142857,
+      "peak_overshoot_above_deg": 29.686954498291016,
+      "peak_overshoot_below_deg": 0.0
+    },
+    "knee_r": {
+      "ref_lo_deg": -64.639404296875,
+      "ref_hi_deg": 0.04436536878347397,
+      "ref_rom_deg": 64.68376922607422,
+      "jnt_lo_deg": -149.99999734394112,
+      "jnt_hi_deg": 0.0,
+      "frac_above": 0.007142857142857143,
+      "frac_below": 0.0,
+      "frac_outside": 0.007142857142857143,
+      "peak_overshoot_above_deg": 0.04436536878347397,
+      "peak_overshoot_below_deg": 0.0
+    },
+    "ankle_r": {
+      "ref_lo_deg": -23.40740966796875,
+      "ref_hi_deg": 6.188930511474609,
+      "ref_rom_deg": 29.596338272094727,
+      "jnt_lo_deg": -45.00000125223908,
+      "jnt_hi_deg": 45.00000125223908,
+      "frac_above": 0.0,
+      "frac_below": 0.0,
+      "frac_outside": 0.0,
+      "peak_overshoot_above_deg": 0.0,
+      "peak_overshoot_below_deg": 0.0
+    },
+    "hip_l": {
+      "ref_lo_deg": -13.453934669494629,
+      "ref_hi_deg": 29.97233772277832,
+      "ref_rom_deg": 43.426273345947266,
+      "jnt_lo_deg": -149.99999734394112,
+      "jnt_hi_deg": 0.0,
+      "frac_above": 0.6785714285714286,
+      "frac_below": 0.0,
+      "frac_outside": 0.6785714285714286,
+      "peak_overshoot_above_deg": 29.97233772277832,
+      "peak_overshoot_below_deg": 0.0
+    },
+    "knee_l": {
+      "ref_lo_deg": -62.33699035644531,
+      "ref_hi_deg": -0.18646298348903656,
+      "ref_rom_deg": 62.1505241394043,
+      "jnt_lo_deg": -149.99999734394112,
+      "jnt_hi_deg": 0.0,
+      "frac_above": 0.0,
+      "frac_below": 0.0,
+      "frac_outside": 0.0,
+      "peak_overshoot_above_deg": 0.0,
+      "peak_overshoot_below_deg": 0.0
+    },
+    "ankle_l": {
+      "ref_lo_deg": -17.08517074584961,
+      "ref_hi_deg": 10.919837951660156,
+      "ref_rom_deg": 28.005008697509766,
+      "jnt_lo_deg": -45.00000125223908,
+      "jnt_hi_deg": 45.00000125223908,
+      "frac_above": 0.0,
+      "frac_below": 0.0,
+      "frac_outside": 0.0,
+      "peak_overshoot_above_deg": 0.0,
+      "peak_overshoot_below_deg": 0.0
+    }
+  }
+}

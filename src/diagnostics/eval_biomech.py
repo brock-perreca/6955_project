@@ -93,6 +93,10 @@ def _load_env_kwargs(run_dir: str) -> dict:
         out["min_joint_pose"] = bool(meta["min_joint_pose"])
     if "v_target" in meta:
         out["v_target"] = float(meta["v_target"])
+    if "ref_root_drop" in meta:
+        out["ref_root_drop"] = float(meta["ref_root_drop"])
+    if "xml_file" in meta:
+        out["xml_file"] = str(meta["xml_file"])
     return out
 
 
@@ -537,7 +541,10 @@ def main() -> None:
                   f"shape={reference.shape}")
 
         extras = _load_env_kwargs(run_dir)
-        env = Walker2dPhaseAware(reference=reference, xml_file=args.xml, **extras)
+        # Saved xml_file (from training-time env_kwargs.json) wins over the
+        # CLI default; --xml on CLI is the explicit override.
+        xml_file = extras.pop("xml_file", args.xml)
+        env = Walker2dPhaseAware(reference=reference, xml_file=xml_file, **extras)
         body_weight_n = float(np.sum(env.model.body_mass)) * abs(
             float(env.model.opt.gravity[2]))
         print(f"[{label}] body weight: {body_weight_n:.1f} N "

@@ -41,14 +41,21 @@ The ROM column equals the source reference's per-joint ROM to within
 spline interpolation noise — that's the validation gate this script
 ships with.
 
-**Foot interpenetration with floor (z < 0 in world frame):**
+**Foot body-origin height (z < 0 in world frame):**
 - right foot: 0.0% of frames, min world z = +0.016 m
 - left foot:  0.0% of frames, min world z = +0.023 m
+- lower foot body-origin z range: +0.016 m to +0.078 m
 
-Any non-zero foot-below-floor fraction is a finding about the Ulrich
-reference's compatibility with the stock Walker2d skeleton. The
-trained policy will need to deviate from the reference where the
-reference puts the foot through the floor.
+**Actual foot-geom floor clearance** (`mj_geomDistance`, lower foot each frame):
+- contact frames: 0.0%
+- clearance range: +0.036 m to +0.083 m
+- clearance percentiles [min, 25%, 50%, 75%, max]:
+  0.036, 0.053, 0.059, 0.075, 0.083 m
+
+Positive clearance for the entire replay means this reference, at the
+pinned stock-Walker2d torso height, never makes ground contact. A
+trained policy must lower the root or change joint posture to generate
+stance contact.
 
 **Peak |cfrc_ext| at the kinematically-pinned pose** (NOT a dynamic
 contact-force estimate; mj_forward evaluates contact at the held

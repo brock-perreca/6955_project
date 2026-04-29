@@ -61,6 +61,9 @@ def replay(cycles: int, out_mp4: Path, out_npz: Path) -> dict:
     foot_r_id  = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "foot")
     foot_l_id  = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "foot_left")
     torso_id   = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "torso")
+    floor_geom_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "floor")
+    foot_r_geom_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "foot_geom")
+    foot_l_geom_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "foot_left_geom")
 
     dx = WALK_SPEED / CTRL_HZ
     total_frames = cycles * n
@@ -73,8 +76,11 @@ def replay(cycles: int, out_mp4: Path, out_npz: Path) -> dict:
     foot_l_xz = np.zeros((total_frames, 2), dtype=np.float32)
     foot_r_zrel = np.zeros(total_frames, dtype=np.float32)
     foot_l_zrel = np.zeros(total_frames, dtype=np.float32)
+    foot_r_floor_dist = np.zeros(total_frames, dtype=np.float32)
+    foot_l_floor_dist = np.zeros(total_frames, dtype=np.float32)
     foot_r_frc = np.zeros(total_frames, dtype=np.float32)
     foot_l_frc = np.zeros(total_frames, dtype=np.float32)
+    geom_dist_fromto = np.zeros(6, dtype=np.float64)
 
     d.qpos[:] = 0.0
     d.qpos[1] = TORSO_Z
@@ -99,6 +105,12 @@ def replay(cycles: int, out_mp4: Path, out_npz: Path) -> dict:
             foot_l_xz[i]   = (float(ftl[0]), float(ftl[2]))
             foot_r_zrel[i] = float(ftr[2] - d.body(torso_id).xpos[2])
             foot_l_zrel[i] = float(ftl[2] - d.body(torso_id).xpos[2])
+            foot_r_floor_dist[i] = float(mujoco.mj_geomDistance(
+                m, d, floor_geom_id, foot_r_geom_id, 1.0, geom_dist_fromto,
+            ))
+            foot_l_floor_dist[i] = float(mujoco.mj_geomDistance(
+                m, d, floor_geom_id, foot_l_geom_id, 1.0, geom_dist_fromto,
+            ))
             # cfrc_ext indices follow Walker2d body order: foot=4, foot_left=7.
             foot_r_frc[i]  = float(np.linalg.norm(d.cfrc_ext[4]))
             foot_l_frc[i]  = float(np.linalg.norm(d.cfrc_ext[7]))
@@ -116,6 +128,8 @@ def replay(cycles: int, out_mp4: Path, out_npz: Path) -> dict:
         qpos=qpos_log, torso_z=torso_z, pitch=pitch,
         foot_r_xz=foot_r_xz, foot_l_xz=foot_l_xz,
         foot_r_zrel=foot_r_zrel, foot_l_zrel=foot_l_zrel,
+        foot_r_floor_dist=foot_r_floor_dist,
+        foot_l_floor_dist=foot_l_floor_dist,
         foot_r_frc=foot_r_frc, foot_l_frc=foot_l_frc,
         ref_used=ref,
     )
@@ -127,6 +141,8 @@ def replay(cycles: int, out_mp4: Path, out_npz: Path) -> dict:
     foot_below_floor_l = float((foot_l_xz[:, 1] < 0.0).mean())
     min_foot_z_r = float(foot_r_xz[:, 1].min())
     min_foot_z_l = float(foot_l_xz[:, 1].min())
+    lower_body_z = np.minimum(foot_r_xz[:, 1], foot_l_xz[:, 1])
+    lower_geom_dist = np.minimum(foot_r_floor_dist, foot_l_floor_dist)
     peak_frc_r = float(foot_r_frc.max())
     peak_frc_l = float(foot_l_frc.max())
 
@@ -138,6 +154,12 @@ def replay(cycles: int, out_mp4: Path, out_npz: Path) -> dict:
         "pitch_range":          (float(pitch.min()), float(pitch.max())),
         "min_foot_z_world":     {"r": min_foot_z_r, "l": min_foot_z_l},
         "foot_below_floor_frac": {"r": foot_below_floor_r, "l": foot_below_floor_l},
+        "lower_body_z_range":   (float(lower_body_z.min()), float(lower_body_z.max())),
+        "lower_geom_dist_range": (float(lower_geom_dist.min()), float(lower_geom_dist.max())),
+        "lower_geom_dist_percentiles": [
+            float(x) for x in np.percentile(lower_geom_dist, [0, 25, 50, 75, 100])
+        ],
+        "geom_contact_frac": float((lower_geom_dist <= 0.0).mean()),
         "peak_contact_force_N": {"r": peak_frc_r, "l": peak_frc_l},
     }
 
@@ -146,6 +168,9 @@ def write_doc(out_md: Path, mp4_rel: str, summary: dict) -> None:
     rom = summary["rom_deg"]
     fbf = summary["foot_below_floor_frac"]
     mfz = summary["min_foot_z_world"]
+    body_rng = summary["lower_body_z_range"]
+    geom_rng = summary["lower_geom_dist_range"]
+    geom_pct = summary["lower_geom_dist_percentiles"]
     pf  = summary["peak_contact_force_N"]
     txt = f"""# Reference replay — kinematic visual baseline
 
@@ -190,14 +215,21 @@ The ROM column equals the source reference's per-joint ROM to within
 spline interpolation noise — that's the validation gate this script
 ships with.
 
-**Foot interpenetration with floor (z < 0 in world frame):**
+**Foot body-origin height (z < 0 in world frame):**
 - right foot: {100*fbf['r']:.1f}% of frames, min world z = {mfz['r']:+.3f} m
 - left foot:  {100*fbf['l']:.1f}% of frames, min world z = {mfz['l']:+.3f} m
+- lower foot body-origin z range: {body_rng[0]:+.3f} m to {body_rng[1]:+.3f} m
 
-Any non-zero foot-below-floor fraction is a finding about the Ulrich
-reference's compatibility with the stock Walker2d skeleton. The
-trained policy will need to deviate from the reference where the
-reference puts the foot through the floor.
+**Actual foot-geom floor clearance** (`mj_geomDistance`, lower foot each frame):
+- contact frames: {100*summary['geom_contact_frac']:.1f}%
+- clearance range: {geom_rng[0]:+.3f} m to {geom_rng[1]:+.3f} m
+- clearance percentiles [min, 25%, 50%, 75%, max]:
+  {geom_pct[0]:.3f}, {geom_pct[1]:.3f}, {geom_pct[2]:.3f}, {geom_pct[3]:.3f}, {geom_pct[4]:.3f} m
+
+Positive clearance for the entire replay means this reference, at the
+pinned stock-Walker2d torso height, never makes ground contact. A
+trained policy must lower the root or change joint posture to generate
+stance contact.
 
 **Peak |cfrc_ext| at the kinematically-pinned pose** (NOT a dynamic
 contact-force estimate; mj_forward evaluates contact at the held

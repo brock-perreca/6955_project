@@ -362,37 +362,131 @@ results/overnight_20260429-0211/OVERNIGHT_SUMMARY.md (post-review writeup)
 
 ---
 
-## Batch 4 — planned — restore forward_reward + drop xvel_term floor
+## Batch 4 — 2026-04-29 — Tier 0 morphology ablation (hip-range relaxation)
 
 ### Setup
 
-After Batch 3's negative result, the diagnosis is that the reward
-*structure* is the trap, not any of the reward weights or aggregators.
-Per [`REWARD_DESIGN.md § The stiff-hip trap`](REWARD_DESIGN.md#the-stiff-hip-trap-2026-04-29-diagnosis)
-and [`ROADMAP.md § 0`](ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29):
+Before launching the planned reward-structure reform, we paused for
+a Tier 0 diagnostic: was the stiff-hip basin **reward-driven** (as
+Batch 3's overnight concluded) or **morphology-driven**?
 
-| Variant | Change (vs `xvel-5M` config) | Rationale |
-|---|---|---|
-| `fwd` | Drop `--xvel_term`. Add `--fwd_weight 0.15` and `fwd_r = exp(-3·(v-1.25)²)` (term + CLI flag need to be re-added; existed before the 2026-04-28 cleanup). | Replace the survival floor with a peaked forward-velocity target. Drift-at-0.4 m/s no longer maxes out reward; only matching v_target does. |
+Two static probes settled the framing before any retraining:
 
-ONE training run from scratch with the change above, otherwise the
-proven xvel-5M recipe (8 envs, 5M steps, single-cycle reference, stock
-walker2d.xml, RSI + warm-start qvel, height + |pitch|>0.3 termination,
-no swing_pen, no contact_r, no BC). If hip ROM > 15° in visual
-review, the trap is broken; queue stacked variants with
-`--product_reward` and warm-started AMP. If still stiff-hip, the trap
-is deeper than reward (frame rate? phase obs?) and we move to a
-diagnostic experiment.
+- **A.1 (`src/diagnostics/check_reference_jnt_range.py`).** Stock
+  `walker2d.xml` `thigh_joint range="-150 0"` — the hip cannot flex
+  forward past 0°. Reference peaks at +29.97°. **~68 % of every
+  reference cycle is outside the joint range.** Knees and ankles fit.
+- **A.2 (xvel-5M deterministic rollout, 5 seeds × 600 steps).** hip_r
+  median +1.39°, std 2.22°, **95.3 % of frames within 0.5° of the
+  +0° upper limit, 93.45 % above it**. The policy was actively
+  pushing into the soft-constraint wall. xvel-5M's "stiff hip" was
+  the joint-range ceiling, not policy stagnation below it.
+
+Pre-Batch-3 conclusion was therefore wrong about the dominant cause
+of stiff hip — every restart batch *and* all 19 overnight experiments
+trained against a target ~half of which was unreachable. See
+[`docs/TIER0_DIAGNOSTICS.md`](TIER0_DIAGNOSTICS.md) for the full
+ledger.
+
+**The Batch 4 experiment (C in the Tier 0 ledger):** single-knob
+morphology ablation. Created `assets/mjcf/walker2d_hiprelax.xml` with
+`thigh_joint range="-150 35"` (5° headroom over the reference peak,
+no looser to avoid creating an overswing basin). Otherwise verbatim
+xvel-5M recipe.
+
+| Variant | Change (vs xvel-5M) | Output dir | Seed |
+|---|---|---|---|
+| `hiprelax_s11` | `--xml walker2d_hiprelax.xml` | `results/restart_b4_hiprelax_s11/` | 11 |
+| `hiprelax_s12` | `--xml walker2d_hiprelax.xml` | `results/restart_b4_hiprelax_s12/` | 12 |
+| `hiprelax_s13` | `--xml walker2d_hiprelax.xml` | `results/restart_b4_hiprelax_s13/` | 13 |
+
+Three seeds in parallel for seed-fragility insurance — the overnight
+showed seed-dependent behavior is real on this pipeline. 8 envs each,
+5M steps each, ~54 min wall-clock per seed under 24-env / 16-core
+contention.
+
+Tooling shipped in this batch:
+- `--xml` CLI flag added to `ppo_walker2d_phase.py` (was previously
+  only `--scale_model`).
+- `env_kwargs.json` written by training now records `xml_file`;
+  `run_dashboard.py`, `eval_biomech.py`, `render_phase.py` prefer
+  the saved value over their CLI default.
+- `src/diagnostics/check_reference_jnt_range.py` — reachability
+  gate that catches this class of bug in <1 s without training.
+- `scripts/tier0/evaluate_C.py` — full validation pipeline
+  (dashboards, eval_biomech, mp4s, comparison panel, summary).
 
 ### Expectation
 
-- Hip ROM grows toward reference 45° as the policy can no longer earn
-  full reward from drifting.
-- Cadence drops toward reference 1.12 s as a downstream consequence
-  of larger hip excursion.
-- `r_pose` may *drop* slightly (the stand-and-wiggle basin no longer
-  earns easy ~0.55) but `r_ee` and the new `fwd_r` rise to compensate.
+- If pure morphology, hip ROM grows to reference and tracks shape.
+- If mixed (range + reward), hip swings emerge but stay
+  amplitude-truncated.
+- If reward-only despite range (unlikely given A.2 numbers), no
+  improvement.
+
+### Observation — MIXED, both fixes needed
+
+All three seeds qualitatively identical. Best on every aggregate
+metric is **seed 11** (LR asymmetry 0.097 — the only seed under the
+< 0.10 threshold; lowest all-joints DTW 0.532; highest progress
+score 2.41; lowest peak vGRF/BW 3.97). Brock visual review
+(2026-04-29): "all of the videos look great"; xvel-5M by comparison
+"looks pretty bad".
+
+| metric (median, 6 eps × 2500 steps) | xvel-5M | s11 (canonical) | s12 | s13 | reference |
+|---|---|---|---|---|---|
+| **hip_r ROM (deg)** | **1.77** | **19.79** | **19.92** | **16.50** | **45.4** |
+| **hip_l ROM (deg)** | **1.94** | **15.27** | **16.56** | **18.52** | **45.4** |
+| knee_r ROM (deg)    | 22.18 | 26.57 | 38.56 | 32.70 | 65.7 |
+| knee_l ROM (deg)    | 22.50 | 26.30 | 36.80 | 31.80 | 66.1 |
+| stride_period_s     | 0.327 | 0.361 | 0.347 | 0.371 | **1.120** |
+| cadence (steps/min) | 367.6 | 332.7 | 346.3 | 323.6 | **107.1** |
+| LR_stride_asymmetry | 0.138 | **0.097** | 0.143 | 0.122 | < 0.10 |
+| peak_vgrf_bw        | 3.28 | **3.97** | 4.02 | 4.18 | 1.10 |
+| all_joints_dtw      | n/a   | **0.532** | 0.641 | 0.543 | lower better |
+| progress_score (0–4)| 2.31 | **2.41** | 2.19 | 2.11 | 4.00 |
+
+Hip-trace probe (5 seeds × 600 steps, same as A.2): xvel-5M had
+95.3 % of frames within 0.5° of the +0° wall. After relaxation, only
+15-21 % of frames touch the new +35° limit. The wall is no longer
+binding.
+
+**Verdict.** **Mixed (range + reward), both fixes needed.**
+
+The morphology hypothesis is strongly confirmed — hip ROM grew ~10×
+across all three seeds, the flat-topped clamping signature
+disappeared, the trace tracks reference shape and frequency. But
+amplitude plateaued at ~40 % of reference, cadence stayed ~3× too
+fast, and peak vGRF/BW *worsened* (4.0 vs 3.3 — running-not-walking
+signature persists). With `xvel_term=0.3` rewarding survival floor
+at any forward velocity ≥ 0.31 m/s, the policy converges to fast,
+low-amplitude strides regardless of morphology.
+
+**Next step (now-Batch-5):** Tier 1 reward reform —
+`forward_reward = exp(-3·(v-1.25)²)` + drop `xvel_term` floor —
+**on top of `walker2d_hiprelax.xml`**, not stock walker2d.xml. See
+[`ROADMAP.md § 0`](ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29).
 
 ### Render / eval
 
-(pending)
+```
+# 30-second visual triage: open the comparison panel
+docs/figures/tier0/C_hiprelax/C_hip_trace_comparison.png
+
+# Watch the videos in order:
+#   docs/figures/tier0/C_hiprelax/00_reference_replay.mp4   (kinematic ceiling)
+#   docs/figures/tier0/C_hiprelax/xvel-5M_final.mp4         (pre-Tier-0 best)
+#   docs/figures/tier0/C_hiprelax/hiprelax_s11_final.mp4    (canonical)
+#   docs/figures/tier0/C_hiprelax/hiprelax_s12_final.mp4
+#   docs/figures/tier0/C_hiprelax/hiprelax_s13_final.mp4
+
+# Live policy view:
+python src/walker2d/render_phase.py --live results/restart_b4_hiprelax_s11:final
+
+# Full pipeline (dashboards × ckpts, eval_biomech, mp4s, comparison panel, summary):
+python scripts/tier0/evaluate_C.py
+```
+
+`docs/figures/tier0/C_hiprelax/C_summary.md` carries the cleaned-up
+table; per-seed `*_eval.json` files have the full vs_reference
+deltas.

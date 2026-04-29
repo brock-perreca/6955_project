@@ -15,6 +15,7 @@ duplicating content.
 | [`PROJECT_STATUS.md`](PROJECT_STATUS.md) | "right now" | What's running today, current best policy, known gaps |
 | [`PROJECT_TIMELINE.md`](PROJECT_TIMELINE.md) | "how we got here" | Chronological narrative across phases 0–5 |
 | [`RESTART_LOG.md`](RESTART_LOG.md) | "recent batches" | Per-batch setup, observation, render commands since the 2026-04-28 restart |
+| [`TIER0_DIAGNOSTICS.md`](TIER0_DIAGNOSTICS.md) | "the morphology-vs-reward verdict" | The 2026-04-29 Tier 0 ledger: A.1 reachability check, A.2 hip-trace probe, C hip-relax retraining. Resolves why every pre-2026-04-29 run had stiff hips. |
 | [`ROADMAP.md`](ROADMAP.md) | "what's queued next" | Prioritized future work |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | "where things live" | Directory map, import graph, entry-point commands |
 | [`METHODS.md`](METHODS.md) | "how the code works" | Env, reward formula, RSI, BC, optimizer, CLI flags |

@@ -131,6 +131,10 @@ per-frame:
 - right/left foot z relative to root (`_ref_foot_{r,l}_zrel`)
 
 These cached values drive the EE and root reward terms.
+`--ref_root_drop d` lowers the pinned FK root height by `d` meters for
+the cached root target while preserving the existing root-relative foot
+targets. This is an ablation knob for stock-Walker2d contact-clearance
+mismatch; default `0.0` preserves the current 1.28 m reference.
 
 ---
 
@@ -357,6 +361,7 @@ The table below is a snapshot.
 | `--vel_scale`   | 0.1  | `k_v` |
 | `--ee_scale`    | 40.0 | `k_e` |
 | `--root_scale`  | 10.0 | `k_c` |
+| `--ref_root_drop` | 0.0 | Lower cached reference root target by this many meters |
 
 ### Aggregator + exploit-patch flags (off by default)
 
