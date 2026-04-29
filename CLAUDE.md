@@ -73,6 +73,24 @@ Code (env, phase obs, RSI, BC, AMP/AIRL discriminators, render and
 diagnostic scripts) is intact; checkpoints, reward constants, and the
 exploit taxonomy are suspect.
 
+**Update (Phase 5b, 2026-04-29 overnight 19-experiment sweep).** The
+restart's batch-2 `xvel-5M` walks but with stiff hips (~2° ROM vs
+reference ~45°). The overnight sweep tested 8 reward-aggregator and
+termination ablations, 4 AMP/AIRL warm-started runs, 3 multi-step
+preview-obs runs, and an off-policy SAC variant. **All 19 trained
+policies fall into the same stiff-hip basin or a worse failure mode**
+under visual review (Brock, morning of 2026-04-29). The basin is
+**reward-driven, not optimizer-driven** — `xvel_term=0.3` acts as a
+*survival floor* that lets the policy earn full healthy_reward at any
+v ≥ 0.31 m/s, and the per-step pose loss isn't enough to dislodge it.
+Next move: **restore the deleted `forward_reward = exp(-3·(v-1.25)²)`
+term and remove the `xvel_term` floor** — bell-curve forward target
+replaces survival floor, so drifting at 0.4 m/s no longer pays.
+- Negative result writeup: [`docs/RESTART_LOG.md § Batch 3`](docs/RESTART_LOG.md)
+- Top-priority next step: [`docs/ROADMAP.md § 0`](docs/ROADMAP.md)
+- Reward-trap mechanism: [`docs/REWARD_DESIGN.md`](docs/REWARD_DESIGN.md)
+  (top of file, 2026-04-29 update)
+
 Full pivot history (Phase 0 → Phase 5) is in
 [`docs/PROJECT_TIMELINE.md`](docs/PROJECT_TIMELINE.md).
 

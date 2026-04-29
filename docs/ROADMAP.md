@@ -1,11 +1,47 @@
 # Roadmap
 
-Planned future directions, prioritized roughly. The first four items
-come directly from the writeup §7
-([`reports/writeup_filled_1.docx`](reports/writeup_filled_1.docx)). The
-last items are speculative — possible returns to original-proposal scope.
+Planned future directions, prioritized roughly. **Item 0 is the new
+top priority** after the 2026-04-29 overnight (see
+[`RESTART_LOG.md § Batch 3`](RESTART_LOG.md)) — items 1-4 from the
+writeup §7 follow once the reward trap is fixed.
 
 For what is *currently* working, see [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+
+---
+
+## 0. Structural reward reform: forward_reward + remove xvel_term floor (NEW, 2026-04-29)
+
+**Why:** the 19-experiment overnight sweep
+([`RESTART_LOG.md § Batch 3`](RESTART_LOG.md)) demonstrated that the
+current reward structure is a strong attractor for stiff-hip walking.
+Eight reward-aggregator/weighting/termination knobs and an SAC
+optimizer swap all failed to escape. The diagnosis: `xvel_term=0.3` is
+a *floor* — once the policy moves at v ≥ 0.31 m/s it earns full
+survival reward, regardless of joint kinematics. The per-step pose
+gradient toward hip flexion is smaller than the survival reward, so
+the policy's optimum is "drift forward stiffly, collect survival."
+
+**Plan:** Restore the `forward_reward = exp(-3·(v-1.25)²)` term that
+was deleted as default-off on 2026-04-28
+([`REWARD_DESIGN.md § Removed terms`](REWARD_DESIGN.md#fwd_r--forward-velocity-reward)).
+Drop `xvel_term`. The bell-curve forward target replaces a survival
+floor with a peaked reward — drifting at v=0.4 no longer maxes out;
+only matching v_target does. Restoring as a CLI flag `--fwd_weight`
+(default ~0.10–0.20) is the minimal-risk path.
+
+**Test plan:** ONE training run from scratch with `--fwd_weight 0.15`,
+no `--xvel_term`, otherwise the xvel-5M recipe. If hip ROM > 15° in
+visual review, the trap is broken; queue stacked variants with
+`--product_reward` and warm-started AMP. If still stiff-hip, the trap
+is deeper than reward (frame rate? phase obs?) and we move to a
+diagnostic experiment.
+
+**Owner:** Brock. Code change is small (~10 LOC; the `fwd_r` term and
+its CLI flag previously existed and are git-recoverable).
+
+**Skip:** more aggregator variants, hip_term, energy penalty, reverse
+curriculum, preview_k > 1. The data says these are not where the trap
+is.
 
 ---
 
@@ -16,6 +52,16 @@ achieves near-perfect separation before the policy has produced any
 walking, driving style reward to ~0.03 and eliminating the gradient.
 Mechanism: 24-D discriminator input space, only 349 expert transitions,
 8-env policy diversity insufficient to force discriminator generalization.
+
+**2026-04-29 update:** the overnight Batch 3 tested AMP/AIRL warm-started
+from a working PPO policy as a workaround. The warm-start *does*
+prevent immediate cold-start collapse (style_r stayed in [0.2, 0.4]
+for ~3M steps), but the discriminator gradient pushes the policy into
+a *different* bad basin (asymmetric kicks, ankle paddling at 100°+)
+rather than toward natural gait. Visual review (Brock) called all 4
+B2 runs "pretty terrible." So the warm-start workaround is **not** a
+substitute for the GPU port; the discriminator still needs more
+policy diversity than 8 envs can provide. Revisit AMP/AIRL after item 0.
 
 **Plan:** Port `Walker2dPhaseAware` to MJX (JAX GPU backend) targeting
 **2,000–4,000 parallel envs on a single RTX 5090**. At that scale, policy
@@ -50,6 +96,15 @@ doesn't know it's coming.
 i.e. give the policy a small preview window of upcoming reference
 frames. Analogous to MPC with reference preview. Probably K = 4–8.
 
+**2026-04-29 update:** implemented as `--preview_k` CLI flag in the
+overnight Batch 3 sweep and tested at K=4, K=8. Visual review
+(Brock): preview_k runs are "just a little choppier than B1," no
+real improvement. **Hypothesis discounted but not eliminated** —
+this was tested *with* the broken reward structure (item 0). After
+item 0, preview_k is worth one more pass to see whether the
+anticipation signal becomes useful when survival pressure no longer
+dominates.
+
 **Risk:** Larger obs space → policy has to learn to use the preview
 window without overfitting to it. If the preview length doesn't match
 the gait cycle period, the encoding has aliasing.
@@ -73,6 +128,14 @@ the gait cycle period, the encoding has aliasing.
 **Plan:** Implement DTW alongside an existing evaluation script, run it
 on the canonical run + a couple of failure-mode runs to validate that
 DTW separates "real walking" from "reward hacked" trajectories.
+
+**2026-04-29 update:** `hip_knee_dtw` (2 joints) and `all_joints_dtw`
+(6 joints) are both now in `eval_biomech.py`. **Caveat from
+overnight Batch 3:** DTW finds the closest cyclic alignment, so a
+stand-and-wiggle gait with one valid stride scores OK on DTW even
+when the body barely translates. DTW is *necessary but not
+sufficient* for diagnosing real walking; pair with `hip_r_rom_deg`
+and visual review.
 
 ---
 

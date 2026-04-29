@@ -1,5 +1,33 @@
 # Reward design + exploit taxonomy
 
+> **2026-04-29 update — the reward structure is a trap, not just a
+> historical artifact.** The 19-experiment overnight sweep
+> (`docs/RESTART_LOG.md` § Batch 3) confirmed that the *current*
+> `xvel_term=0.3` + `r_pose = exp(-k·mean(diff²))` + `r_root` setup
+> is a strong attractor for **stiff-hip walking**: thighs pinned at
+> ~0° vs reference ~45°. Eight aggregator/weighting/termination knobs
+> failed to escape. SAC failed too — confirming the trap is reward,
+> not optimizer. The diagnosis below explains why.
+
+> **The mechanism:** `xvel_term=0.3` is a *floor* — once the policy
+> moves at v ≥ 0.31 m/s it earns full survival reward, regardless of
+> joint kinematics. Standing-with-knee-wiggle that drifts forward at
+> 0.4 m/s collects ~1.0 healthy_reward + ~0.5 r_pose (mean over 6
+> joints lets 5 wiggling joints hide one stiff hip) + ~0.95 r_root
+> (height tracks fine since the body doesn't fall) per step. The
+> per-step pose loss from a stiff hip is ~0.07 reward (the difference
+> between r_pose=0.55 and r_pose=0.62), which is *less than the
+> survival increment from staying alive*. The policy's optimum is
+> "stay alive, keep collecting healthy_reward, ignore hip flexion."
+
+> **What likely fixes this** (queued as Batch 4): replace the
+> `xvel_term` floor with a peaked `forward_reward = exp(-3·(v-v_target)²)`.
+> A bell-curve forward target penalises *both* standing still AND
+> moving too fast or too slow, so the policy can no longer earn full
+> reward by drifting at 0.4 m/s. The `forward_reward` term lived in
+> the codebase before the 2026-04-28 cleanup pass and was deleted as
+> "default-off"; restoring it is the obvious next step.
+
 > **2026-04-28 — read this before trusting anything below.** Every
 > weight, sharpness, threshold, and "added this term to close exploit
 > X" decision on this page was tuned against a reference whose hip and
@@ -187,6 +215,25 @@ height-out-of-bounds termination only triggers after the fall already
 started, so the agent collects pitch-penalized but otherwise positive
 reward during the lean. Adding a hard termination at `|pitch| > 0.3 rad`
 closes this.
+
+### Stiff-hip drift (the structural trap, 2026-04-29)
+
+After the 2026-04-28 reference-sign correction, the policy converged
+on a *new* exploit specific to the post-correction reward: walking
+forward at v_target with thighs pinned at ~0° (reference ~45°) and
+knees+ankles wiggling around the reference. This is *not* the
+inverted-reference exploit and is *not* fixed by per-joint
+weighting, geometric mean, worst-joint floor, or hip-only termination
+(see overnight Batch 3). It is fixed by replacing the `xvel_term`
+floor with a peaked `forward_reward` so a barely-translating drift no
+longer earns full survival.
+
+**Why metrics missed it:** `r_pose = exp(-k · mean(diff²))` averages
+over 6 joints; with hip dev=0.45 rad and knee/ankle dev≈0, the mean
+squared error is 0.034 → r_pose ≈ exp(-0.34) ≈ 0.71. Five joints
+wiggling at 0.05 rad RMS lower the mean a bit; r_pose hovers around
+0.55. None of those numbers scream "broken." Visual review (Brock,
+2026-04-29) is the only thing that catches it cleanly.
 
 ### Standing-and-tapping (from the symmetry-pretrain detour)
 
