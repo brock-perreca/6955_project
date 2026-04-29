@@ -60,59 +60,57 @@ Three top-line scientific contributions (from the writeup):
 
 ## What's currently running
 
-- **Active training script:** `src/walker2d/ppo_walker2d_phase.py`.
+- **Active training script:** `src/walker2d/ppo_walker2d_phase.py` —
+  rewritten 2026-04-28 as a DeepMimic-faithful baseline (sum of four
+  `exp(−k·err²)` terms: pose / vel / EE / root). All exploit-patch
+  terms (swing_pen, contact_r, per-joint sharpness/weights, per-joint
+  pose/ankle thresholds, BC) are off-by-default kwargs/CLI flags. See
+  the module docstring and [`RESTART_LOG.md`](RESTART_LOG.md).
 - **Active reference:** `assets/reference/gait_cycle_reference.npy` —
   one clean stride from Ulrich Subject 1 baseline (56 frames @ 50 Hz,
-  resampled to 140 frames @ 125 Hz inside the env).
-- **Current canonical policy:**
+  resampled to 140 frames @ 125 Hz inside the env). FK-verified after
+  the 2026-04-28 sign fix to encode forward walking.
+- **Current best policy:**
+  `results/restart_b2_xvel/model.zip` (5M steps, stock walker2d.xml,
+  single-cycle reference, 8 envs). Diff from default DeepMimic
+  baseline: one CLI flag, `--xvel_term 0.3` (forward-velocity floor
+  termination). Visual review: best policy in the project's history
+  (Brock, 2026-04-28). Quantitative residuals:
+  - Cadence ~3× too fast (stride 0.32 s vs reference 1.12 s).
+  - Hip excursion stiff (`hip_r ∈ [-12°, +2°]` in batch-1 diagnostic;
+    visual confirms thighs barely move). Cause and primary
+    target for the next batch — see batch 3 in
+    [`RESTART_LOG.md`](RESTART_LOG.md).
+- **Pre-restart canonical** (kept for historical comparison):
   `results/walker2d_phase_cycle_s1scaled_sum_20260423-213031/model.zip`
-  (cherry-picked from upstream `3e4c3fa`).
-  - 100M env steps (`checkpoints/model_100000000_steps.zip` snapshot
-    is also on disk)
-  - Subject-1-scaled MJCF (`assets/mjcf/walker2d_subject1.xml`,
-    *currently missing on this checkout* — must be regenerated/copied
-    before training/rendering)
-  - Per-joint weighted-sum reward (no product reward)
-  - Single-cycle reference (no `--ref_all`)
-  - Previous 60M canonical run
-    (`walker2d_phase_cycle_s1scaled_sum_20260422-175117/`) is still on
-    disk for comparison.
-- **Most recent training computer:** the user has alternate machines;
-  the canonical run was trained on the other one.
-- **Reward cleanup (2026-04-28):** Removed three default-off terms
-  (`peak_bonus`, `fwd_r`, `action_rate_pen`) and the pitch piece inside
-  `root_r`. The reward is now 6 weighted terms + a small `‖ctrl‖²` cost.
-  Per-component reward means (`reward/*`) and per-rollout termination-
-  cause counts (`term/*`) now log to TensorBoard at
-  `results/<run-dir>/tb`.
-- **Held-out biomech eval:** `src/diagnostics/eval_biomech.py` produces
-  stride period, cadence, double-support fraction, peak vGRF/BW,
-  swing-drag fraction, L-R stride asymmetry, and a hip-knee phase-plane
-  DTW vs the reference. Use this — not training reward — to compare
-  reward variants and seeds. Sample baseline runs land in
-  `results/<run-dir>/eval_biomech.json`.
+  (100M, scaled MJCF, engineered reward, **trained on the corrupted
+  reference** — kinematics are gait-inverted on hip and ankle).
 
 ## Comparison runs on disk
 
 | Result dir | Steps | Notes |
 |---|---|---|
-| `results/walker2d_phase_cycle_s1scaled_sum_20260423-213031/` | 100M | **Latest extended run**, scaled MJCF, single-cycle ref. Saved as `model.zip` + `checkpoints/model_100000000_steps.zip`. From upstream commit `3e4c3fa`. |
-| `results/walker2d_phase_cycle_s1scaled_sum_20260422-175117/` | 60M | Earlier canonical run, scaled MJCF, single-cycle ref |
-| `results/walker2d_phase_full_sum_20260410-124935/` | 18M | Stock Walker2d, full-trial ref, uniform-k=8 — useful as a `--finetune` base for stock-geometry runs |
-| `results/walker2d_phase_full_sum_20260410-105306/` | 45M | Earlier DeepMimic-reward run |
-| `results/walker2d_phase_cycle_sum_20260409-211537/` | 10.5M | First single-cycle reference run |
-| `results/walker2d_pretrain_symmetry_20260407-172719/` | 5M | Symmetry-pretrain ankle-paddling demo (legacy) |
+| **`results/restart_b2_xvel/`** | **5M** | **Current best.** DeepMimic 4-term reward + `--xvel_term 0.3`. Stock walker2d.xml, seed=2. ep_len 2120, all-episode 2500-step survival on eval. |
+| `results/restart_b2_k30/` | 5M | DeepMimic + `--pose_scale 30`. Unstable; 4/6 eval episodes fall in <120 steps. Tighter pose alone without an xvel floor doesn't escape. |
+| `results/restart_b1_dm/` | 2M (killed at 2.5M) | Pure DeepMimic baseline. Stand-and-wiggle exploit — long episodes hide stiff hips + zero forward motion. |
+| `results/restart_b1_dm_bc/` | 2M (killed at 2.34M) | DeepMimic + 5-epoch BC. Same exploit, marginally varied across seeds. |
+| `results/walker2d_phase_cycle_s1scaled_sum_20260423-213031/` | 100M | Pre-restart canonical, scaled MJCF, single-cycle ref. **Trained on inverted reference.** From upstream commit `3e4c3fa`. |
+| `results/walker2d_phase_cycle_s1scaled_sum_20260422-175117/` | 60M | Earlier pre-restart canonical, scaled MJCF. |
+| `results/walker2d_phase_full_sum_20260410-124935/` | 18M | Stock Walker2d, full-trial ref, uniform-k=8 (pre-restart). |
+| `results/walker2d_phase_full_sum_20260410-105306/` | 45M | Earlier pre-restart DeepMimic-reward run. |
+| `results/walker2d_phase_cycle_sum_20260409-211537/` | 10.5M | First single-cycle reference run (pre-restart). |
+| `results/walker2d_pretrain_symmetry_20260407-172719/` | 5M | Symmetry-pretrain ankle-paddling demo (legacy). |
 
-Render any of them with:
+Render any of them with (PowerShell):
 
-```bash
-python src/walker2d/render_phase.py results/<run-dir>:final
-# or, for an integer checkpoint step under checkpoints/:
-python src/walker2d/render_phase.py results/<run-dir>:18000000:"18M"
+```
+python src/walker2d/render_phase.py --xml walker2d.xml --live results/restart_b2_xvel:final
+python src/walker2d/render_phase.py --xml walker2d.xml --mp4 docs/figures/foo.mp4 results/restart_b2_xvel:final
 ```
 
-The default `--xml` is `walker2d_subject1.xml`. For runs trained on stock
-Walker2d, override with `--xml walker2d.xml`.
+The default `--xml` is `walker2d_subject1.xml` (missing on this checkout).
+For all post-restart runs and stock-geometry pre-restart runs, override
+with `--xml walker2d.xml`.
 
 ---
 

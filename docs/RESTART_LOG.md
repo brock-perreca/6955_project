@@ -180,17 +180,111 @@ If both succeed: `xvel_term` is the simpler, more DeepMimic-faithful
 choice (analogous to "fall = die"). If one succeeds and one fails:
 diagnostic.
 
-### Observation
+### Observation (full 5M for both)
 
-(in progress)
+**`xvel` is the keeper.** This is the best policy the project has produced.
+Visual review (Brock): "best run I've seen in the entirety of the project".
+Both runs ran the full 5M cleanly in ~30 min each (alone on the box).
+
+| metric                 | xvel @ 5M | k30 @ 5M |
+|---|---|---|
+| `rollout/ep_rew_mean`  | 1052.6    | 234.6    |
+| `rollout/ep_len_mean`  | 2120.9    | 868.9    |
+| `reward/r_pose`        | 0.564     | 0.215    |
+| `reward/r_vel`         | 0.240     | 0.291    |
+| `reward/r_ee`          | 0.072     | 0.133    |
+| `reward/r_root`        | 0.973     | 0.955    |
+| pitch/height term      | 0 / 0     | 0 / 0    |
+| xvel term              | 5         | 0        |
+
+`eval_biomech` over 6 deterministic episodes × 2500 steps:
+
+| metric                  | xvel-5M    | k30-5M     | reference target  |
+|---|---|---|---|
+| ep_len_steps (median)   | 2500       | 60         | —                 |
+| n_strides (median)      | 61.5       | 1.0        | 17 in 20 s        |
+| stride_period_s         | 0.323      | 0.246      | **1.120**         |
+| cadence (steps/min)     | 371        | 488        | ~107              |
+| double_support_frac     | 0.079      | 0.125      | 0.20–0.30         |
+| LR_stride_asymmetry     | 0.066      | 1.465      | < 0.10            |
+| swing_drag_frac         | 0.0        | 0.0        | 0.0               |
+| hip_knee_dtw            | 0.145      | 0.203      | lower is better   |
+| peak_vgrf_bw            | 3.31       | 3.30       | ~1.2              |
+
+**`xvel`** survives every episode (6/6 hit the 2500-step cap), is
+symmetric (LR_asymmetry 0.066), and never drags the swing foot. It is
+robustly walking. Two real residual problems:
+
+1. **Cadence ~3× too fast** (stride 0.32 s vs reference 1.12 s; 371
+   steps/min vs ~107). Body is running-cadence-but-walking-speed —
+   ~0.34 m/step. A single 1.12-s reference cycle is being "consumed"
+   by ~3.5 physical strides.
+2. **Thighs barely move** (Brock, eyeball check). Confirmed by the
+   numerical diagnostic from batch 1 (hip_r ∈ [-12°, +2°] vs reference
+   [-13°, +30°]) — `r_pose = 0.564` is hiding stiff hips behind
+   compliant knee/ankle on a 6-joint mean. The fast cadence is
+   downstream of stiff hips: foot can't reach reference x-excursion
+   (-0.40 → +0.69 m), so the body strides multiple short steps to
+   cover the same x distance per phase cycle.
+
+**`k30`** is unstable — 4/6 episodes fall in <120 steps; the surviving
+ones limp asymmetrically (LR_asymmetry 1.47). Tighter pose alone
+without forward-velocity pressure didn't escape.
+
+**Verdict on batch-2 hypothesis:** the `xvel_term` floor is the right
+mechanism (defensible: "if you stop walking forward, you've fallen off
+the back of the treadmill"). Tighter `k_pose` *alone* is destabilising
+without a forward-motion constraint.
 
 ### Render
 
 ```
 python src/walker2d/render_phase.py --xml walker2d.xml --live results/restart_b2_xvel:final results/restart_b2_k30:final
 
-python src/diagnostics/eval_biomech.py --xml walker2d.xml results/restart_b2_xvel:final results/restart_b2_k30:final --out results/restart_b2_eval.json
+python src/diagnostics/eval_biomech.py --xml walker2d.xml --eps 6 --steps 2500 results/restart_b2_xvel:final:xvel-5M results/restart_b2_k30:final:k30-5M --out results/restart_b2_eval.json
 ```
+
+Pre-rendered mp4: `docs/figures/restart_b2_xvel-5M.mp4`,
+`docs/figures/restart_b2_k30-5M.mp4`.
+
+---
+
+## Batch 3 — planned — get the thighs moving
+
+### Setup
+
+`xvel-5M` walks but with stiff hips (and as a downstream consequence,
+3× cadence). The mean-of-squares pose reward gives ~0.44 even when
+hips are stuck at 0° because the other 4 joints (knees + ankles)
+satisfy the per-step mean. Two things to test:
+
+| Variant | Change (on top of `xvel-5M` config) | Rationale |
+|---|---|---|
+| `hip2x` | `--pose_weight_hip 2.0` (need to add this CLI flag) — per-joint pose weighting `[2,1,1,2,1,1]` | Up-weight the bilateral hip channels in mean pose; stiff hips now cost ~2× more reward. |
+| `ee30`  | `--ee_weight 0.30 --ee_scale 20`                                  | Double EE weight, halve k_e so r_ee is non-saturated and contributes a real foot-position gradient (currently 0.072 — saturated near zero, no useful gradient). |
+
+Plus a candidate combined run (`hip2x_ee30`) if either single-knob run
+shows promise but neither is sufficient.
+
+Implementation note: `pose_weight` is currently a single scalar in the
+env. Need to either (a) convert to per-joint vector with a `--pose_weights`
+CLI flag accepting 6 floats, defaulting to `[1,1,1,1,1,1]`; or (b)
+expose a single `--hip_weight` knob that multiplies hip terms only.
+Option (b) is simpler and more aligned with "one knob per ablation".
+
+### Expectation
+
+- `hip2x`: hip excursion grows toward reference range; cadence drops
+  toward reference 1.12 s; r_pose may *drop* slightly (because the
+  stiff-hip basin no longer earns 0.44 via 4-of-6 joints) but ep_len
+  stays high.
+- `ee30`: r_ee should rise from 0.07 to a more useful 0.3+, and the
+  policy should learn to put the foot at the right x-relative-to-root
+  position — which structurally requires hip flexion.
+
+### Render / eval
+
+(pending)
 
 ### Render
 

@@ -29,3 +29,6 @@ Thumbs.db
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Training stdout logs (TB events under <run-dir>/tb/ are the canonical record)
+results/*.log
