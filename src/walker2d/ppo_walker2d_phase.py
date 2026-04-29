@@ -109,11 +109,12 @@ def load_ref_cycle(path: Path) -> np.ndarray:
 
 # ── env ───────────────────────────────────────────────────────────────────────
 
-# Walker2d joint limits (rad) — slightly relaxed at hip to cover Ulrich range.
-# With the corrected reference, Subject 1 hip flexion peaks near +30°; the
-# previous +20° limit was tuned around the inverted reference's +13° peak.
-_JNT_LO = np.array([-2.618, -2.618, -0.785, -2.618, -2.618, -0.785], dtype=np.float32)
-_JNT_HI = np.array([ 0.550,  0.000,  0.785,  0.550,  0.000,  0.785], dtype=np.float32)
+# RSI warm-start clipping is now read from the loaded MJCF's joint ranges
+# (see Walker2dPhaseAware._jnt_lo / _jnt_hi). Hardcoded constants were
+# removed 2026-04-29 — they masked the joint-range hypothesis (Batch 4):
+# the previous _JNT_HI[0] = 0.550 rad (+31.5°) advertised hip flexion the
+# loaded walker2d.xml's +0.000 rad (0°) limit forbade, so the warm-start
+# qpos was a lie the dynamics solver immediately overruled.
 
 
 class Walker2dPhaseAware(Walker2dEnv):
@@ -260,6 +261,18 @@ class Walker2dPhaseAware(Walker2dEnv):
             low=-np.inf, high=np.inf, shape=(self._obs_dim,), dtype=np.float32,
         )
 
+        # Read warm-start clip bounds from the actual MJCF, not hardcoded
+        # constants. qpos[3:9] order matches walker2d.xml: thigh, leg, foot,
+        # thigh_left, leg_left, foot_left.
+        jnt_names = ("thigh_joint", "leg_joint", "foot_joint",
+                     "thigh_left_joint", "leg_left_joint", "foot_left_joint")
+        self._jnt_lo = np.array(
+            [self.model.joint(n).range[0] for n in jnt_names], dtype=np.float32,
+        )
+        self._jnt_hi = np.array(
+            [self.model.joint(n).range[1] for n in jnt_names], dtype=np.float32,
+        )
+
         self._precompute_reference_kinematics()
 
         self._term_cause: str | None = None
@@ -334,7 +347,8 @@ class Walker2dPhaseAware(Walker2dEnv):
         if self._warm_start:
             qpos = self.data.qpos.copy()
             qvel = self.data.qvel.copy()
-            qpos[3:9] = np.clip(self._reference[self._phase], _JNT_LO, _JNT_HI)
+            qpos[3:9] = np.clip(self._reference[self._phase],
+                                self._jnt_lo, self._jnt_hi)
             qvel[3:9] = self._ref_vel[self._phase]
             # Treadmill speed: without this the body lags the joints for ~50
             # frames each episode (joints are mid-stride at 1.25 m/s).

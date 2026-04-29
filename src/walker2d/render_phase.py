@@ -35,7 +35,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from stable_baselines3 import PPO, SAC
-from ppo_walker2d_phase import Walker2dPhaseAware, _JNT_LO, _JNT_HI, CTRL_HZ
+from ppo_walker2d_phase import Walker2dPhaseAware, CTRL_HZ
 
 
 def _load_policy(model_path: str):
@@ -139,7 +139,7 @@ def run_live(runs, args):
                 env._phase = start_phase
                 qpos = env.data.qpos.copy()
                 qvel = env.data.qvel.copy()
-                qpos[3:9] = np.clip(ref[start_phase], _JNT_LO, _JNT_HI)
+                qpos[3:9] = np.clip(ref[start_phase], env._jnt_lo, env._jnt_hi)
                 qvel[3:9] = 0.0
                 env.set_state(qpos, qvel)
                 obs = env._get_obs()

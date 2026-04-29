@@ -203,6 +203,32 @@ Visual review (Brock, morning of 2026-04-29) is what cleanly
 distinguished the trap from real progress. The headline numbers
 flattered every Phase 1 variant.
 
+### Code residue from the limit-compensation era (audit 2026-04-29)
+
+After Batch 4 we audited what in the active code had been compensating
+for the hidden hip limit. The full list:
+
+- **Hardcoded RSI warm-start clip constants `_JNT_LO/_JNT_HI`**
+  (`ppo_walker2d_phase.py`, removed). The upper hip bound was
+  `+0.550 rad ≈ +31.5°`, but the loaded MJCF enforced `0°`. The
+  warm-start qpos thus *advertised* hip flexion the simulator
+  immediately overruled. Replaced with per-instance `_jnt_lo / _jnt_hi`
+  read from `self.model.joint(...).range` so the clip always matches
+  the actual MJCF — no more silent "the joint started here, then the
+  physics moved it" disagreement at frame 1 of every episode.
+- **Optional exploit-patch reward terms** (`swing_pen_weight`,
+  `contact_weight`, `pose_term_thresh`, `ankle_term_thresh`,
+  `hip_term_thresh`). All off-by-default CLI flags; not used by the
+  current `b4_hipopen_5M` recipe. They are correctly quarantined as
+  ablation knobs, but worth being aware that some of what they used
+  to "fix" was the hip limit, not just exploits — re-enabling them
+  on the opened MJCF may turn out to do nothing, or to over-constrain
+  a now-functional reward.
+- **`xvel_term=0.3` survival floor** — kept. This wasn't compensating
+  for the joint limit; it kills "stand still and collect healthy
+  reward," a separate exploit. It's also part of the proven
+  `b4_hipopen_5M` recipe.
+
 ### What actually fixed it (Batch 4, 2026-04-29)
 
 **Open the hip joint range in the MJCF.** A custom
