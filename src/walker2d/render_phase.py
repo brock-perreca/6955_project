@@ -35,7 +35,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from stable_baselines3 import PPO, SAC
-from ppo_walker2d_phase import Walker2dPhaseAware, _JNT_LO, _JNT_HI, CTRL_HZ
+from ppo_walker2d_phase import Walker2dPhaseAware, CTRL_HZ
 
 
 def _load_policy(model_path: str):
@@ -112,8 +112,10 @@ def run_live(runs, args):
     for run in runs:
         ref      = np.load(f"{run['result_dir']}/reference.npy")
         extras   = load_env_kwargs(run["result_dir"])
-        # Saved xml_file (from training-time env_kwargs.json) wins over the
-        # CLI default; --xml on CLI is the explicit override.
+        # If env_kwargs.json saved an xml_file (post-batch-4), use it; the
+        # policy was trained against that MJCF and rendering it under a
+        # different one (e.g. opening the hip range) gives misleading
+        # visuals. CLI --xml only acts as the default if nothing was saved.
         xml_file = extras.pop("xml_file", run["xml_file"])
         env = Walker2dPhaseAware(
             reference=ref, xml_file=xml_file,
@@ -140,7 +142,7 @@ def run_live(runs, args):
                 env._phase = start_phase
                 qpos = env.data.qpos.copy()
                 qvel = env.data.qvel.copy()
-                qpos[3:9] = np.clip(ref[start_phase], _JNT_LO, _JNT_HI)
+                qpos[3:9] = np.clip(ref[start_phase], env._jnt_lo, env._jnt_hi)
                 qvel[3:9] = 0.0
                 env.set_state(qpos, qvel)
                 obs = env._get_obs()
@@ -201,7 +203,7 @@ def main():
     for run in runs:
         ref      = np.load(f"{run['result_dir']}/reference.npy")
         extras   = load_env_kwargs(run["result_dir"])
-        # Saved xml_file wins over CLI default; --xml on CLI is the override.
+        # Saved xml_file wins over CLI default (see run_live for the why).
         xml_file = extras.pop("xml_file", run["xml_file"])
         env = Walker2dPhaseAware(
             reference=ref, xml_file=xml_file, render_mode="rgb_array",

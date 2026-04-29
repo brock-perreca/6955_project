@@ -1,0 +1,15 @@
+{
+  "preview_k": 1,
+  "pose_joint_weights": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+  ],
+  "product_reward": false,
+  "min_joint_pose": true,
+  "v_target": 1.25,
+  "xml_file": "walker2d_hipopen.xml"
+}

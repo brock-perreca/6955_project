@@ -26,27 +26,77 @@ against a self-contradictory target; those checkpoints and the
 pre-restart engineered-reward constants are kept only as a historical
 record.
 
-The post-restart pipeline rebuild is in progress. Two batches done
+The post-restart pipeline rebuild is in progress. Four batches done
 (see [`RESTART_LOG.md`](RESTART_LOG.md) for full details):
 
-- **Batch 2** found the current best policy (`results/restart_b2_xvel/`)
+- **Batch 2** found the prior best policy (`results/restart_b2_xvel/`)
   via the `--xvel_term 0.3` floor termination. Walks, but with stiff
   hips (~2° ROM vs reference 45°) and 3× cadence as a downstream
   consequence.
 - **Batch 3** (2026-04-29 overnight, 19 experiments) tested 8
   reward-aggregator/termination ablations + 4 AMP/AIRL warm-started
   runs + 3 multi-step preview runs + an SAC variant. **All 19 fall
-  into the same stiff-hip basin or worse.** The basin is
-  reward-driven, not optimizer-driven — `xvel_term` acts as a
-  *survival floor* and the per-step pose loss isn't enough to dislodge
-  it. See [`REWARD_DESIGN.md § The stiff-hip trap`](REWARD_DESIGN.md#the-stiff-hip-trap-2026-04-29-diagnosis).
+  into the same stiff-hip basin or worse.** Headline read at the time
+  was "reward-driven trap"; batch 4 superseded that.
+- **Batch 4** (2026-04-29) **diagnosed the stiff-hip basin as a
+  joint-range problem in the MJCF**, not a reward problem. Stock
+  `walker2d.xml` constrains `thigh_joint` to `[-150°, 0°]`; the
+  reference's +30° hip-flexion peaks are unreachable. Opening the
+  range to `[-30°, +60°]` (`results/restart_b4_hipopen/`, 2M steps)
+  jumped hip ROM from 1.8° to **91.5°**. Every previous batch was
+  fighting an unreachable target. Variant B (re-invert hip column,
+  keep stock MJCF) only partially escapes — the +13° extension peak
+  still exceeds the 0° MJCF limit, producing a brittle deep-extension
+  kicking gait. See [`RESTART_LOG.md § Batch 4`](RESTART_LOG.md#batch-4--2026-04-29--joint-range-hypothesis-open-hip-mjcf--positive).
+- **Batch 5** (2026-04-29) ran the two queued aggregator-narrowing
+  ablations on top of `hipopen`: `--pose_scale 20` (sharper mean
+  aggregator) and `--min_joint_pose` (worst-joint floor). Both
+  numerically narrowed the gait — hip ROM 63° → 57° and `min_joint`
+  pulled fwd vel from 1.40 m/s to 1.231 m/s — but **visual A/B
+  (Brock) found all three policies (b4_hipopen_5M, b5_pose_scale20,
+  b5_min_joint) look essentially the same.** No variant promoted to
+  new current best; all three retained as comparison points. See
+  [`RESTART_LOG.md § Batch 5`](RESTART_LOG.md#batch-5--2026-04-29--narrow-the-hipopen-over-flex--partial-positive-both-variants).
 
-**Top-priority next step (post-Tier-0):** restore
-`forward_reward = exp(-3·(v-1.25)²)` and remove the `xvel_term`
-floor — *on the relaxed MJCF `walker2d_hiprelax.xml`*, not stock
-walker2d.xml. See
-[`ROADMAP.md § 0`](ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29)
-and the Tier 0 finding below.
+**Two leading current-best candidates** (one per machine — both
+post-Tier-0 ablations of the same kinematic-ceiling fix):
+
+- `results/restart_b4_hipopen_5M/` (Brock-Asus-Laptop, 5M, seed 6,
+  `walker2d_hipopen.xml` `[-30, 60]`). Hip ROM 63.2° vs reference 43°,
+  mean fwd vel 1.40 m/s vs target 1.25, all 4 deterministic eval
+  episodes survive 1000 steps. Over-flexes by ~10° at the swing
+  peak. Batch-5 narrowing variants (`pose_scale20`, `min_joint`)
+  retained as comparison points; visual A/B against the baseline
+  found no perceptible difference.
+- `results/restart_b4_hiprelax_s11/` (Brock-O11, 5M, seed 11,
+  `walker2d_hiprelax.xml` `[-150, 35]` — minimal +5° headroom over the
+  reference peak). Best of three Tier 0 C seeds on LR symmetry, DTW,
+  progress score, and vGRF. Hip ROM 17–20° (under the 45° target)
+  but the trace tracks reference *shape and frequency*. Visual
+  review (Brock, 2026-04-29): "all the videos look great" relative
+  to xvel-5M.
+
+The two ablations bracket the answer: hipopen *overshoots* the hip
+ROM target, hiprelax *undershoots*. Both confirm morphology was the
+dominant cause of pre-Tier-0 stiff-hip; both leave a residual
+amplitude/cadence gap that points at reward as the secondary
+bottleneck.
+
+**Top-priority next steps** (see [`ROADMAP.md`](ROADMAP.md)):
+
+1. **Structural reward reform** — restore
+   `forward_reward = exp(-3·(v-1.25)²)`, drop the `xvel_term` floor.
+   Run on **both** `walker2d_hipopen.xml` and `walker2d_hiprelax.xml`
+   so we can attribute the residual gap to reward vs morphology.
+2. **Stack the two batch-5 knobs** (`--pose_scale 20
+   --min_joint_pose`) on hipopen — neither single-knob run tested
+   the combination, and both moved the gait in the same direction.
+   Lower expectations for visible change given Batch 5's outcome.
+3. **Re-run AMP/AIRL warm-started from `b4_hipopen_5M`** — batch-3
+   AMP failed partly because the underlying PPO couldn't produce
+   reference-like hip flexion; that constraint is now removed. The
+   discriminator may now have a learnable signal that aggregator
+   tweaks alone don't provide.
 
 ---
 
@@ -60,35 +110,46 @@ hip was parked at +0° — 95.3 % of frames within 0.5° of the upper
 limit. Pre-Tier-0, the "stiff-hip basin" was a **kinematic ceiling,
 not (only) a reward trap.**
 
-**Tier 0 experiment C result (3 seeds × 5M steps, 2026-04-29).**
-Relaxed `thigh_joint range="-150 35"` (`assets/mjcf/walker2d_hiprelax.xml`),
-otherwise verbatim xvel-5M recipe. All three seeds qualitatively
-identical: clean periodic hip tracking that matches reference shape
-and frequency. **Hip ROM grew ~10× (1.8° → 17-20°)**, the
-flat-topped clamping disappeared, hip-trace median shifted +1.4° → +15°.
+**Two same-day, two-machine confirmations.** Brock-Asus-Laptop ran
+Batch 4 with `walker2d_hipopen.xml` (`[-30, 60]`, permissive both
+sides); Brock-O11 ran the Tier 0 ablation with
+`walker2d_hiprelax.xml` (`[-150, 35]`, +5° headroom only). Both saw
+the flat-topping disappear and hip ROM jump roughly an order of
+magnitude (1.8° → 91.5° over-flexed for hipopen; 1.8° → 17–20°
+under-amplitude for hiprelax). The two variants together bracket
+the residual reward bottleneck: hipopen lets the policy explore far
+past the reference peak, hiprelax sits just shy of it.
 
-But the policy stalled at ~40 % of reference hip amplitude with
-unchanged ~3× cadence and worse peak vGRF/BW. **Verdict: MIXED —
-both morphology and reward were binding.** Morphology was the
-dominant cause for xvel-5M; reward becomes the remaining bottleneck
-once the wall is removed.
+**Tier 0 experiment C result (3 seeds × 5M steps, 2026-04-29 —
+Brock-O11).** All three seeds qualitatively identical: clean
+periodic hip tracking that matches reference shape and frequency.
+The flat-topped clamping disappears, hip-trace median shifts +1.4°
+→ +15°. But the policy stalls at ~40 % of reference hip amplitude
+with unchanged ~3× cadence and worse peak vGRF/BW.
+
+**Verdict: MIXED — both morphology and reward were binding.**
+Morphology was the dominant cause for xvel-5M; reward becomes the
+remaining bottleneck once the wall is removed.
 
 **Recommendation for next step.** Tier 1's planned reward reform
-(`restore forward_reward = exp(-3·(v-1.25)²)`, drop `xvel_term`
-floor) is still the right move, **but it must run on top of
-`walker2d_hiprelax.xml`, not stock `walker2d.xml`.** Predicting that
-a peaked forward-velocity target will pull the policy out of the
-high-cadence basin and let hip amplitude grow toward reference. If
-it doesn't, the trap is deeper than reward+range and we look at
-gait-cycle frame rate / phase observation as Tier 2.
+(restore `forward_reward = exp(-3·(v-1.25)²)`, drop `xvel_term`
+floor) must run on top of a relaxed-hip MJCF. Running it on
+**both** hipopen and hiprelax is the cleanest experimental design:
+- if hipopen with the new reward narrows toward 45° while hiprelax
+  with the new reward grows toward 45°, reward was the dominant
+  remaining cause;
+- if both stay where they are, the trap is deeper than reward+range
+  and we look at gait-cycle frame rate / phase observation as
+  Tier 2.
 
-See [`TIER0_DIAGNOSTICS.md`](TIER0_DIAGNOSTICS.md) for the
+See [`TIER0_DIAGNOSTICS.md`](TIER0_DIAGNOSTICS.md) for the Tier 0
 per-experiment ledger (A.1, A.2, C) and
 [`docs/figures/tier0/C_hiprelax/`](figures/tier0/C_hiprelax/) for the
 videos, dashboards, and the cleanest single artifact —
 `C_hip_trace_comparison.png` — which shows xvel-5M's blue trace flat
 against the green +0° wall next to all three relaxed seeds sweeping
-through ±20°.
+through ±20°. See [`RESTART_LOG.md § Batch 4`](RESTART_LOG.md) for
+the parallel hipopen ablation.
 
 ---
 
@@ -162,20 +223,33 @@ metric, plus a single `progress_score` in [0, 4]. See
   one clean stride from Ulrich Subject 1 baseline (56 frames @ 50 Hz,
   resampled to 140 frames @ 125 Hz inside the env). FK-verified after
   the 2026-04-28 sign fix to encode forward walking.
-- **Current best policy:** `results/restart_b4_hiprelax_s11/` — 5M
-  steps, **`walker2d_hiprelax.xml`** (`thigh_joint range="-150 35"`),
-  single-cycle reference, 8 envs, seed 11. xvel-5M recipe verbatim
-  except for the relaxed MJCF. Visual review: clearly best of the
-  Tier 0 runs (Brock, 2026-04-29 — "all the videos look great";
-  s11 also leads on LR symmetry, DTW, progress score, vGRF).
-  Quantitative residuals:
-  - Hip ROM still ~40 % of reference (~17-20° vs 45°) — reward is
-    binding on top of the now-removed kinematic ceiling.
-  - Cadence ~3× too fast (stride 0.36 s vs reference 1.12 s).
-- **Pre-Tier-0 superseded:** `results/restart_b2_xvel/` — 5M steps,
-  stock `walker2d.xml`. Hip stuck at +0° because the joint range
-  literally couldn't reach the reference. Kept on disk for the
-  before/after comparison; do not branch new work off it.
+- **Current best policies (two leading candidates, one per machine):**
+  - `results/restart_b4_hipopen_5M/` — 5M steps, seed 6, 8 envs,
+    `--xvel_term 0.3`, `--xml walker2d_hipopen.xml` (custom MJCF with
+    hip range opened to `[-30°, +60°]`). Hip ROM 63.2° vs reference
+    43°; mean fwd vel 1.40 m/s vs target 1.25; all 4 deterministic
+    eval episodes survive 1000 steps. *Over-flexes ~10° at swing peak.*
+    Batch-5 narrowing variants (`restart_b5_pose_scale20/`,
+    `restart_b5_min_joint/`) numerically narrowed ROM to ~57° and
+    `min_joint` pulled fwd vel to 1.231 m/s — but visual A/B against
+    this baseline showed no perceptible difference, so all three are
+    kept as comparison points.
+  - `results/restart_b4_hiprelax_s11/` — 5M steps, seed 11, 8 envs,
+    `--xvel_term 0.3`, `--xml walker2d_hiprelax.xml` (`thigh_joint
+    range="-150 35"`, +5° headroom). xvel-5M recipe verbatim except
+    for the relaxed MJCF. Visual review: clearly best of the Tier 0
+    runs (Brock, 2026-04-29 — "all the videos look great"; s11 also
+    leads on LR symmetry, DTW, progress score, vGRF). *Hip ROM still
+    ~40 % of reference (~17-20° vs 45°)* — reward is binding on top
+    of the now-removed kinematic ceiling. Cadence ~3× too fast
+    (stride 0.36 s vs reference 1.12 s).
+- **Pre-Tier-0 superseded baseline (kept for reference):**
+  `results/restart_b2_xvel/` — 5M steps, stock `walker2d.xml`,
+  single-cycle reference, 8 envs. Same recipe minus the relaxed MJCF.
+  Stiff-hip basin (hip ROM ~2° vs reference 45°, cadence 3× too
+  fast) — the joint range literally couldn't reach the reference.
+  Kept as the "before" policy for showing what opening the hip range
+  did; do not branch new work off it.
 - **Pre-restart canonical** (kept for historical comparison only —
   trained on the inverted reference; do not branch new work off
   these): `results/walker2d_phase_cycle_s1scaled_sum_20260423-213031/`
@@ -190,10 +264,15 @@ MJCF to render.
 
 | Result dir | Steps | Notes |
 |---|---|---|
-| **`results/restart_b4_hiprelax_s11/`** | **5M** | **New current best (Tier 0 C, 2026-04-29, canonical seed).** xvel-5M recipe verbatim + `--xml walker2d_hiprelax.xml` (`thigh_joint range="-150 35"`). Best of 3 seeds on LR symmetry (0.097, only seed under 0.10), all-joints DTW (0.532, lowest), progress score (2.41), and peak vGRF (3.97, lowest). hip_r ROM 19.8° / hip_l 15.3°. Tracks ref shape+frequency; amplitude ~40 % of reference, leaving Tier 1 reward reform as the next step. |
+| **`results/restart_b4_hipopen_5M/`** | **5M** | **Leading current-best (hipopen track, Brock-Asus-Laptop).** DeepMimic 4-term + `--xvel_term 0.3` + `--xml walker2d_hipopen.xml`. seed=6. Hip ROM 63° (over-flexed by ~20° vs ref 43°), fwd vel 1.40 m/s, 1000×4 eval survival. |
+| **`results/restart_b4_hiprelax_s11/`** | **5M** | **Leading current-best (hiprelax track, Brock-O11, canonical Tier 0 C seed).** Same xvel-5M recipe + `--xml walker2d_hiprelax.xml` (`thigh_joint range="-150 35"`). Best of 3 seeds on LR symmetry (0.097, only seed under 0.10), all-joints DTW (0.532, lowest), progress score (2.41), peak vGRF (3.97, lowest). hip_r ROM 19.8° / hip_l 15.3°. Tracks ref shape+frequency; amplitude ~40 % of reference, leaving Tier 1 reward reform as the next step. |
 | `results/restart_b4_hiprelax_s12/` | 5M | Tier 0 C seed 12. Higher knee ROM (38.6°) but worse LR symmetry (0.143) and DTW (0.641). Kept for the 3-seed comparison artifact. |
 | `results/restart_b4_hiprelax_s13/` | 5M | Tier 0 C seed 13. Slightly slower cadence (323.6 vs 332.7) but worst progress score (2.11) and highest peak vGRF (4.18). Kept for the 3-seed comparison artifact. |
-| `results/restart_b2_xvel/` | 5M | Pre-Tier-0 best. Stock walker2d.xml, seed=2. Hip parked at +0° upper limit (the kinematic ceiling — see Tier 0 finding); superseded by hiprelax runs above. Visual review (Brock, 2026-04-29): "looks pretty bad" relative to the relaxed-MJCF runs; do not branch new work off this. |
+| `results/restart_b5_min_joint/`     | 5M     | Batch 5 Variant B: hipopen + `--min_joint_pose`. seed=8. Hip ROM 57°, fwd vel 1.23 m/s. Visually indistinguishable from b4_hipopen_5M. |
+| `results/restart_b5_pose_scale20/`  | 5M     | Batch 5 Variant A: hipopen + `--pose_scale 20`. seed=7. Hip ROM 56.6°, fwd vel 1.35 m/s. Visually indistinguishable from b4_hipopen_5M. |
+| `results/restart_b4_hipopen/`       | 2M     | Pre-5M `b4_hipopen` checkpoint. seed=4. Hip ROM 91° (under-trained). |
+| `results/restart_b4_hipinvert/`     | 2M     | Batch 4 Variant B (re-invert hip ref, stock MJCF). seed=5. Brittle deep-extension kicking gait, episodes die at 47-250 steps. |
+| `results/restart_b2_xvel/` | 5M | Pre-Tier-0 / pre-batch-4 stiff-hip baseline. DeepMimic 4-term + `--xvel_term 0.3`. Stock walker2d.xml, seed=2. ep_len 2120, all-episode 2500-step survival on eval, but hip ROM ~2° vs ref 45° because the joint range literally couldn't reach the reference. Visual review (Brock, 2026-04-29): "looks pretty bad" relative to the relaxed-MJCF runs; do not branch new work off this. |
 | `results/restart_b2_k30/` | 5M | DeepMimic + `--pose_scale 30`. Unstable; 4/6 eval episodes fall in <120 steps. |
 | `results/restart_b1_dm/` | 2M (killed) | Pure DeepMimic baseline. Stand-and-wiggle exploit. |
 | `results/restart_b1_dm_bc/` | 2M (killed) | DeepMimic + 5-epoch BC. Same exploit, marginally varied across seeds. |

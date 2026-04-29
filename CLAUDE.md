@@ -62,35 +62,52 @@ trained against a self-contradictory target. The loaders were
 corrected and the pipeline is being rebuilt from a DeepMimic-faithful
 baseline.
 
-The 2026-04-29 overnight 19-experiment sweep concluded the residual
-stiff-hip basin was reward-driven; the **2026-04-29 Tier 0 diagnostic
-session falsified that conclusion in part.** Stock `walker2d.xml`
-caps `thigh_joint range="-150 0"`, but the reference asks for hip
-flexion up to +29.97°. ~68 % of every gait cycle was therefore
-*outside the joint range*. xvel-5M's hip was parked at +0° for 95.3 %
-of frames. The dominant cause of stiff-hip in every pre-Tier-0 run
-was a **kinematic ceiling**, not the reward. Tier 0 experiment C
-(three seeds × 5M steps with `assets/mjcf/walker2d_hiprelax.xml`,
-`thigh_joint range="-150 35"`) confirmed it: hip ROM grew ~10×
-(1.8° → 17-20°), the flat-topping disappeared, and policies tracked
-reference shape and frequency. Amplitude still hit only ~40 % of the
-reference's 45° (cadence ~3× too fast, vGRF too high) — so the
-verdict is **mixed**: morphology was the dominant cause but reward
-is binding on top.
+The 2026-04-29 overnight 19-experiment sweep (Batch 3) initially
+read as a "reward-driven trap"; **two independent same-day Batch 4
+diagnostics — one per laptop — superseded that diagnosis** and
+landed on the same root cause: the stock `walker2d.xml`
+`thigh_joint range="-150 0"` is a **kinematic ceiling**. The
+reference asks for hip flexion up to +29.97°; ~68 % of every gait
+cycle is therefore *outside* the joint range. xvel-5M's hip was
+parked at +0° for 95.3 % of frames. The 19 overnight ablations
+were all chasing a problem that lived upstream of the reward.
 
-The current best policy is **`results/restart_b4_hiprelax_s11/`**,
-canonical of the three Tier 0 C seeds (best LR symmetry, DTW,
-progress score, vGRF). The next step is the planned Tier 1 reward
-reform — `forward_reward = exp(-3·(v-1.25)²)` + drop `xvel_term` —
-**on top of `walker2d_hiprelax.xml`**, not stock walker2d.xml. See:
+Both machines ran a single-knob morphology ablation; the two
+parallel variants together bracket the answer:
+
+- **`assets/mjcf/walker2d_hipopen.xml`** (Brock-Asus-Laptop, Batch 4
+  + Batch 5 sweeps): `thigh_joint range="-30 60"` — permissive both
+  directions. Hip ROM jumped 1.8° → **91.5°** in 2M steps
+  (`results/restart_b4_hipopen/`); a 5M follow-up
+  (`results/restart_b4_hipopen_5M/`) narrowed it to ~63° at 1.40 m/s.
+  Batch 5 (`pose_scale20`, `min_joint`) tightened it further but a
+  visual A/B found all three indistinguishable to the eye.
+- **`assets/mjcf/walker2d_hiprelax.xml`** (Brock-O11, Tier 0 C):
+  `thigh_joint range="-150 35"` — minimal +5° headroom over the
+  reference peak. Three-seed × 5M sweep
+  (`results/restart_b4_hiprelax_s11/.../s13/`); hip ROM 1.8° →
+  17–20°; reference shape/frequency tracked but amplitude only ~40 %
+  of the reference's 45°, cadence ~3× too fast, vGRF too high.
+
+Together the two ablations confirm **morphology was the dominant
+cause** of stiff-hip in every pre-Tier-0 run. The hipopen variant
+*overshoots* (91.5° on a 45° target); the hiprelax variant
+*undershoots* (17–20°). The two leading candidates for "current
+best" are `restart_b4_hipopen_5M/` (most steps, longest survival)
+and `restart_b4_hiprelax_s11/` (canonical of the three Tier 0 C
+seeds: best LR symmetry, DTW, progress score, vGRF). The verdict
+is **mixed**: morphology dominant, reward binding on top. The
+planned Tier 1 reward reform — `forward_reward = exp(-3·(v-1.25)²)`
++ drop `xvel_term` — should run on **both** the hipopen and
+hiprelax MJCFs to bracket how much of the residual amplitude gap
+is reward-driven. See:
 
 - [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) — current state
-- [`docs/TIER0_DIAGNOSTICS.md`](docs/TIER0_DIAGNOSTICS.md) — per-experiment ledger + verdict
-- [`docs/RESTART_LOG.md § Batch 4`](docs/RESTART_LOG.md#batch-4--2026-04-29--tier-0-morphology-ablation-hip-range-relaxation) — Tier 0 C in the per-batch log
+- [`docs/TIER0_DIAGNOSTICS.md`](docs/TIER0_DIAGNOSTICS.md) — Tier 0 per-experiment ledger + verdict (Brock-O11)
+- [`docs/RESTART_LOG.md`](docs/RESTART_LOG.md) — per-batch progress incl. both Batch 4 ablations and Batch 5 hipopen sweeps
 - [`docs/REWARD_DESIGN.md § The stiff-hip trap`](docs/REWARD_DESIGN.md#the-stiff-hip-trap-2026-04-29-diagnosis)
-  — pre-Tier-0 reward analysis (now superseded as the *dominant* cause; reward is the *secondary* cause per Tier 0 C)
-- [`docs/ROADMAP.md § 0`](docs/ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29)
-  — top-priority next step (must run on `walker2d_hiprelax.xml`)
+  — pre-Tier-0 reward analysis (superseded as the *dominant* cause; reward is the *secondary* cause per both Batch 4 ablations)
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — top-priority next steps: structural reward reform on top of the relaxed-hip MJCFs, plus narrowing the hipopen gait
 - [`docs/PROJECT_TIMELINE.md § Phase 5`](docs/PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28)
   — full sign-error story
 

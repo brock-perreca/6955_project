@@ -6,58 +6,116 @@
 **Adjacent:** [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for "right now"
 · [`RESTART_LOG.md`](RESTART_LOG.md) for what just shipped.
 
-**Item 0 is the new top priority** after the 2026-04-29 Tier 0
-diagnostic ([`TIER0_DIAGNOSTICS.md`](TIER0_DIAGNOSTICS.md) and
-[`RESTART_LOG.md § Batch 4`](RESTART_LOG.md#batch-4--2026-04-29--tier-0-morphology-ablation-hip-range-relaxation));
-items 1-4 from the writeup §7 follow once the residual reward trap
-is fixed.
+**Item 0 is the new top priority** after the 2026-04-29 Batch 4 / 4b
+diagnosis ([`RESTART_LOG.md § Batch 4`](RESTART_LOG.md) and
+[`TIER0_DIAGNOSTICS.md`](TIER0_DIAGNOSTICS.md)) showed the stiff-hip
+basin was a joint-range problem in `walker2d.xml`. Two parallel,
+two-machine ablations both fixed it — `walker2d_hipopen.xml`
+(`[-30, 60]`, Brock-Asus-Laptop) and `walker2d_hiprelax.xml`
+(`[-150, 35]`, Brock-O11). Both leave a residual reward gap that's
+the next thing to close. Items 1-4 from the writeup §7 follow once
+that gap is closed on at least one of the two relaxed-MJCF tracks.
 
 ---
 
-## 0. Structural reward reform on `walker2d_hiprelax.xml` (UPDATED, 2026-04-29 post-Tier-0)
+## 0. Close the residual reward gap on relaxed-hip MJCFs (UPDATED, 2026-04-29 post-Tier-0)
 
-**Why:** the 19-experiment overnight sweep
-([`RESTART_LOG.md § Batch 3`](RESTART_LOG.md)) initially diagnosed
-the stiff-hip basin as reward-driven. The 2026-04-29 Tier 0
-diagnostic ([`TIER0_DIAGNOSTICS.md`](TIER0_DIAGNOSTICS.md)) showed
-the **dominant** cause was actually the joint-range ceiling — stock
-`walker2d.xml` `thigh_joint range="-150 0"` made ~68 % of every
-reference cycle unreachable. Tier 0 experiment C (3 seeds × 5M
-steps with `walker2d_hiprelax.xml`, `range="-150 35"`) confirmed it:
-hip ROM 10×, flat-topped clamping gone, trace tracks reference
-shape+frequency. **But amplitude plateaued at ~40 % of reference
-and cadence stayed ~3× too fast** — `xvel_term=0.3` is a *floor*
-(once v ≥ 0.31 m/s, full survival reward) and the policy's optimum
-is "drift fast and short," even with the wall removed. Reward is
-**still binding on top of morphology**.
+**Why:** opening the hip joint range fixed the dominant cause of
+stiff-hip walking, but each variant leaves a different residual gap
+that points back at the reward:
 
-**Plan:** Restore the `forward_reward = exp(-3·(v-1.25)²)` term that
-was deleted as default-off on 2026-04-28
+- **hipopen (`[-30, 60]`)**: at 5M (`results/restart_b4_hipopen_5M/`)
+  hip ROM is **63°** vs reference 43°, mean fwd vel 1.40 m/s vs
+  target 1.25. **Over-flexed and slightly over-fast.** Pose-tracking
+  `exp(-10·mean(diff²))` is too forgiving of one overshooting joint
+  when the other five track.
+- **hiprelax (`[-150, 35]`)**: at 5M (`results/restart_b4_hiprelax_s11/`)
+  hip ROM is **17–20°** vs reference 43°, cadence ~3× too fast,
+  peak vGRF/BW worsens (4.0 vs 3.3). **Under-flexed and over-fast.**
+  `xvel_term=0.3` is a *floor* — any forward velocity ≥ 0.31 m/s
+  satisfies survival, so the policy's optimum is "drift fast and
+  short" even with the wall relaxed.
+
+The two variants together bracket the reward question: hipopen
+overshoots ROM, hiprelax undershoots ROM, and **both** are over-fast.
+The shared diagnosis is that `xvel_term=0.3` (or the `mean()`
+aggregator that hides single-joint overshoots) makes "fast,
+low-amplitude" the local optimum regardless of MJCF.
+
+**Plan, in two parallel threads** — both are on-mission, run them
+together so the results are interpretable side-by-side:
+
+### 0a. Narrow the `hipopen` gait (Asus-laptop track)
+
+In order of escalation:
+
+1. ✓ **5M follow-up of `b4_hipopen`** — `results/restart_b4_hipopen_5M/`,
+   seed 6. Narrowed 91°→63° hip ROM, 2.07→1.40 m/s.
+2. ✓ **Sharpen pose tracking** (Batch 5). `--pose_scale 20` and
+   `--min_joint_pose` each narrow hip ROM 63°→57° and pull fwd vel
+   toward target; `min_joint` lands at 1.231 m/s (essentially target).
+   Neither hits ROM ~43°. See
+   [`RESTART_LOG.md § Batch 5`](RESTART_LOG.md#batch-5--2026-04-29--narrow-the-hipopen-over-flex--partial-positive-both-variants).
+3. **Stack the two batch-5 knobs** — `--pose_scale 20 --min_joint_pose`
+   together (untested combination, both moved the gait in the same
+   direction). One 5M run before escalating to a peaked-forward
+   reward.
+4. **If still over-fast, add the peaked forward reward** —
+   `fwd_r = exp(-3·(v-1.25)²)` with `--fwd_weight 0.15`, drop
+   `--xvel_term`. Replaces the survival floor with a target-velocity
+   bell curve. Currently not a CLI flag — needs a small code change.
+5. **Once a clean tracking gait exists, retry AMP/AIRL warm-start**
+   from `b4_hipopen_5M`. Batch 3's AMP runs failed partly because
+   the underlying PPO couldn't produce reference-like hip flexion;
+   with a tracking baseline the discriminator should have a learnable
+   signal.
+
+### 0b. Structural reward reform on `walker2d_hiprelax.xml` (O11 track)
+
+Restore the `forward_reward = exp(-3·(v-1.25)²)` term that was
+deleted as default-off on 2026-04-28
 ([`REWARD_DESIGN.md § Removed terms`](REWARD_DESIGN.md#fwd_r--forward-velocity-reward)).
 Drop `xvel_term`. The bell-curve forward target replaces a survival
 floor with a peaked reward — drifting at v=0.4 no longer maxes out;
-only matching v_target does. **Train on `walker2d_hiprelax.xml`,
-not stock walker2d.xml** — the wall must stay relaxed for hip
-amplitude to grow toward reference. Restoring `fwd_r` as a CLI flag
-`--fwd_weight` (default ~0.10–0.20) is the minimal-risk path.
+only matching v_target does. **Train on `walker2d_hiprelax.xml`** —
+the +5° headroom is just enough for the policy to express the
+reference's +30° peak without exploring far-off-distribution
+overswing the way hipopen does.
 
-**Test plan:** ONE training run from scratch with
+Restoring `fwd_r` as a CLI flag `--fwd_weight` (default ~0.10–0.20)
+is the minimal-risk path; this is the same code change as 0a step 4,
+so the two tracks share that work.
+
+**Test plan for 0b:** ONE training run from scratch with
 `--xml walker2d_hiprelax.xml --fwd_weight 0.15`, no `--xvel_term`,
-otherwise the xvel-5M recipe. Best baseline to compare against is
-`results/restart_b4_hiprelax_s11/` (Tier 0 canonical pick — hip ROM
-17-20°, cadence 333). If hip ROM > 30° AND cadence < 200 in eval,
-the residual reward trap is broken; queue stacked variants with
-`--product_reward` and warm-started AMP on the new policy. If hip
-amplitude still plateaus at ~20°, the trap is deeper than
-reward+range — frame rate, phase obs rate, or body-mass scaling vs
-the 75 kg subject — and Tier 2 begins.
+otherwise the xvel-5M recipe. Baseline: `results/restart_b4_hiprelax_s11/`
+(Tier 0 canonical pick — hip ROM 17-20°, cadence 333). If hip ROM >
+30° AND cadence < 200 in eval, the residual reward trap is broken on
+hiprelax; queue stacked variants with `--product_reward` and a
+warm-started AMP run on the new policy. If hip amplitude still
+plateaus at ~20°, the trap is deeper than reward+range — frame rate,
+phase obs rate, or body-mass scaling vs the 75 kg subject — and
+Tier 2 begins.
 
-**Owner:** Brock. Code change is small (~10 LOC; the `fwd_r` term and
-its CLI flag previously existed and are git-recoverable).
+### Joint readout
 
-**Skip:** more aggregator variants, hip_term, energy penalty, reverse
-curriculum, preview_k > 1. Tier 0 + Batch 3 say these are not where
-the trap is.
+Running 0a step 4 and 0b together (both use the new `--fwd_weight`
+flag, just on different MJCFs) gives the cleanest experimental
+design: hipopen with the new reward should *narrow* toward 45°;
+hiprelax with the new reward should *grow* toward 45°. If both
+converge near 45° at cadence ~110, reward was the dominant remaining
+cause and we move to writeup §7.1 (MJX/AMP). If both stay where
+they are, Tier 2 (frame rate / phase observation) opens.
+
+**Owner:** Brock. 0a step (3) is two existing CLI flags stacked.
+0a step (4) and 0b both need the same new code (peaked-forward
+reward term). 0a step (5) is the comparison track.
+
+**Skip:** more aggregator variants on the *stock* `walker2d.xml`,
+hip_term, energy penalty, reverse curriculum, preview_k > 1. Tier 0
++ Batch 3 say these are not where the trap is on stock; on the
+relaxed MJCFs some may help narrow the gait but they're lower
+priority than the peaked-forward reward.
 
 ---
 
