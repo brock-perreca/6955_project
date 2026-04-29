@@ -143,43 +143,32 @@ hopping if you let the ankle drift as far as hip/knee.
 
 ---
 
-## The stiff-hip trap (2026-04-29 diagnosis, revised after Tier 0)
+## The stiff-hip trap (2026-04-29 diagnosis, revised after Batch 4 / Tier 0)
 
-> **2026-04-29 revision (post-Tier-0).** The pre-Tier-0 conclusion
-> below — that the stiff hip was *primarily* reward-driven — is
-> partially wrong. The Tier 0 diagnostic
-> ([`TIER0_DIAGNOSTICS.md`](TIER0_DIAGNOSTICS.md)) showed that stock
-> `walker2d.xml` `thigh_joint range="-150 0"` made ~68 % of every
-> reference cycle **physically unreachable**, and xvel-5M's hip was
-> actively pushing into the +0° upper limit (95.3 % of frames within
-> 0.5° of the wall). Tier 0 experiment C — same recipe, only the
-> joint range relaxed to `-150 35` — recovered ~10× hip ROM and the
-> reference shape; pre-Tier-0 reward sweeps had been incapable of
-> producing hip flexion regardless of what they tweaked. The
-> mechanism analysis below is still correct as the *secondary* cause
-> — reward is binding *on top of* the kinematic ceiling, which is
-> why Tier 0 C amplitude only reached ~40 % of reference. Read this
-> section as "why xvel-5M's reward is *also* a problem", not "why
-> xvel-5M's reward was *the* problem". The Tier 1 fix
-> ([`ROADMAP.md § 0`](ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29))
-> must run on `walker2d_hiprelax.xml`, not stock walker2d.xml.
-
-> **Update 2026-04-29 (later, post-Batch-4):** the stiff-hip trap is
-> primarily a **physical reachability** problem in `walker2d.xml`, not
-> a reward-shaping problem. Stock gym `walker2d.xml` constrains
-> `thigh_joint` to `[-150°, 0°]` while the reference asks for hip
-> flexion peaks of +30° on both sides — the simulator literally cannot
-> reach the reference target. The `restart_b2_xvel` policy spent 97.5%
-> of its rollout pinned within 1° of the upper joint limit. Opening
-> the MJCF range to `[-30°, +60°]` (`results/restart_b4_hipopen/`,
-> 2M steps) raised hip ROM from 1.8° to 91.5° in a single change; see
-> [`RESTART_LOG.md § Batch 4`](RESTART_LOG.md#batch-4--2026-04-29--joint-range-hypothesis-open-hip-mjcf--positive).
+> **2026-04-29 revision.** The original conclusion below — that the
+> stiff hip was *primarily* reward-driven — is partially wrong. Two
+> independent same-day diagnostics on two machines
+> ([`RESTART_LOG.md § Batch 4`](RESTART_LOG.md) on Brock-Asus-Laptop
+> with `walker2d_hipopen.xml`, and
+> [`TIER0_DIAGNOSTICS.md`](TIER0_DIAGNOSTICS.md) on Brock-O11 with
+> `walker2d_hiprelax.xml`) showed that stock `walker2d.xml`
+> `thigh_joint range="-150 0"` made ~68 % of every reference cycle
+> **physically unreachable**. xvel-5M's hip was actively pushing into
+> the +0° upper limit (95.3 % of frames within 0.5° of the wall).
+> Opening the joint range — to `[-30, 60]` (hipopen) or `[-150, 35]`
+> (hiprelax) — raised hip ROM from 1.8° to 91.5° (hipopen, 2M) or
+> 17–20° (hiprelax, 5M) in a single change; pre-2026-04-29 reward
+> sweeps had been incapable of producing hip flexion regardless of
+> what they tweaked.
 >
-> The reward-side mechanism described below (5-of-6-joint loophole +
-> survival floor) is real and contributes — it explains why the policy
-> *settles* at the joint limit rather than fighting it. But the joint
-> limit is what made the reference unreachable in the first place;
-> reward changes alone cannot fix that.
+> The mechanism analysis below is still correct as the *secondary*
+> cause — reward is binding *on top of* the kinematic ceiling, which
+> is why hipopen's amplitude *overshoots* and hiprelax's amplitude
+> only reaches ~40 % of reference. Read this section as "why
+> xvel-5M's reward is *also* a problem", not "why xvel-5M's reward
+> was *the* problem". The Tier 1 fix ([`ROADMAP.md`](ROADMAP.md))
+> must run on top of a relaxed-hip MJCF (hipopen and/or hiprelax),
+> not on stock walker2d.xml.
 
 The 19-experiment overnight sweep
 ([`RESTART_LOG.md § Batch 3`](RESTART_LOG.md#batch-3--2026-04-29--overnight-19-experiment-sweep--negative-result))
@@ -255,25 +244,34 @@ for the hidden hip limit. The full list:
   reward," a separate exploit. It's also part of the proven
   `b4_hipopen_5M` recipe.
 
-### What actually fixed it (Batch 4, 2026-04-29)
+### What actually fixed it (Batch 4 / Batch 4b / Batch 5, 2026-04-29)
 
-**Open the hip joint range in the MJCF.** A custom
-`assets/mjcf/walker2d_hipopen.xml` with `thigh_joint range="-30  60"`
-(`thigh_left_joint` matching) makes the reference's +30° flexion peaks
-reachable. Trained from scratch with the proven `xvel-5M` recipe (8
-envs, `--xvel_term 0.3`, no other changes), 2M steps was sufficient to
-escape the basin entirely: hip ROM 91.5°, fwd vel 2.07 m/s. The
-resulting gait is over-flexed and over-fast — the pose-tracking reward
-is too forgiving of a single overshooting joint and the over-flexion
-buys forward momentum — so a 5M follow-up + possibly `--pose_scale 20`
-or `--product_reward` are queued to narrow the gait toward reference
-tracking.
+**Open the hip joint range in the MJCF.** Two parallel single-knob
+ablations on two machines:
 
-Note that the reward-side fix originally proposed here (replace
-`--xvel_term` with a peaked `fwd_r = exp(−3·(v_x−1.25)²)`) was never
-tested standalone, because the MJCF fix made it moot for basin escape.
-A peaked forward reward may still be useful for *narrowing* the
-hipopen gait's 2.07 m/s toward 1.25; that's a tunable for batch 5.
+- `assets/mjcf/walker2d_hipopen.xml` (Asus, `thigh_joint range="-30 60"`).
+  Trained from scratch with the proven xvel-5M recipe (8 envs,
+  `--xvel_term 0.3`, no other changes), 2M steps was sufficient to
+  escape the basin entirely: hip ROM 91.5°, fwd vel 2.07 m/s. A 5M
+  follow-up (`results/restart_b4_hipopen_5M/`) narrowed to ROM 63°
+  and fwd vel 1.40 m/s. Batch 5 follow-ups (`pose_scale20`,
+  `min_joint`) further narrowed metrics but didn't visibly change the
+  gait.
+- `assets/mjcf/walker2d_hiprelax.xml` (O11, `thigh_joint range="-150 35"`).
+  Same recipe; three-seed sweep at 5M
+  (`results/restart_b4_hiprelax_s11..s13/`) recovered hip ROM
+  17–20°. Reference shape and frequency tracked; amplitude
+  *undershoots* the reference's 45° peak.
+
+The two MJCFs together bracket the residual reward gap: hipopen
+*overshoots* the reference, hiprelax *undershoots*. The reward-side
+fix originally proposed here (replace `--xvel_term` with a peaked
+`fwd_r = exp(−3·(v_x−1.25)²)`) was never tested standalone because
+the MJCF fix made it moot for basin escape. It is still the planned
+Tier 1 reform — running it on top of *both* MJCFs (hipopen narrowing
+toward 45° while hiprelax grows toward 45°) is the cleanest way to
+attribute the residual gap to reward vs morphology. See
+[`ROADMAP.md`](ROADMAP.md) item 0.
 
 ---
 
@@ -332,7 +330,8 @@ knees+ankles wiggling. **Not fixed by per-joint weighting, geometric
 mean, worst-joint floor, hip-only termination, energy penalty, AMP
 warm-start, or SAC optimizer** (see [Batch 3](RESTART_LOG.md#batch-3--2026-04-29--overnight-19-experiment-sweep--negative-result)).
 Mechanism in "The stiff-hip trap" above; planned fix in
-[`ROADMAP.md § 0`](ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29).
+[`ROADMAP.md`](ROADMAP.md) item 0 (run reward reform on top of a
+relaxed-hip MJCF — hipopen and/or hiprelax).
 
 ---
 

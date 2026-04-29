@@ -92,12 +92,18 @@ parallel variants together bracket the answer:
 Together the two ablations confirm **morphology was the dominant
 cause** of stiff-hip in every pre-Tier-0 run. The hipopen variant
 *overshoots* (91.5° on a 45° target); the hiprelax variant
-*undershoots* (17–20°). The two leading candidates for "current
-best" are `restart_b4_hipopen_5M/` (most steps, longest survival)
-and `restart_b4_hiprelax_s11/` (canonical of the three Tier 0 C
-seeds: best LR symmetry, DTW, progress score, vGRF). The verdict
-is **mixed**: morphology dominant, reward binding on top. The
-planned Tier 1 reward reform — `forward_reward = exp(-3·(v-1.25)²)`
+*undershoots* (17–20°). **Brock has not picked a single "current
+best" yet** — there are four candidates kept on disk for visual
+A/B and writeup comparison:
+
+- `results/restart_b4_hipopen_5M/` (hipopen, baseline 5M)
+- `results/restart_b5_pose_scale20/` (hipopen + sharper aggregator)
+- `results/restart_b5_min_joint/` (hipopen + worst-joint floor;
+  fwd vel essentially exactly the 1.25 m/s target)
+- `results/restart_b4_hiprelax_s11/` (hiprelax, canonical Tier 0 C seed)
+
+The verdict is **mixed**: morphology dominant, reward binding on top.
+The planned Tier 1 reward reform — `forward_reward = exp(-3·(v-1.25)²)`
 + drop `xvel_term` — should run on **both** the hipopen and
 hiprelax MJCFs to bracket how much of the residual amplitude gap
 is reward-driven. See:
@@ -175,6 +181,8 @@ musculoskeletal track — as on-mission, not scope creep.
 | Why does each reward term exist? What exploit closes which gap? | [`docs/REWARD_DESIGN.md`](docs/REWARD_DESIGN.md) |
 | Past runs / failure modes / curated demos with reproduce commands | [`docs/RUN_LOG.md`](docs/RUN_LOG.md) |
 | Future work (MJX, multi-step preview, DTW, multi-cycle) | [`docs/ROADMAP.md`](docs/ROADMAP.md) |
+| Which MJCF should I use? hipopen vs hiprelax vs stock | [`assets/mjcf/README.md`](assets/mjcf/README.md) |
+| Tooling index — what each `scripts/` and diagnostic does | [`scripts/README.md`](scripts/README.md), [`src/diagnostics/README.md`](src/diagnostics/README.md) |
 | Why this legacy file exists; what to verify before re-running | [`docs/LEGACY_TRACKS.md`](docs/LEGACY_TRACKS.md) |
 | Reference data formats (Ulrich, OpenCap, .osim) | [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md) |
 | Primary-source papers (DeepMimic, GAIL, AMP×2, AIRL, OpenCap, KinTwin, KINESIS) | [`docs/papers/papers.md`](docs/papers/papers.md) |
@@ -226,8 +234,9 @@ project is doing or why), the writeup wins.
 ├── docs/                            ← all documentation (start at docs/README.md)
 │   ├── PROJECT_STATUS.md            ←   where we are right now
 │   ├── PROJECT_TIMELINE.md          ←   how we got here
-│   ├── RESTART_LOG.md               ←   post-2026-04-28 batches
-│   ├── ROADMAP.md                   ←   future work
+│   ├── RESTART_LOG.md               ←   post-2026-04-28 batches (Batch 4 + 4b + 5)
+│   ├── TIER0_DIAGNOSTICS.md         ←   morphology-vs-reward Tier 0 ledger
+│   ├── ROADMAP.md                   ←   future work (item 0a/0b)
 │   ├── ARCHITECTURE.md              ←   directory map + import graph
 │   ├── METHODS.md                   ←   implementation details
 │   ├── REWARD_DESIGN.md             ←   reward + exploit taxonomy
@@ -235,23 +244,32 @@ project is doing or why), the writeup wins.
 │   ├── LEGACY_TRACKS.md             ←   what each old track was
 │   ├── RUN_LOG.md                   ←   legacy symmetry-pretrain demos
 │   ├── papers/                       ←   primary-source PDFs + index
-│   ├── reports/                      ← the writeups
-│   └── figures/                      ← diagnostic plots + curated mp4s
+│   ├── reports/                      ←   the writeups
+│   └── figures/                      ←   diagnostic plots + curated mp4s
 ├── src/
 │   ├── walker2d/                     ← ACTIVE phase-conditioned imitation
-│   ├── diagnostics/                  ← standalone sanity checks + biomech eval
+│   ├── diagnostics/                  ←   sanity checks + biomech eval (see README)
 │   └── legacy/                       ← FROZEN: walker2d_v1/, musculoskeletal/
-├── scripts/
-│   ├── biomech_report.py             ← writeup-ready biomech table + figure
-│   └── overnight/                    ← multi-experiment sweep scaffolding
+├── scripts/                            ← (see scripts/README.md)
+│   ├── biomech_report.py             ←   writeup-ready biomech table + figure
+│   ├── eval_hip_rom.py               ←   single-source-of-truth hip ROM metric
+│   ├── debug_joint_range_hypothesis.py  ← end-to-end joint-range diagnostic
+│   ├── make_hipinvert_reference.py   ←   build the hipinvert reference variant
+│   ├── smoke_test_warmstart.py       ←   smoke test the MJCF-read warm-start
+│   ├── render_all_results.ps1        ←   PowerShell: render every run to mp4
+│   ├── tier0/                        ←   Tier 0 morphology-vs-reward harness
+│   └── overnight/                    ←   multi-experiment sweep scaffolding
 ├── assets/
-│   ├── mjcf/                          ← MuJoCo XML (walker2d_subject1.xml is missing)
+│   ├── mjcf/                          ← MuJoCo XML (see assets/mjcf/README.md)
+│   │   ├── walker2d_hipopen.xml      ←   thigh range [-30, 60] (Asus track)
+│   │   ├── walker2d_hiprelax.xml     ←   thigh range [-150, 35] (O11 track)
+│   │   └── walker2d_subject1.xml     ←   missing on this checkout
 │   └── reference/                     ← gait_cycle_reference.npy + biomech_targets.json
 ├── requirements/
 │   ├── windows_5090.txt
 │   ├── windows_cpu.txt
 │   └── macos.txt
-└── results/                            ← training outputs
+└── results/                            ← training outputs (model.zips kept on disk)
 ```
 
 For the full directory map with per-file roles, see

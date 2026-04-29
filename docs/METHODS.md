@@ -104,9 +104,20 @@ property setter), so a property override would `AttributeError`.
    to `PROJECT_ROOT` for backward compatibility with older runs that
    placed the MJCF at the repo root.
 
+The CLI `--xml <filename>` selects a custom MJCF under
+`assets/mjcf/`. Currently active variants:
+`walker2d_hipopen.xml` (`thigh_joint range="-30 60"`, used by the
+hipopen track) and `walker2d_hiprelax.xml` (`thigh_joint range="-150 35"`,
+used by the hiprelax track). See [`../assets/mjcf/README.md`](../assets/mjcf/README.md).
 The CLI `--scale_model` selects `walker2d_subject1.xml` (the
 Subject-1-scaled MJCF; missing on the current checkout — see
 [`PROJECT_STATUS.md § Known gaps`](PROJECT_STATUS.md#known-gaps-in-this-checkout)).
+`--xml` and `--scale_model` are mutually exclusive.
+
+Training writes the resolved `xml_file` into `env_kwargs.json`, so
+`render_phase.py` and `run_dashboard.py` automatically rebuild the
+env with the correct MJCF for any post-2026-04-29 run without needing
+an explicit `--xml` flag.
 
 ---
 
@@ -335,7 +346,9 @@ The table below is a snapshot.
 | `--total_steps` | 5e6 | Total env steps |
 | `--device`    | cpu | PPO device (cpu recommended for MLP) |
 | `--seed`      | 0 | RNG seed for SB3 + env |
-| `--scale_model` | off | Use `walker2d_subject1.xml` (Subject-1-scaled MJCF) |
+| `--xml` | None | Custom MJCF filename under `assets/mjcf/` (e.g. `walker2d_hipopen.xml`, `walker2d_hiprelax.xml`); use `walker2d.xml` for the gym default. Mutex with `--scale_model`. |
+| `--scale_model` | off | Use `walker2d_subject1.xml` (Subject-1-scaled MJCF). Mutex with `--xml`. |
+| `--ref_root_drop` | 0.0 | Lower the FK-derived reference root-height target by this many meters. Stock-geometry contact-clearance ablation. |
 | `--finetune`  | None | Pretrained `.zip` to finetune from (lr→1e-5, entropy→0, target_kl→0.005) |
 | `--no_tb`     | off | Disable TensorBoard logging |
 | `--out_dir`   | None | Override output directory (default: `results/<auto-stamped>`) |
@@ -515,7 +528,13 @@ Standalone, not imported by the training pipeline. Run from the project root.
 | `compare_tb.py` | Side-by-side TensorBoard scalar comparison across runs. |
 | `extract_reference_biomech.py` | Compute *measured* biomech targets from a subject's GRF + IK + scaled OpenSim model. Writes `assets/reference/biomech_targets.json` (stride period, cadence, double-support, peak vGRF/BW, per-joint ROM) + `.vgrf_curves.npz` (normalised stance-phase vGRF curves). Run once per subject/trial. Defaults: Subject 1, `walking_baseline1`. |
 | `eval_biomech.py` | Held-out biomech metrics for a checkpoint: stride period, cadence, double-support fraction, peak vGRF (BW-normalised, per foot), swing-drag fraction, L-R stride asymmetry, hip-knee phase-plane DTW vs the reference cycle, all-six-joint DTW, and per-joint ROM. With `biomech_targets.json` present, also emits a `vs_reference` block (`delta` and `pct_err` per metric) plus a `progress_score` in [0, 4]. `--csv` appends one row per eval to a history file. Use this — not training reward — to grade reward variants. |
+| `check_reference_jnt_range.py` | **Tier 0 reachability gate.** Pure static check: does the active MJCF's `jnt_range` contain the reference? Per-joint plot + JSON. Run after any change to the reference or any new MJCF. |
+| `render_reference_replay.py` | Kinematic replay of the gait cycle driven into the Walker2d MJCF (no policy, no PD, no physics). The visual ceiling every trained-policy mp4 should be compared to. |
+| `run_dashboard.py` | Auto-generated 4-panel PNG per checkpoint: 6-joint angle vs phase (sim/ref overlaid), reward decomposition, action histograms, foot xz trajectory. Title prints per-cycle ROM (the joint-angle panel's actual content) + full-rollout max−min separately. |
 | `scripts/biomech_report.py` | Convert one or more `eval_biomech` JSONs into (a) a markdown comparison table and (b) a 6-panel figure overlaying sim hip/knee/ankle traces and stance-vGRF curve on the Ulrich reference. Defaults write to `docs/figures/biomech_report.{md,png}`. `--rerollout` adds policy traces to the figure (slower); without it the figure shows reference + per-run bars only. |
+| `scripts/eval_hip_rom.py` | **Single-source-of-truth hip ROM metric.** 4-ep deterministic rollout from RSI seeds 42–45. Reports per-leg ROM, % steps at upper joint limit, mean fwd vel, episode survival. The metric we trust after Batch 3 burned us on `progress_score`/`hip_knee_dtw` flattering stand-and-wiggle. |
+| `scripts/debug_joint_range_hypothesis.py` | End-to-end joint-range hypothesis verification: MJCF inspect → ref inspect → dynamics-respecting FK probe → trained-policy probe. Companion to the static `check_reference_jnt_range.py`. |
+| `scripts/tier0/evaluate_C.py` | Tier 0 experiment-C end-to-end: 3-seed dashboards + eval_biomech + 600-step mp4s + comparison plot + summary. Idempotent. |
 
 ### Held-out biomechanical evaluation: the two-tool flow
 
@@ -523,7 +542,7 @@ The validation loop the agent should run after every batch:
 
 ```
 python src/diagnostics/extract_reference_biomech.py            # once per subject/trial
-python src/diagnostics/eval_biomech.py --xml walker2d.xml --eps 6 --steps 2500 \
+python src/diagnostics/eval_biomech.py --eps 6 --steps 2500 \
     results/<run>:final:<label> --out results/<run>_eval.json --csv results/biomech_history.csv
 python scripts/biomech_report.py results/<run>_eval.json --rerollout
 ```

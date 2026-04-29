@@ -44,6 +44,8 @@ This repo is documented for AI-first navigation. Start at
 
 - [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) — current snapshot
 - [`docs/PROJECT_TIMELINE.md`](docs/PROJECT_TIMELINE.md) — chronological story
+- [`docs/RESTART_LOG.md`](docs/RESTART_LOG.md) — recent batches (Batch 4 / 4b / 5)
+- [`docs/TIER0_DIAGNOSTICS.md`](docs/TIER0_DIAGNOSTICS.md) — morphology-vs-reward Tier 0 verdict
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — directory map + import graph
 - [`docs/METHODS.md`](docs/METHODS.md) — env, reward, training, BC details
 - [`docs/REWARD_DESIGN.md`](docs/REWARD_DESIGN.md) — reward + exploit taxonomy
@@ -51,6 +53,9 @@ This repo is documented for AI-first navigation. Start at
 - [`docs/RUN_LOG.md`](docs/RUN_LOG.md) — past runs and failure modes
 - [`docs/LEGACY_TRACKS.md`](docs/LEGACY_TRACKS.md) — frozen tracks
 - [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md) — Ulrich + OpenCap layouts
+- [`assets/mjcf/README.md`](assets/mjcf/README.md) — MJCF picker (hipopen / hiprelax / stock)
+- [`scripts/README.md`](scripts/README.md) — tooling index (eval_hip_rom, debug_joint_range, tier0/, etc.)
+- [`src/diagnostics/README.md`](src/diagnostics/README.md) — diagnostic-script index
 
 ---
 
@@ -165,19 +170,36 @@ python src/walker2d/extract_gait_cycle.py
 
 ### 2. Train phase-aware imitation (from scratch)
 
-The current best policy was trained with the recipe below
-(`results/restart_b2_xvel/`):
+After the 2026-04-29 Tier 0 / Batch 4 diagnosis there are **four**
+candidate "current best" policies kept on disk for visual A/B (Brock
+has not picked one yet); they split into two MJCF tracks. The recipes
+below mirror the runs that produced them:
 
 ```powershell
+# hipopen track — wide bracket [-30, +60] deg (Asus laptop, b4_hipopen_5M)
 python src/walker2d/ppo_walker2d_phase.py `
     --ref_cycle assets/reference/gait_cycle_reference.npy `
+    --xml walker2d_hipopen.xml `
+    --xvel_term 0.3 --num_envs 8 --total_steps 5e6
+
+# hiprelax track — minimal +5 deg headroom [-150, +35] (O11 box, b4_hiprelax_s11)
+python src/walker2d/ppo_walker2d_phase.py `
+    --ref_cycle assets/reference/gait_cycle_reference.npy `
+    --xml walker2d_hiprelax.xml `
     --xvel_term 0.3 --num_envs 8 --total_steps 5e6
 ```
 
-Stock `walker2d.xml` is the default geometry. To use the
-Subject-1-scaled body proportions, add `--scale_model` (requires
-`assets/mjcf/walker2d_subject1.xml`, which is missing on this
-checkout — see [`docs/PROJECT_STATUS.md § Known gaps`](docs/PROJECT_STATUS.md#known-gaps-in-this-checkout)).
+Stock `walker2d.xml` is the default if `--xml` is omitted, but it
+caps `thigh_joint` at `[-150, 0] deg` which makes ~68% of the
+reference unreachable — don't use it for a fresh run unless you
+specifically want the pre-Tier-0 stiff-hip baseline. See
+[`assets/mjcf/README.md`](assets/mjcf/README.md) for the MJCF picker.
+
+To use the Subject-1-scaled body proportions instead of `--xml`, add
+`--scale_model` (requires `assets/mjcf/walker2d_subject1.xml`, which
+is missing on this checkout — see
+[`docs/PROJECT_STATUS.md § Known gaps`](docs/PROJECT_STATUS.md#known-gaps-in-this-checkout)).
+`--scale_model` and `--xml` are mutually exclusive.
 
 > **Throughput tip (CPU box, 16 logical cores):** the script default is
 > `--num_envs 16`. On a 16-CPU desktop, sweeping showed `--num_envs 48`
@@ -198,13 +220,19 @@ python src/walker2d/ppo_walker2d_phase.py `
     --num_envs 8 --total_steps 5e6
 ```
 
-### 3. Finetune from the current best checkpoint
+### 3. Finetune from one of the current-best checkpoints
 
 ```powershell
+# Pick whichever candidate you want to push further:
 python src/walker2d/ppo_walker2d_phase.py `
     --ref_cycle assets/reference/gait_cycle_reference.npy `
-    --finetune results/restart_b2_xvel/model.zip `
+    --xml walker2d_hipopen.xml `
+    --finetune results/restart_b4_hipopen_5M/model.zip `
     --num_envs 8 --total_steps 5e6
+
+# (or restart_b5_min_joint, restart_b5_pose_scale20, restart_b4_hiprelax_s11.
+#  Match --xml to the MJCF the source policy was trained against;
+#  hiprelax_s11 was trained on walker2d_hiprelax.xml.)
 ```
 
 Finetune mode lowers `learning_rate` to 1e-5, `target_kl` to 0.005,
@@ -212,38 +240,81 @@ and zeroes `ent_coef`.
 
 ### 4. Render a trained policy
 
+Since the 2026-04-29 merge, `render_phase.py` auto-loads the MJCF
+each policy was trained against from its `env_kwargs.json`, so the
+`--xml` flag is no longer required for any run that includes
+`xml_file` in its env_kwargs (every post-2026-04-29 run does).
+
 ```powershell
-# Single run (post-restart, stock walker2d.xml)
+# Single run — auto-loads trained MJCF from env_kwargs.json
+python src/walker2d/render_phase.py --live results/restart_b4_hipopen_5M:final
+
+# Specific checkpoint with a custom label
+python src/walker2d/render_phase.py `
+    results/restart_b4_hipopen_5M:1000000:"1M steps"
+
+# Compare all four current-best candidates back-to-back
+python src/walker2d/render_phase.py --live `
+    results/restart_b4_hipopen_5M:final `
+    results/restart_b5_pose_scale20:final `
+    results/restart_b5_min_joint:final `
+    results/restart_b4_hiprelax_s11:final
+
+# Pre-2026-04-29 runs need an explicit --xml (their env_kwargs.json
+# lacks xml_file). Stock-walker2d runs:
 python src/walker2d/render_phase.py --xml walker2d.xml `
     results/restart_b2_xvel:final
 
-# Specific checkpoint with a custom label
-python src/walker2d/render_phase.py --xml walker2d.xml `
-    results/restart_b2_xvel:1000000:"1M steps"
-
-# Compare multiple runs back-to-back (any track — they share the env)
-python src/walker2d/render_phase.py --xml walker2d.xml `
-    results/restart_b2_xvel:final results/restart_b2_k30:final
-
-# Pre-restart scaled-MJCF run (requires walker2d_subject1.xml)
-python src/walker2d/render_phase.py `
+# Pre-restart scaled-MJCF run (requires the missing walker2d_subject1.xml):
+python src/walker2d/render_phase.py --xml walker2d_subject1.xml `
     results/walker2d_phase_cycle_s1scaled_sum_20260423-213031:final
 
 # Pretrain / vanilla Walker2d (legacy renderer)
 python src/legacy/walker2d_v1/render_walker.py `
     --model results/walker2d_pretrain_symmetry_20260407-172719/model.zip `
     --vanilla --steps 500
+
+# Bulk re-render every run dir to mp4 (PowerShell driver)
+.\scripts\render_all_results.ps1
 ```
 
-`render_phase.py` defaults: `--xml walker2d_subject1.xml`, `--eps 3`,
-`--steps 2000`. Spec format is `result_dir:checkpoint[:label]` where
-`checkpoint` is either an integer step count (looks under
+`render_phase.py` defaults: `--xml walker2d_subject1.xml` (only used
+as fallback when env_kwargs.json doesn't carry `xml_file`),
+`--eps 3`, `--steps 2000`. Spec format is `result_dir:checkpoint[:label]`
+where `checkpoint` is either an integer step count (looks under
 `<result_dir>/checkpoints/model_<N>_steps.zip`) or the literal
 `final` (loads `<result_dir>/model.zip`).
 
-### 5. Diagnostics
+### 5. Diagnostics + tooling
+
+Per-script docs live in
+[`src/diagnostics/README.md`](src/diagnostics/README.md) and
+[`scripts/README.md`](scripts/README.md). Most-reached-for tools:
 
 ```bash
+# Reachability gate: does the reference fit a given MJCF? (PNG + JSON)
+python src/diagnostics/check_reference_jnt_range.py --xml walker2d_hipopen.xml
+
+# Single-source-of-truth hip ROM metric (4-ep deterministic rollout)
+python scripts/eval_hip_rom.py results/restart_b4_hipopen_5M
+
+# End-to-end joint-range hypothesis verification (MJCF + ref + dynamics + policy)
+python scripts/debug_joint_range_hypothesis.py
+
+# Per-run dashboard PNG (sim/ref overlay, reward decomp, action hist, foot xz)
+python src/diagnostics/run_dashboard.py results/restart_b4_hipopen_5M:final --steps 600
+
+# Held-out biomech eval vs measured Subject-1 targets
+python src/diagnostics/eval_biomech.py results/restart_b4_hipopen_5M:final `
+    --out results/restart_b4_hipopen_5M_eval.json
+
+# Writeup-ready biomech table + 6-panel figure
+python scripts/biomech_report.py results/restart_b4_hipopen_5M_eval.json --rerollout
+
+# Tier 0 experiment-C panel (3-seed dashboards + eval + mp4s + comparison plot)
+python scripts/tier0/evaluate_C.py
+
+# Reference / model sanity checks
 python src/diagnostics/diag_cycle.py        # 3-cycle plot + seam check
 python src/diagnostics/diag_ref.py          # joint ranges + FK upright
 python src/diagnostics/diag_walker_mass.py  # Walker2d body masses
@@ -265,7 +336,8 @@ has the complete table. The most common flags:
 | `--num_envs` | 16 | Parallel environments |
 | `--total_steps` | 5e6 | Total env steps |
 | `--seed` | 0 | RNG seed |
-| `--scale_model` | off | Use `walker2d_subject1.xml` instead of stock |
+| `--xml` | None | Custom MJCF filename under `assets/mjcf/` (e.g. `walker2d_hipopen.xml`, `walker2d_hiprelax.xml`); use `walker2d.xml` for the gym default. Mutex with `--scale_model`. |
+| `--scale_model` | off | Use `walker2d_subject1.xml` instead of stock. Mutex with `--xml`. |
 | `--finetune` | None | Pretrained `.zip` to finetune from |
 | `--bc_epochs` | 0 | If >0, BC warm-start before PPO |
 | `--pose_weight` | 0.65 | `r_p` weight |
@@ -273,10 +345,11 @@ has the complete table. The most common flags:
 | `--ee_weight`   | 0.15 | `r_e` weight |
 | `--root_weight` | 0.10 | `r_c` weight |
 | `--pose_scale`  | 10.0 | `k_p` |
-| `--xvel_term`   | -∞ | Forward-velocity floor termination (the `0.3` recipe is the current best run) |
+| `--xvel_term`   | -∞ | Forward-velocity floor termination (the `0.3` recipe produced every current-best candidate) |
 | `--pitch_term`  | 0.3 | Pitch-magnitude termination (rad) |
 | `--product_reward` / `--min_joint_pose` | off | Aggregator alternatives for `r_p` |
 | `--preview_k`   | 1 | Frames of upcoming `q_ref` exposed in obs |
+| `--ref_root_drop` | 0.0 | Lower the FK-derived reference root-height target by this many meters. Stock-geometry contact-clearance ablation. |
 | `--out_dir`     | None | Override output directory |
 
 For everything else (BC parameters, exploit-patch weights, joint-term

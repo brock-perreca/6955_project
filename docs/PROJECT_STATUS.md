@@ -11,7 +11,8 @@ recent batches with full setup/observation/render commands ·
 [`reports/writeup_filled_1.docx`](reports/writeup_filled_1.docx) for
 the formal joint writeup with Brian.
 
-*Last updated: 2026-04-29.*
+*Last updated: 2026-04-29 (post-merge with Brock-Asus-Laptop's
+hipopen / Batch 5 work).*
 
 ---
 
@@ -58,29 +59,46 @@ The post-restart pipeline rebuild is in progress. Four batches done
   new current best; all three retained as comparison points. See
   [`RESTART_LOG.md § Batch 5`](RESTART_LOG.md#batch-5--2026-04-29--narrow-the-hipopen-over-flex--partial-positive-both-variants).
 
-**Two leading current-best candidates** (one per machine — both
-post-Tier-0 ablations of the same kinematic-ceiling fix):
+**Four candidate "current best" policies — Brock has not picked
+a favorite yet** (all four are post-kinematic-ceiling-fix, one set
+per machine). They divide into two tracks based on which relaxed
+MJCF they trained against:
 
-- `results/restart_b4_hipopen_5M/` (Brock-Asus-Laptop, 5M, seed 6,
-  `walker2d_hipopen.xml` `[-30, 60]`). Hip ROM 63.2° vs reference 43°,
-  mean fwd vel 1.40 m/s vs target 1.25, all 4 deterministic eval
-  episodes survive 1000 steps. Over-flexes by ~10° at the swing
-  peak. Batch-5 narrowing variants (`pose_scale20`, `min_joint`)
-  retained as comparison points; visual A/B against the baseline
-  found no perceptible difference.
-- `results/restart_b4_hiprelax_s11/` (Brock-O11, 5M, seed 11,
-  `walker2d_hiprelax.xml` `[-150, 35]` — minimal +5° headroom over the
-  reference peak). Best of three Tier 0 C seeds on LR symmetry, DTW,
-  progress score, and vGRF. Hip ROM 17–20° (under the 45° target)
-  but the trace tracks reference *shape and frequency*. Visual
-  review (Brock, 2026-04-29): "all the videos look great" relative
-  to xvel-5M.
+*hipopen track (Brock-Asus-Laptop) — wide bracket
+`[-30, +60]`:*
 
-The two ablations bracket the answer: hipopen *overshoots* the hip
-ROM target, hiprelax *undershoots*. Both confirm morphology was the
-dominant cause of pre-Tier-0 stiff-hip; both leave a residual
-amplitude/cadence gap that points at reward as the secondary
-bottleneck.
+- **`results/restart_b4_hipopen_5M/`** — 5M, seed 6,
+  `--xvel_term 0.3`, `--xml walker2d_hipopen.xml`. Hip ROM 63.2°
+  vs reference 43°, mean fwd vel 1.40 m/s vs target 1.25, all 4
+  deterministic eval episodes survive 1000 steps. *Over-flexed by
+  ~10° at the swing peak.*
+- **`results/restart_b5_pose_scale20/`** — Batch-5 follow-up: same
+  recipe + `--pose_scale 20`. seed 7. Hip ROM 56.6° (tighter), mean
+  fwd vel 1.354 m/s.
+- **`results/restart_b5_min_joint/`** — Batch-5 follow-up: same
+  recipe + `--min_joint_pose`. seed 8. Hip ROM 57.1°, mean fwd vel
+  **1.231 m/s — essentially exactly the 1.25 target.**
+
+  *(Visual A/B between b4_hipopen_5M, b5_pose_scale20, b5_min_joint
+  found no perceptible difference; metric narrowing did not visibly
+  translate to a different-looking gait.)*
+
+*hiprelax track (Brock-O11) — minimal-headroom bracket
+`[-150, +35]`:*
+
+- **`results/restart_b4_hiprelax_s11/`** — 5M, seed 11,
+  `--xvel_term 0.3`, `--xml walker2d_hiprelax.xml`. Best of three
+  Tier 0 C seeds on LR symmetry (0.097), all-joints DTW (0.532),
+  progress score (2.41), peak vGRF (3.97). Hip ROM 17–20° *under*
+  the 45° target, but the trace tracks reference shape and frequency
+  cleanly. Visual review (Brock, 2026-04-29): "all the videos look
+  great" relative to xvel-5M.
+
+The two tracks together bracket the residual reward bottleneck:
+hipopen *overshoots* the hip ROM target, hiprelax *undershoots*.
+Both confirm morphology was the dominant cause of pre-Tier-0
+stiff-hip; both leave a residual amplitude/cadence gap that points
+at reward as the secondary bottleneck.
 
 **Top-priority next steps** (see [`ROADMAP.md`](ROADMAP.md)):
 
@@ -290,13 +308,54 @@ see `RESTART_LOG.md § Batch 3`).
 Render any of them with:
 
 ```
-python src/walker2d/render_phase.py --xml walker2d.xml --live results/restart_b2_xvel:final
-python src/walker2d/render_phase.py --xml walker2d.xml --mp4 docs/figures/foo.mp4 results/restart_b2_xvel:final
+python src/walker2d/render_phase.py --live results/restart_b4_hipopen_5M:final
+python src/walker2d/render_phase.py --mp4 docs/figures/foo.mp4 results/restart_b4_hiprelax_s11:final
 ```
 
-`render_phase.py` defaults to `--xml walker2d_subject1.xml`; for stock
-Walker2d runs (all post-restart and most early pre-restart), override
-with `--xml walker2d.xml`.
+Since the 2026-04-29 merge, `render_phase.py` automatically reads
+`xml_file` from each run's `env_kwargs.json`, so the trained-against
+MJCF is used without a `--xml` flag (the policy was trained against
+that MJCF, and rendering it under a different one — e.g. opening the
+hip range — gives misleading visuals). Pre-2026-04-29 runs that
+predate the `xml_file` field still need `--xml walker2d.xml` for stock
+Walker2d (or `--xml walker2d_subject1.xml` for the missing scaled
+MJCF). Render multiple runs back-to-back by passing multiple specs:
+
+```
+python src/walker2d/render_phase.py --live \
+    results/restart_b4_hipopen_5M:final \
+    results/restart_b4_hiprelax_s11:final \
+    results/restart_b5_min_joint:final \
+    results/restart_b5_pose_scale20:final
+```
+
+(In PowerShell put it all on one line; the backslash-continuations
+above are bash syntax.)
+
+---
+
+## Tools at a glance — what to reach for when
+
+Comprehensive tooling docs live in
+[`scripts/README.md`](../scripts/README.md) and
+[`src/diagnostics/README.md`](../src/diagnostics/README.md). Common
+flows:
+
+| Want to... | Tool |
+|---|---|
+| Train a new policy from scratch | `python src/walker2d/ppo_walker2d_phase.py --ref_cycle assets/reference/gait_cycle_reference.npy --xml walker2d_hipopen.xml --xvel_term 0.3 --num_envs 8 --total_steps 5e6` |
+| Render a trained policy live | `python src/walker2d/render_phase.py --live results/<run>:final` |
+| Pre-render an mp4 | `python src/walker2d/render_phase.py --mp4 out.mp4 results/<run>:final` |
+| **Single-source-of-truth hip ROM metric** (4-ep deterministic rollout) | `python scripts/eval_hip_rom.py results/<run>` |
+| Reachability gate: does the reference fit a given MJCF's joint ranges? | `python src/diagnostics/check_reference_jnt_range.py --xml walker2d_hipopen.xml` |
+| End-to-end joint-range hypothesis verification (MJCF + ref + dynamics probe + trained-policy probe) | `python scripts/debug_joint_range_hypothesis.py` |
+| Tier 0 experiment-C panel (3-seed dashboards + eval + mp4s + comparison plot + summary) | `python scripts/tier0/evaluate_C.py` |
+| Held-out biomech eval vs measured Subject-1 targets | `python src/diagnostics/eval_biomech.py results/<run>:final --out results/<run>_eval.json` |
+| Writeup-ready biomech table + 6-panel figure | `python scripts/biomech_report.py results/<run>_eval.json --rerollout` |
+| Smoke-test BC warm-start | `python scripts/smoke_test_warmstart.py` |
+| Re-render every run dir to mp4 (PowerShell) | `scripts/render_all_results.ps1` |
+| Pretty-print TensorBoard scalars side-by-side | `python src/diagnostics/compare_tb.py results/<run-A>/tb results/<run-B>/tb` |
+| Live-view the on-disk reference cycle on a Walker2d skeleton | `python src/diagnostics/view_reference.py` |
 
 ---
 
@@ -305,8 +364,12 @@ with `--xml walker2d.xml`.
 For the **current writeup-driven scope**, see [`ROADMAP.md`](ROADMAP.md).
 Top items:
 
-0. **Reward reform** (NEW priority): restore `forward_reward` peaked
-   term, drop `xvel_term` floor.
+0. **Close the residual reward gap on relaxed-hip MJCFs** (top priority,
+   post-Tier-0): restore `forward_reward = exp(-3·(v-1.25)²)`, drop
+   `xvel_term` floor. Run on **both** `walker2d_hipopen.xml` and
+   `walker2d_hiprelax.xml` so the residual gap can be attributed to
+   reward vs morphology. Stack `--pose_scale 20 --min_joint_pose` on
+   hipopen as a parallel narrowing experiment.
 1. **MJX/GPU port** to make AMP function (4,000-env parallelism).
 2. **Multi-step future context** in the observation — implemented as
    `--preview_k`; ineffective on the broken reward (Batch 3); worth

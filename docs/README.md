@@ -30,15 +30,22 @@ duplicating content.
 
 - **Active code:** [`../src/walker2d/`](../src/walker2d/) — phase-conditioned
   PPO + AMP/AIRL.
-- **Diagnostics:** [`../src/diagnostics/`](../src/diagnostics/) — sanity
-  checks, biomech evaluation, the gait-cycle viewer.
+- **Diagnostics index:** [`../src/diagnostics/README.md`](../src/diagnostics/README.md)
+  — per-script "what / when to run / output" table for everything
+  under `src/diagnostics/`.
+- **Tooling index:** [`../scripts/README.md`](../scripts/README.md) —
+  per-script index for everything under `scripts/` (eval_hip_rom,
+  debug_joint_range_hypothesis, biomech_report, tier0/, overnight/, etc.).
 - **Sweep scaffolding:** [`../scripts/overnight/`](../scripts/overnight/)
   — multi-experiment wrappers used by [`RESTART_LOG.md § Batch 3`](RESTART_LOG.md#batch-3--2026-04-29--overnight-19-experiment-sweep--negative-result).
+- **MJCF picker:** [`../assets/mjcf/README.md`](../assets/mjcf/README.md) —
+  hipopen vs hiprelax vs stock, when to pick which.
 - **Legacy code:** [`../src/legacy/`](../src/legacy/) — frozen tracks;
   see [`LEGACY_TRACKS.md`](LEGACY_TRACKS.md) before extending.
 - **Assets:** [`../assets/`](../assets/) — MuJoCo MJCFs and the
   gait-cycle reference array + measured biomech targets.
-- **Results:** [`../results/`](../results/) — training output dirs.
+- **Results:** [`../results/`](../results/) — training output dirs
+  (model.zips kept on disk for hipopen + hiprelax + Batch 5 + pre-Tier-0 runs).
 
 ## Conventions for AI agents working in these docs
 

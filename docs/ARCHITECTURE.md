@@ -56,7 +56,10 @@ under `src/walker2d/` is the live pipeline; anything under
 │   │   ├── diag_walker_mass.py           #   Walker2d body-mass dump
 │   │   ├── extract_osim_mass.py          #   Per-subject body mass from .osim XML
 │   │   ├── view_reference.py             #   MuJoCo-viewer playback of the on-disk gait cycle
+│   │   ├── render_reference_replay.py    #   Render reference replay to mp4 + dashboard
+│   │   ├── run_dashboard.py              #   Per-checkpoint dashboard PNGs
 │   │   ├── compare_tb.py                 #   Side-by-side TensorBoard scalar comparison
+│   │   ├── check_reference_jnt_range.py  #   Tier 0 reachability gate: ref vs MJCF joint ranges (PNG+JSON)
 │   │   ├── extract_reference_biomech.py  #   Measured biomech targets from GRF + IK + .osim
 │   │   └── eval_biomech.py               #   Held-out biomech metrics + vs_reference + progress_score
 │   │
@@ -76,8 +79,16 @@ under `src/walker2d/` is the live pipeline; anything under
 │           ├── data_utils.py             #   OpenCap / SimTK loading
 │           └── evaluate.py
 │
-├── scripts/                              # Wrappers + reporting
+├── scripts/                              # Wrappers + reporting (see scripts/README.md)
+│   ├── README.md                         #   ← tooling index + when-to-reach-for-what
 │   ├── biomech_report.py                 #   Render writeup-ready biomech table + 6-panel figure
+│   ├── eval_hip_rom.py                   #   Single-source-of-truth hip ROM metric (4-ep deterministic rollout)
+│   ├── debug_joint_range_hypothesis.py   #   End-to-end joint-range diagnostic (MJCF + ref + dynamics + policy)
+│   ├── make_hipinvert_reference.py       #   Build assets/reference/gait_cycle_reference_hipinvert.npy
+│   ├── smoke_test_warmstart.py           #   BC warm-start smoke test
+│   ├── render_all_results.ps1            #   PowerShell driver: render every results/<run> to mp4
+│   ├── tier0/                            #   Tier 0 morphology-vs-reward diagnostic harness
+│   │   └── evaluate_C.py                 #     Full hiprelax 3-seed pipeline (dashboards, eval, mp4s, panel, summary)
 │   └── overnight/                        #   Multi-experiment sweep scaffolding
 │       ├── run_experiment.py             #     train + eval_biomech + preview.mp4 + meta
 │       ├── rank_runs.py                  #     composite-score ranking
@@ -86,13 +97,16 @@ under `src/walker2d/` is the live pipeline; anything under
 │       └── STATUS_TEMPLATE.md
 │
 ├── assets/                              # Static project assets
-│   ├── mjcf/                              # MuJoCo MJCF files
-│   │   ├── walker2d_hiprelax.xml         #   Active baseline (post-2026-04-29 Tier 0). thigh_joint range="-150 35".
-│   │   ├── walker2d_subject1.xml         #   (missing on this checkout — see PROJECT_STATUS.md)
-│   │   └── walker2d_custom.xml           #   Legacy custom MJCF
+│   ├── mjcf/                              # MuJoCo MJCF files (see assets/mjcf/README.md for picking)
+│   │   ├── README.md                      #   Per-MJCF roles + hipopen-vs-hiprelax guidance
+│   │   ├── walker2d_hipopen.xml           #   Active (Asus track). thigh_joint range="-30 60". Permissive both sides.
+│   │   ├── walker2d_hiprelax.xml          #   Active (O11 track). thigh_joint range="-150 35". Minimal +5° headroom.
+│   │   ├── walker2d_subject1.xml          #   (missing on this checkout — see PROJECT_STATUS.md)
+│   │   └── walker2d_custom.xml            #   Legacy custom MJCF
 │   └── reference/
-│       ├── gait_cycle_reference.npy      #   Single Ulrich stride @ 50Hz, (56, 6)
-│       ├── biomech_targets.json          #   Measured Subject 1 stride/cadence/ROM/vGRF targets
+│       ├── gait_cycle_reference.npy       #   Single Ulrich stride @ 50Hz, (56, 6) — primary
+│       ├── gait_cycle_reference_hipinvert.npy #  Variant B reference: hip cols re-inverted (Batch 4 ablation)
+│       ├── biomech_targets.json           #   Measured Subject 1 stride/cadence/ROM/vGRF targets
 │       └── biomech_targets.vgrf_curves.npz #  Normalised stance-phase vGRF curves
 │
 ├── requirements/                          # Pip requirement files by platform
@@ -135,7 +149,13 @@ amp_walker2d.py
   └─ from ulrich_loader        import load_ulrich_reference
 
 render_phase.py
-  └─ from ppo_walker2d_phase import Walker2dPhaseAware, _JNT_LO, _JNT_HI
+  └─ from ppo_walker2d_phase import Walker2dPhaseAware, CTRL_HZ
+  # (joint-range clip bounds are now read from the loaded MJCF as
+  #  env._jnt_lo / env._jnt_hi; the old _JNT_LO/_JNT_HI module
+  #  constants were removed in the 2026-04-29 merge — they masked
+  #  the joint-range hypothesis by advertising a +0.55 rad hip
+  #  flexion limit that the loaded walker2d.xml's +0 rad limit
+  #  forbade.)
 
 extract_gait_cycle.py
   └─ from ulrich_loader import load_sto, ULRICH_ROOT, PROJECT_ROOT
@@ -200,22 +220,30 @@ Run all of these from the project root.
 | Action | Command |
 |---|---|
 | Build the gait-cycle reference (one-time) | `python src/walker2d/extract_gait_cycle.py` |
-| Train PPO + DeepMimic from scratch (stock Walker2d, current best recipe) | `python src/walker2d/ppo_walker2d_phase.py --ref_cycle assets/reference/gait_cycle_reference.npy --xvel_term 0.3 --num_envs 8 --total_steps 5e6` |
-| Train PPO + DeepMimic from scratch (Subject-1-scaled MJCF) | …add `--scale_model` |
+| Train PPO + DeepMimic from scratch (hipopen MJCF) | `python src/walker2d/ppo_walker2d_phase.py --ref_cycle assets/reference/gait_cycle_reference.npy --xml walker2d_hipopen.xml --xvel_term 0.3 --num_envs 8 --total_steps 5e6` |
+| Train PPO + DeepMimic from scratch (hiprelax MJCF) | …swap `--xml walker2d_hiprelax.xml` |
+| Train PPO + DeepMimic from scratch (Subject-1-scaled MJCF) | …add `--scale_model` (mutually exclusive with `--xml`) |
 | Train PPO + DeepMimic with BC warm-start | …add `--bc_epochs 10 --bc_steps 200000` |
 | Finetune PPO + DeepMimic from a checkpoint | …add `--finetune results/<run-dir>/model.zip` |
 | Train SAC + DeepMimic (off-policy sibling) | `python src/walker2d/sac_walker2d_phase.py --ref_cycle assets/reference/gait_cycle_reference.npy --xvel_term 0.3 --total_steps 1e6` |
 | Train AMP (paper weights, finetuned from a working walker) | `python src/walker2d/amp_walker2d.py --ref_cycle assets/reference/gait_cycle_reference.npy --finetune results/<phase-run>/model.zip --num_envs 32 --total_steps 5e6` |
 | Train AIRL (same finetune pattern; cold-start collapses) | `python src/walker2d/airl_walker2d.py --ref_cycle assets/reference/gait_cycle_reference.npy --finetune results/<phase-run>/model.zip --num_envs 32 --total_steps 5e6` |
-| Render a single trained run (any track — they share the env) | `python src/walker2d/render_phase.py --xml walker2d.xml results/<run-dir>:final` |
-| Compare multiple runs back-to-back | `python src/walker2d/render_phase.py --xml walker2d.xml results/<run-A>:final results/<run-B>:1000000:"1M"` |
+| Render a single trained run (any track) — auto-loads trained MJCF | `python src/walker2d/render_phase.py results/<run-dir>:final` |
+| Compare multiple runs back-to-back | `python src/walker2d/render_phase.py results/<run-A>:final results/<run-B>:1000000:"1M"` |
+| Render an mp4 instead of live | …add `--mp4 docs/figures/foo.mp4` |
+| Pre-2026-04-29 runs that lack `xml_file` in env_kwargs.json | …pass `--xml walker2d.xml` (or `walker2d_subject1.xml`) explicitly |
+| **Single-source-of-truth hip ROM metric** (4-ep deterministic rollout, 1000 steps) | `python scripts/eval_hip_rom.py results/<run-dir>` |
+| **End-to-end joint-range hypothesis verification** (MJCF + ref + dynamics probe + trained-policy probe) | `python scripts/debug_joint_range_hypothesis.py` |
+| **Reachability gate**: ref vs MJCF joint ranges, PNG + JSON | `python src/diagnostics/check_reference_jnt_range.py --xml walker2d_hiprelax.xml` |
+| **Tier 0 experiment-C panel**: 3-seed dashboards + eval_biomech + mp4s + comparison plot + summary | `python scripts/tier0/evaluate_C.py` |
+| **BC warm-start smoke test** | `python scripts/smoke_test_warmstart.py` |
+| **Render every run dir to mp4 in one go** (PowerShell) | `scripts/render_all_results.ps1` |
 | Sanity-check the reference | `python src/diagnostics/diag_cycle.py` &nbsp;&nbsp;and&nbsp;&nbsp;`python src/diagnostics/diag_ref.py` |
 | View the on-disk reference cycle on a Walker2d skeleton | `python src/diagnostics/view_reference.py` |
-| **Check whether the reference is reachable under an MJCF's joint ranges** (Tier 0 reachability gate, 2026-04-29) | `python src/diagnostics/check_reference_jnt_range.py --xml walker2d_hiprelax.xml` |
 | Compute measured biomech targets (one-time per subject) | `python src/diagnostics/extract_reference_biomech.py` |
-| Evaluate a checkpoint vs measured targets | `python src/diagnostics/eval_biomech.py results/<run>:final --out results/<run>_eval.json` |
-| Writeup-ready table + figure | `python scripts/biomech_report.py results/<run>_eval.json --rerollout` |
-| Tier 0 experiment-C end-to-end (dashboards, eval, mp4s, comparison panel, summary) | `python scripts/tier0/evaluate_C.py` |
+| Evaluate a checkpoint vs measured targets (held-out biomech) | `python src/diagnostics/eval_biomech.py results/<run>:final --out results/<run>_eval.json` |
+| Writeup-ready biomech table + figure | `python scripts/biomech_report.py results/<run>_eval.json --rerollout` |
+| Side-by-side TensorBoard scalar comparison | `python src/diagnostics/compare_tb.py results/<run-A>/tb results/<run-B>/tb` |
 
 For the full set of `ppo_walker2d_phase.py` flags and their defaults,
 see [`METHODS.md § Full CLI reference`](METHODS.md#full-cli-reference-ppo_walker2d_phasepy)

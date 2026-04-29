@@ -7,6 +7,19 @@ all 19 landed in the same stiff-hip basin. The next reward-tuning batch
 should not start until we know whether reward changes can in principle
 escape it.
 
+**This document covers the O11 box's Tier 0 ledger** (A.1 → A.2 → C
+hiprelax). The same morning, **Brock-Asus-Laptop independently
+arrived at the same diagnosis** and ran a parallel single-knob
+ablation with `walker2d_hipopen.xml` (`thigh_joint range="-30 60"`,
+permissive both directions). That work is documented in
+[`RESTART_LOG.md § Batch 4`](RESTART_LOG.md). The two ablations are
+deliberate brackets: hiprelax has +5° headroom and *undershoots* the
+reference peak (hip ROM 17–20° at 5M); hipopen has +60° headroom and
+*overshoots* (hip ROM 91° at 2M, narrowed to 63° at 5M). Both
+confirm the kinematic-ceiling hypothesis. See
+[`assets/mjcf/README.md`](../assets/mjcf/README.md) for picking
+between them.
+
 **Working hypothesis (going in).** Stock Walker2d-v4 is fully planar.
 Reference hip flexion peaks near +29.7°. Inter-leg collision and/or
 joint-range limits in the MJCF may make the reference's hip kinematics
@@ -392,20 +405,34 @@ not one:
 
 ## Recommendation for Tier 1
 
-**Both fixes, stacked.** The relaxed MJCF (`walker2d_hiprelax.xml`)
-is the new baseline; Tier 1's "restore `forward_reward`, drop
-`xvel_term`" should run on top of it, not on stock walker2d.xml. The
-prediction (since the wall is no longer there to prevent hip
-extension): a peaked forward-velocity reward will pull the policy
-out of the high-cadence basin, slower cadence will give the hip more
-time per stride, and hip amplitude will grow further toward
-reference.
+**Both fixes, stacked.** A relaxed-hip MJCF is the new baseline;
+Tier 1's "restore `forward_reward`, drop `xvel_term`" should run on
+top of it, not on stock walker2d.xml. Running it on **both**
+`walker2d_hiprelax.xml` *and* `walker2d_hipopen.xml` is the cleanest
+experimental design — the two MJCFs bracket the residual reward
+gap from below and above:
 
-If Tier 1 on the relaxed MJCF still doesn't reach reference hip
-amplitude (>40°), the trap is deeper than reward+range — candidates:
-gait-cycle frame-rate mismatch, phase-observation rate, body inertia
-scaling vs subject mass, or a missing energy/torque brake. But that's
-a Tier 2 diagnostic, not a Tier 1 risk.
+- on **hiprelax** the policy currently *undershoots* (17–20° vs 45°);
+  a peaked forward-velocity reward should slow cadence, give the hip
+  more time per stride, and grow amplitude *toward* reference.
+- on **hipopen** the policy currently *overshoots* (63° at 5M);
+  the same reward change should narrow ROM *toward* reference.
+
+If both converge near 45° at cadence ~110 steps/min, reward was the
+dominant remaining cause. If both stay where they are, the trap is
+deeper than reward+range — candidates: gait-cycle frame-rate
+mismatch, phase-observation rate, body inertia scaling vs subject
+mass, or a missing energy/torque brake. That's a Tier 2 diagnostic,
+not a Tier 1 risk.
+
+The four current candidate "best" policies on disk (Brock has not
+picked a single favorite yet) are:
+
+- **hipopen track** — `restart_b4_hipopen_5M/`,
+  `restart_b5_pose_scale20/`, `restart_b5_min_joint/`
+- **hiprelax track** — `restart_b4_hiprelax_s11/`
+
+See [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for per-run metrics.
 
 ## What every future session must know
 
@@ -413,11 +440,14 @@ a Tier 2 diagnostic, not a Tier 1 risk.
   `overnight_20260429-0211/`) trained against a target ~half of which
   was unreachable.** Hip-ROM-near-zero in those runs is the joint
   range, not the reward. Don't try to reward-tune those models.
-- **`assets/mjcf/walker2d_hiprelax.xml` is the new training MJCF.**
-  Pass `--xml walker2d_hiprelax.xml` to the training script (the
-  flag was added during this session). `env_kwargs.json` now records
-  `xml_file`, so render/eval/dashboard will pick up the right MJCF
-  automatically for runs trained after 2026-04-29.
+- **Two new training MJCFs replace stock walker2d.xml:**
+  `assets/mjcf/walker2d_hiprelax.xml` (this machine, +5° headroom) and
+  `assets/mjcf/walker2d_hipopen.xml` (Asus laptop, +60° headroom).
+  Pass either as `--xml <name>` to the training script (the flag
+  was added during this session — both machines added it
+  independently and the implementations were merged). `env_kwargs.json`
+  now records `xml_file`, so render/eval/dashboard pick up the right
+  MJCF automatically for runs trained after 2026-04-29.
 - **`src/diagnostics/check_reference_jnt_range.py` is the
   reachability gate.** Run it whenever the MJCF or reference
   changes. `render_reference_replay.py` calls `mj_forward` without

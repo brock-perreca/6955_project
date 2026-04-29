@@ -273,6 +273,73 @@ on the active import path.
 
 ---
 
+## Phase 5b — The kinematic-ceiling discovery (2026-04-29)
+
+**What happened.** Post-restart Batches 1–3 reproduced the same
+failure mode regardless of reward / aggregator / optimizer: a
+"stiff-hip" gait with hip ROM ~2° while the corrected reference
+asks for ~45°. The 19-experiment overnight sweep (Batch 3) tested
+8 reward-aggregator/termination ablations, 4 AMP/AIRL warm-starts,
+3 preview-obs runs, 1 SAC variant, and 3 curriculum runs; **all 19
+landed in the same basin**. Read-at-the-time diagnosis: a reward
+trap.
+
+**The actual root cause** turned out to be one line in stock
+`walker2d.xml`: `thigh_joint range="-150 0"`. The reference's hip
+flexion peaks at +29.97°. ~68% of every reference cycle was outside
+the joint range. The `restart_b2_xvel` policy spent 95.3% of frames
+within 0.5° of the +0° wall — pre-Tier-0 reward sweeps had been
+incapable of producing reference-like hip flexion regardless of
+what they tweaked, because the simulator's constraint solver was
+actively pulling the joint back from the commanded value.
+
+**Two independent same-day diagnostics** caught this on two
+machines:
+
+- **Brock-Asus-Laptop, Batch 4 (commit `7724ff9`).** Built
+  `assets/mjcf/walker2d_hipopen.xml` (`thigh_joint range="-30 60"`,
+  permissive both sides). 2M training steps on the same xvel-5M
+  recipe raised hip ROM from 1.8° to 91.5°. A 5M follow-up
+  (`results/restart_b4_hipopen_5M/`) settled at ROM 63°, fwd vel
+  1.40 m/s. Subsequent Batch 5 narrowing variants
+  (`pose_scale20`, `min_joint`) tightened metrics but visual A/B
+  found all three indistinguishable.
+- **Brock-O11, Tier 0 ledger ([`TIER0_DIAGNOSTICS.md`](TIER0_DIAGNOSTICS.md)).**
+  Built `assets/mjcf/walker2d_hiprelax.xml` (`thigh_joint range="-150 35"`,
+  +5° headroom only — minimal-change variant). Tier 0 experiment C
+  (3 seeds × 5M) recovered hip ROM 17–20°. Tracks reference shape
+  and frequency but *under-amplitudes* the reference's 45° peak.
+
+The two ablations bracket the residual reward gap: hipopen
+*overshoots*, hiprelax *undershoots*. Both confirm morphology was
+the dominant cause of pre-Tier-0 stiff-hip; the residual gap points
+at `xvel_term=0.3` (a survival floor) plus the pose-tracking
+mean-aggregator as the secondary cause.
+
+**The code merge (commit `cf54014`).** Both machines independently
+added the same `--xml` flag and `xml_file`-in-env_kwargs.json
+persistence; the Asus laptop additionally removed the hardcoded
+`_JNT_LO/_JNT_HI` constants in `Walker2dPhaseAware` (the previous
+`+0.55 rad` hip-flexion advertisement was a lie the loaded MJCF's
+`+0 rad` limit overruled — exactly the masking that hid this
+hypothesis from earlier batches). Both XML variants ship in
+`assets/mjcf/`; both result trees ship under `results/`. See
+[`assets/mjcf/README.md`](../assets/mjcf/README.md) for picking
+between them.
+
+**Where Phase 5b lands.** Four candidate "current best" policies
+on disk (the user has not picked a single favorite):
+
+- hipopen: `restart_b4_hipopen_5M`, `restart_b5_pose_scale20`, `restart_b5_min_joint`
+- hiprelax: `restart_b4_hiprelax_s11`
+
+Tier 1 — restore `forward_reward = exp(-3·(v-1.25)²)`, drop
+`xvel_term`, run on **both** MJCFs to bracket the residual reward
+gap from below and above — is the next move
+([`ROADMAP.md`](ROADMAP.md) item 0).
+
+---
+
 ## What changes when the user "goes back to old ideas"
 
 The user has noted that some of the original 3D / musculoskeletal scope
