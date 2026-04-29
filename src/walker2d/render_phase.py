@@ -26,6 +26,7 @@ Examples:
       results/restart_b1_dm:final results/restart_b1_dm_bc:final
 """
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
@@ -35,6 +36,35 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from stable_baselines3 import PPO
 from ppo_walker2d_phase import Walker2dPhaseAware, _JNT_LO, _JNT_HI, CTRL_HZ
+
+
+def load_env_kwargs(result_dir: str) -> dict:
+    """Read env_kwargs.json saved at training time, or return defaults.
+
+    preview_k changes obs_space, so render/eval must build the env with the
+    same kwargs the trained policy was wired against. Pre-overnight runs
+    don't have this file; we fall back to defaults that match current behavior.
+    """
+    p = Path(result_dir) / "env_kwargs.json"
+    if not p.exists():
+        return {}
+    try:
+        meta = json.loads(p.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"[warn] Failed to read {p}: {e}; using defaults")
+        return {}
+    out = {}
+    if "preview_k" in meta:
+        out["preview_k"] = int(meta["preview_k"])
+    if "pose_joint_weights" in meta:
+        out["pose_joint_weights"] = tuple(meta["pose_joint_weights"])
+    if "product_reward" in meta:
+        out["product_reward"] = bool(meta["product_reward"])
+    if "min_joint_pose" in meta:
+        out["min_joint_pose"] = bool(meta["min_joint_pose"])
+    if "v_target" in meta:
+        out["v_target"] = float(meta["v_target"])
+    return out
 
 
 def parse_spec(spec: str, default_xml: str) -> dict:
@@ -67,9 +97,11 @@ def run_live(runs, args):
     for run in runs:
         ref      = np.load(f"{run['result_dir']}/reference.npy")
         xml_file = run["xml_file"]
+        extras   = load_env_kwargs(run["result_dir"])
         env = Walker2dPhaseAware(
             reference=ref, xml_file=xml_file,
             pose_term_thresh=9999.0, ankle_term_thresh=9999.0,
+            **extras,
         )
         model = PPO.load(run["model_path"])
 
@@ -152,9 +184,11 @@ def main():
     for run in runs:
         ref      = np.load(f"{run['result_dir']}/reference.npy")
         xml_file = run["xml_file"]
+        extras   = load_env_kwargs(run["result_dir"])
         env = Walker2dPhaseAware(
             reference=ref, xml_file=xml_file, render_mode="rgb_array",
             pose_term_thresh=9999.0, ankle_term_thresh=9999.0,
+            **extras,
         )
         model = PPO.load(run["model_path"])
 

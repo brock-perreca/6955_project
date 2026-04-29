@@ -109,9 +109,24 @@ def run_training(cmd: list[str], out_dir: Path) -> dict:
     return meta
 
 
+def _spec_path(out_dir: Path) -> str:
+    """Build a path safe for use as the first part of a `dir:ckpt:label` spec.
+
+    eval/render parse specs with `spec.split(":")`, which mangles Windows
+    absolute paths because of the `C:` drive letter. Relativise against
+    PROJECT_ROOT (eval/render run with cwd=PROJECT_ROOT) so the spec contains
+    no `:` other than the separator.
+    """
+    try:
+        rel = out_dir.relative_to(PROJECT_ROOT)
+        return rel.as_posix()
+    except ValueError:
+        return str(out_dir)
+
+
 def run_eval(out_dir: Path, xml: str, eps: int, steps: int) -> int:
     eval_json = out_dir / "eval_biomech.json"
-    spec      = f"{out_dir}:final:{out_dir.name}"
+    spec      = f"{_spec_path(out_dir)}:final:{out_dir.name}"
     cmd = [
         sys.executable, str(PROJECT_ROOT / "src" / "diagnostics" / "eval_biomech.py"),
         spec, "--xml", xml,
@@ -127,7 +142,7 @@ def run_eval(out_dir: Path, xml: str, eps: int, steps: int) -> int:
 
 def run_render(out_dir: Path, xml: str, steps: int) -> int:
     mp4_path = out_dir / "preview.mp4"
-    spec     = f"{out_dir}:final:{out_dir.name}"
+    spec     = f"{_spec_path(out_dir)}:final:{out_dir.name}"
     cmd = [
         sys.executable, str(PROJECT_ROOT / "src" / "walker2d" / "render_phase.py"),
         spec, "--xml", xml,

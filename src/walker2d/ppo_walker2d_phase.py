@@ -155,11 +155,19 @@ class Walker2dPhaseAware(Walker2dEnv):
         contact_weight:      float = 0.0,
         pose_term_thresh:    float = 9999.0, # rad — disabled by default
         ankle_term_thresh:   float = 9999.0,
+        hip_term_thresh:     float = 9999.0, # rad — per-joint hip pose term
         xvel_term_thresh:    float = -np.inf, # disabled by default
         warm_start:          bool  = True,
+        # Per-joint pose weighting + alternative aggregators (overnight 2026-04-29).
+        pose_joint_weights:  tuple = (1.0, 1.0, 1.0, 1.0, 1.0, 1.0),
+        product_reward:      bool  = False,  # geometric mean of per-joint exps
+        min_joint_pose:      bool  = False,  # worst-joint floor
+        # Energy / torque-squared penalty (overnight 2026-04-29).
+        energy_weight:       float = 0.0,
+        # Multi-step preview observation (overnight 2026-04-29).
+        preview_k:           int   = 1,
         # Inert kwargs accepted for backward compat with old run scripts.
         max_phase_advance:   int   = 1,      # not used: phase advances 1/step
-        product_reward:      bool  = False,  # not used: reward is multiplicative-per-term
         imitation_weight:    float | None = None,  # mapped → pose_weight if set
         **kwargs,
     ):
@@ -187,8 +195,19 @@ class Walker2dPhaseAware(Walker2dEnv):
         self._w_contact          = float(contact_weight)
         self._pose_term_thresh   = float(pose_term_thresh)
         self._ankle_term_thresh  = float(ankle_term_thresh)
+        self._hip_term_thresh    = float(hip_term_thresh)
         self._xvel_term_thresh   = float(xvel_term_thresh)
         self._warm_start         = bool(warm_start)
+
+        pjw = np.asarray(pose_joint_weights, dtype=np.float32)
+        if pjw.shape != (6,):
+            raise ValueError(f"pose_joint_weights must be length 6, got {pjw.shape}")
+        self._pose_joint_weights = pjw
+        self._product_reward     = bool(product_reward)
+        self._min_joint_pose     = bool(min_joint_pose)
+        self._energy_weight      = float(energy_weight)
+
+        self._preview_k          = max(1, int(preview_k))
         self._phase              = 0
 
         # Per-frame velocity by central differencing with periodic wrap.
@@ -234,9 +253,11 @@ class Walker2dPhaseAware(Walker2dEnv):
             **kwargs,
         )
         # Override observation_space after MujocoEnv.__init__ (which assigns it
-        # directly — a property override would AttributeError).
+        # directly — a property override would AttributeError). With preview_k>1
+        # the obs grows by N_REF*(K-1) so we compute the dim per-instance.
+        self._obs_dim = self.BASE_OBS + self.N_REF * self._preview_k + self.N_PHASE
         self.observation_space = spaces.Box(
-            low=-np.inf, high=np.inf, shape=(self.OBS_DIM,), dtype=np.float32,
+            low=-np.inf, high=np.inf, shape=(self._obs_dim,), dtype=np.float32,
         )
 
         self._precompute_reference_kinematics()
@@ -247,7 +268,11 @@ class Walker2dPhaseAware(Walker2dEnv):
 
     def _get_obs(self) -> np.ndarray:
         base    = super()._get_obs().astype(np.float32)
-        q_ref   = self._reference[self._phase]
+        if self._preview_k > 1:
+            idxs = (self._phase + np.arange(self._preview_k)) % self._ref_len
+            q_ref = self._reference[idxs].reshape(-1)  # (N_REF * K,)
+        else:
+            q_ref = self._reference[self._phase]
         # Normalize phase to GAIT_CYCLE_FRAMES, not _ref_len, so the encoding
         # remains a per-stride signal even when --ref_all is used.
         phi     = 2.0 * np.pi * (self._phase % GAIT_CYCLE_FRAMES) / GAIT_CYCLE_FRAMES
@@ -333,7 +358,22 @@ class Walker2dPhaseAware(Walker2dEnv):
         diff_v  = dq_sim - dq_ref
 
         # ── DeepMimic tracking terms ──────────────────────────────────
-        r_pose = float(np.exp(-self._k_pose * np.mean(diff   ** 2)))
+        weighted_diff_sq = self._pose_joint_weights * (diff ** 2)
+        if self._min_joint_pose:
+            # Worst-joint floor: r_pose = min_j exp(-k · w_j · diff_j²).
+            # One bad joint kills the whole pose reward — hardest fix for the
+            # 5-of-6-joint loophole.
+            per_joint = np.exp(-self._k_pose * weighted_diff_sq)
+            r_pose = float(per_joint.min())
+        elif self._product_reward:
+            # Geometric mean of per-joint exps — DeepMimic-style multiplicative
+            # form on demand.
+            per_joint = np.exp(-self._k_pose * weighted_diff_sq)
+            r_pose = float(np.prod(per_joint) ** (1.0 / 6.0))
+        else:
+            # Default: arithmetic mean of weighted squared diffs (back-compat
+            # with all pre-overnight runs when pose_joint_weights = ones).
+            r_pose = float(np.exp(-self._k_pose * np.mean(weighted_diff_sq)))
         r_vel  = float(np.exp(-self._k_vel  * np.mean(diff_v ** 2)))
 
         root_xpos = self.data.body("torso").xpos
@@ -391,26 +431,35 @@ class Walker2dPhaseAware(Walker2dEnv):
         ctrl_cost = -1e-3 * float(np.sum(np.square(self.data.ctrl)))
         reward += ctrl_cost
 
+        # Optional torque-squared energy penalty (off by default).
+        energy_pen = 0.0
+        if self._energy_weight != 0.0:
+            energy_pen = float(np.sum(np.square(np.asarray(action))))
+            reward -= self._energy_weight * energy_pen
+
         # ── termination ────────────────────────────────────────────────
         root_pitch = float(self.data.qpos[2])
         x_vel      = float(info.get("x_velocity", self.data.qvel[0]))
 
         pitch_term = abs(root_pitch) > self._pitch_term_thresh
-        # Optional pose/ankle/xvel terms; default thresholds are sentinels
+        # Optional pose/ankle/hip/xvel terms; default thresholds are sentinels
         # that make these never fire.
         ankle_dev = max(abs(diff[2]), abs(diff[5]))
+        hip_dev   = max(abs(diff[0]), abs(diff[3]))
         other_dev = max(abs(diff[0]), abs(diff[1]),
                         abs(diff[3]), abs(diff[4]))
         ankle_term = ankle_dev > self._ankle_term_thresh
+        hip_term   = hip_dev   > self._hip_term_thresh
         pose_term  = other_dev > self._pose_term_thresh
         xvel_term  = x_vel < self._xvel_term_thresh
 
-        if pitch_term or ankle_term or pose_term or xvel_term:
+        if pitch_term or ankle_term or hip_term or pose_term or xvel_term:
             terminated = True
         if terminated and self._term_cause is None:
             if   height_term: self._term_cause = "height"
             elif pitch_term:  self._term_cause = "pitch"
             elif ankle_term:  self._term_cause = "ankle"
+            elif hip_term:    self._term_cause = "hip"
             elif pose_term:   self._term_cause = "pose"
             elif xvel_term:   self._term_cause = "xvel"
             else:             self._term_cause = "other"
@@ -420,6 +469,7 @@ class Walker2dPhaseAware(Walker2dEnv):
         info.update(
             r_pose=r_pose, r_vel=r_vel, r_ee=r_ee, r_root=r_root,
             contact_r=contact_r, swing_pen=swing_pen, ctrl_cost=ctrl_cost,
+            energy_pen=energy_pen,
             phase=self._phase,
         )
         if terminated:
@@ -534,8 +584,8 @@ class LogCallback(BaseCallback):
     """
 
     REWARD_COMPS = ("r_pose", "r_vel", "r_ee", "r_root",
-                    "contact_r", "swing_pen", "ctrl_cost")
-    TERM_CAUSES  = ("height", "pitch", "ankle", "pose", "xvel", "other")
+                    "contact_r", "swing_pen", "ctrl_cost", "energy_pen")
+    TERM_CAUSES  = ("height", "pitch", "ankle", "hip", "pose", "xvel", "other")
 
     def __init__(self, log_interval: int = 50):
         super().__init__(verbose=0)
@@ -648,6 +698,30 @@ def main():
                         "Default disabled.")
     p.add_argument("--xvel_term", type=float, default=-1e9,
                    help="x-velocity termination floor (m/s). Default disabled.")
+    p.add_argument("--hip_term", type=float, default=9999.0,
+                   help="Hip-only deviation termination threshold (rad). "
+                        "Applies independently of --pose_term. Default disabled.")
+
+    # Per-joint pose weighting + alternative aggregators (overnight 2026-04-29).
+    p.add_argument("--pose_joint_weights", type=float, nargs=6,
+                   default=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                   help="Per-joint weights for pose tracking, ordered "
+                        "(hip_r, knee_r, ankle_r, hip_l, knee_l, ankle_l). "
+                        "Default [1,1,1,1,1,1].")
+    p.add_argument("--product_reward", action="store_true",
+                   help="Geometric mean of per-joint exps inside r_pose (DeepMimic-style).")
+    p.add_argument("--min_joint_pose", action="store_true",
+                   help="Worst-joint floor: r_pose = min_j exp(-k·w_j·diff_j²).")
+
+    # Energy / torque-squared penalty (overnight 2026-04-29).
+    p.add_argument("--energy_weight", type=float, default=0.0,
+                   help="Coefficient for -w·||action||². Default 0.0 (off).")
+
+    # Multi-step preview observation (overnight 2026-04-29).
+    p.add_argument("--preview_k", type=int, default=1,
+                   help="Concatenate K reference frames into the obs "
+                        "(default 1 = current behaviour). K>1 changes the "
+                        "obs_space; finetune from a K=1 model will not load.")
 
     p.add_argument("--scale_model", action="store_true",
                    help="Use Subject-1-scaled MJCF (assets/mjcf/walker2d_subject1.xml)")
@@ -709,7 +783,28 @@ def main():
         contact_weight     = args.contact_weight,
         pose_term_thresh   = args.pose_term,
         ankle_term_thresh  = args.ankle_term,
+        hip_term_thresh    = args.hip_term,
         xvel_term_thresh   = args.xvel_term,
+        pose_joint_weights = tuple(args.pose_joint_weights),
+        product_reward     = args.product_reward,
+        min_joint_pose     = args.min_joint_pose,
+        energy_weight      = args.energy_weight,
+        preview_k          = args.preview_k,
+    )
+
+    # Save the obs/reward-shape-affecting kwargs for downstream renderer/eval
+    # (preview_k changes obs_space; render and eval need to know to build the
+    # env with the same shape so PPO.load can wire its input layer).
+    import json
+    env_kwargs_meta = {
+        "preview_k":          args.preview_k,
+        "pose_joint_weights": list(args.pose_joint_weights),
+        "product_reward":     args.product_reward,
+        "min_joint_pose":     args.min_joint_pose,
+        "v_target":           args.v_target,
+    }
+    (log_dir / "env_kwargs.json").write_text(
+        json.dumps(env_kwargs_meta, indent=2), encoding="utf-8"
     )
     def make_env():
         def _init():

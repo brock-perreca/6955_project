@@ -52,6 +52,34 @@ sys.path.insert(0, str(PROJECT_ROOT / "src" / "walker2d"))
 from ppo_walker2d_phase import Walker2dPhaseAware, load_ref_cycle, CTRL_HZ  # noqa: E402
 
 
+def _load_env_kwargs(run_dir: str) -> dict:
+    """Read env_kwargs.json saved at training time, if any.
+
+    preview_k changes obs_space; without these extras, PPO.load fails with
+    a shape mismatch on multi-step-preview runs.
+    """
+    p = Path(run_dir) / "env_kwargs.json"
+    if not p.exists():
+        return {}
+    try:
+        meta = json.loads(p.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"[warn] Failed to read {p}: {e}; using defaults")
+        return {}
+    out = {}
+    if "preview_k" in meta:
+        out["preview_k"] = int(meta["preview_k"])
+    if "pose_joint_weights" in meta:
+        out["pose_joint_weights"] = tuple(meta["pose_joint_weights"])
+    if "product_reward" in meta:
+        out["product_reward"] = bool(meta["product_reward"])
+    if "min_joint_pose" in meta:
+        out["min_joint_pose"] = bool(meta["min_joint_pose"])
+    if "v_target" in meta:
+        out["v_target"] = float(meta["v_target"])
+    return out
+
+
 # ── helpers ────────────────────────────────────────────────────────────────────
 
 def _rising_edges(x: np.ndarray, thresh: float, min_gap: int = 25) -> np.ndarray:
@@ -479,7 +507,8 @@ def main() -> None:
             print(f"[{label}] reference: fallback gait_cycle_reference.npy "
                   f"shape={reference.shape}")
 
-        env = Walker2dPhaseAware(reference=reference, xml_file=args.xml)
+        extras = _load_env_kwargs(run_dir)
+        env = Walker2dPhaseAware(reference=reference, xml_file=args.xml, **extras)
         body_weight_n = float(np.sum(env.model.body_mass)) * abs(
             float(env.model.opt.gravity[2]))
         print(f"[{label}] body weight: {body_weight_n:.1f} N "
