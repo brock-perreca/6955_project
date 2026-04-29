@@ -35,23 +35,27 @@ new_x = np.linspace(0, orig_len - 1, new_len)
 def resamp(key):
     return np.interp(new_x, orig_x, d[key])
 
-hip_r   = -np.deg2rad(resamp("hip_flexion_r"))
+# Sign convention (verified 2026-04-28 by FK probe on Walker2d-v4;
+# see docs/METHODS.md § Joint sign convention and PROJECT_TIMELINE.md
+# § Phase 5). OpenSim and Walker2d agree on hip and ankle on this
+# model; only the knee needs to be flipped (OpenSim knee_angle is +ve
+# for flexion in [0°, +66°], Walker2d leg_joint is -ve for flexion in
+# [-150°, 0°]).
+hip_r   =  np.deg2rad(resamp("hip_flexion_r"))
 knee_r  = -np.deg2rad(resamp("knee_angle_r"))
-ankle_r = -np.deg2rad(resamp("ankle_angle_r"))
-hip_l   = -np.deg2rad(resamp("hip_flexion_l"))
+ankle_r =  np.deg2rad(resamp("ankle_angle_r"))
+hip_l   =  np.deg2rad(resamp("hip_flexion_l"))
 knee_l  = -np.deg2rad(resamp("knee_angle_l"))
-ankle_l = -np.deg2rad(resamp("ankle_angle_l"))
+ankle_l =  np.deg2rad(resamp("ankle_angle_l"))
 
 ref = np.stack([hip_r, knee_r, ankle_r, hip_l, knee_l, ankle_l], axis=1).astype(np.float32)
 
-# Detect right heel strike: hip_r crosses from extension (+) to flexion (-)
-# i.e., hip_r goes from positive to negative — that's foot strike
-# More robustly: find local minima of hip_r (most extended = heel strike)
+# Detect right heel strike: max forward flexion of the right hip.
+# Walker2d hip is now sign-aligned with OpenSim, so heel strike is the
+# *positive* peak of hip_r (no inversion needed).
 from scipy.signal import find_peaks
 
-# Right heel strike ≈ when hip_r is at minimum (most extended)
-neg_hip = -hip_r  # invert so minima become maxima
-peaks, props = find_peaks(neg_hip, distance=30, prominence=0.1)
+peaks, props = find_peaks(hip_r, distance=30, prominence=0.1)
 
 print(f"Found {len(peaks)} right heel strikes at frames: {peaks[:5]} ...")
 
@@ -69,7 +73,7 @@ else:
 
 # Check joint limits
 JNT_LO = np.array([-2.618, -2.618, -0.785, -2.618, -2.618, -0.785])
-JNT_HI = np.array([ 0.349,  0.,     0.785,  0.349,  0.,     0.785])
+JNT_HI = np.array([ 0.550,  0.,     0.785,  0.550,  0.,     0.785])  # hip widened 2026-04-28
 clipped = np.any((cycle < JNT_LO) | (cycle > JNT_HI), axis=1)
 print(f"Frames outside joint limits: {clipped.sum()} / {len(cycle)} ({100*clipped.mean():.1f}%)")
 

@@ -198,6 +198,76 @@ cluster — at that scale, policy diversity itself prevents memorization.
 
 ---
 
+## Phase 5 — The sign-error discovery (2026-04-28)
+
+**What happened.** Brock asked the assistant to add a kinematic
+playback tool so we could watch the reference data on a Walker2d
+skeleton and confirm what motion the imitation pipeline was actually
+trying to enforce. The new `src/diagnostics/view_reference.py` plays
+the on-disk `assets/reference/gait_cycle_reference.npy` directly into
+`qpos[3:9]` with the body drifted forward at 1.25 m/s.
+
+The legs visibly walked **backward** — feet sweeping back-to-front
+during stance, body translating in the wrong direction. Empirical FK
+probes on Walker2d-v4 (set `qpos[3] = ±0.5`, read `body('foot').xpos`)
+showed:
+
+- positive hip joint → foot in **+x** direction (same as OpenSim's
+  +hip_flexion = leg forward)
+- positive ankle joint → toe rotates upward = dorsiflexion (same as
+  OpenSim's +ankle_angle)
+- foot geom toes point **+x** at neutral
+- gym Walker2d-v4 reward is `forward_reward_weight * x_velocity`,
+  positive for **+x** motion
+
+OpenSim and Walker2d-v4 agree on sign for hip and ankle on this model.
+The `walker = -opensim` negation in `extract_gait_cycle.py:38-43` and
+`ulrich_loader.py` is correct only for the knee (OpenSim
+`knee_angle ∈ [0°, +66°]` maps to Walker2d `leg_joint ∈ [-150°, 0°]`,
+opposite signs). For hip and ankle it inverts the gait — heel-strike
+pose becomes toe-off pose, dorsiflexion becomes plantarflexion.
+
+The `METHODS.md § Joint sign convention` section and the legacy
+comment block at `src/legacy/walker2d_v1/ppo_walker2d.py:91-103` both
+asserted the all-six-joint flip as fact. They were wrong.
+
+**Aftermath.**
+
+- **Every PPO and AMP/AIRL run on disk was trained on a corrupted
+  reference** — hip and ankle imitation targets are gait-inverted, knee
+  is correct. The DeepMimic pose-tracking reward and the
+  `forward_reward = +x_velocity` term were pulling the policy in
+  *opposite* directions for two of three joints.
+- The Phase 2 local-optima taxonomy (two-legged hopping, one-legged
+  hopping, ankle paddling, foot-tapping in place) and the AMP/AIRL
+  collapse described in writeup §6.3 are partly explained by this:
+  policies were finding minimum-conflict equilibria between two
+  contradictory reward signals on a self-inconsistent kinematic target.
+- The engineered DeepMimic reward in [`REWARD_DESIGN.md`](REWARD_DESIGN.md)
+  was tuned to patch reward-hacking exploits that *are themselves
+  partly symptoms* of the corrupted reference. Each weight, sharpness,
+  and termination threshold was set on a self-contradictory target.
+  Some terms may not be needed at all on a clean reference.
+- Trained checkpoints, BC warm-start data, and reward-tuning constants
+  are all suspect. Code (`Walker2dPhaseAware`, phase observation, RSI,
+  optimizer setup, AMP/AIRL discriminators, render and diagnostic
+  scripts) is unaffected.
+
+**Decision (2026-04-28).** Restart the imitation pipeline from the
+ground up. Fix the data, then rebuild the simplest plausible
+DeepMimic-faithful method first and only add complexity as we run into
+specific failures. Treat the new run as a clean ablation: every
+reward term, termination condition, and BC choice has to be
+re-justified on the corrected reference.
+
+**The visualization-only fix in `view_reference.py`** (commit
+`<pending>`) re-applies the negation on hip and ankle on load to make
+playback show natural forward walking; the on-disk `.npy` is
+unchanged. This is purely a diagnostic. The proper fix lives upstream
+in `extract_gait_cycle.py` and `ulrich_loader.py`.
+
+---
+
 ## What changes when the user "goes back to old ideas"
 
 The user has noted that some of the original 3D / musculoskeletal scope

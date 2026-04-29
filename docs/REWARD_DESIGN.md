@@ -1,5 +1,18 @@
 # Reward design + exploit taxonomy
 
+> **2026-04-28 — read this before trusting anything below.** Every
+> weight, sharpness, threshold, and "added this term to close exploit
+> X" decision on this page was tuned against a reference whose hip and
+> ankle channels are gait-inverted (see
+> [`PROJECT_TIMELINE.md § Phase 5`](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28)).
+> The exploit taxonomy is partly a record of how the policy escaped a
+> *self-contradictory* reward — DeepMimic pose-tracking pulling toward
+> a backward-walking pattern on hip/ankle while
+> `forward_reward = +x_velocity` pulled toward +x motion. Some of
+> these terms likely vanish on a corrected reference. Treat this file
+> as a historical artifact pending the restart described in
+> [`PROJECT_TIMELINE.md § Phase 5`](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28).
+
 This is the *why* of the reward. For the implementation-level details,
 see [`METHODS.md`](METHODS.md). For the failure runs that motivated each
 term, see [`RUN_LOG.md`](RUN_LOG.md). The reward is a Walker2d-on-IK

@@ -7,6 +7,22 @@ labels), see [`reports/writeup_filled_1.docx`](reports/writeup_filled_1.docx).
 For the *reasoning* behind each reward term and the failure modes that
 motivate it, see [`REWARD_DESIGN.md`](REWARD_DESIGN.md).
 
+> **2026-04-28 restart — read this before trusting the reward,
+> termination, BC, or per-joint-scaling sections below.** Those
+> sections describe the engineered reward that was tuned against the
+> corrupted reference (see
+> [`PROJECT_TIMELINE.md` § Phase 5](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28)).
+> The active code in `src/walker2d/ppo_walker2d_phase.py` was simplified
+> back to a DeepMimic-faithful baseline on 2026-04-28 — sum of four
+> `exp(−k·err²)` terms, no per-joint sharpness/weights, no
+> swing_pen/contact_r by default, no per-joint pose/ankle termination.
+> Reward components live as code constants and CLI flags; see the
+> module docstring of `ppo_walker2d_phase.py` for the current spec and
+> [`RESTART_LOG.md`](RESTART_LOG.md) for what's been tried since the
+> restart. The headings below are kept for historical context — they
+> document the pre-restart engineered reward, which the active code no
+> longer uses by default.
+
 ---
 
 ## Frequencies and resampling
@@ -24,11 +40,31 @@ default; the cubic spline avoids the velocity-step artifacts that hurt
 
 ## Joint sign convention
 
-Walker2d's joint axes are all `[0, -1, 0]`, so the IK→sim mapping is
-`walker = -opensim` for hip, knee, and ankle. See the comments in
-`src/legacy/walker2d_v1/ppo_walker2d.py:91-103` (the original
-documentation; preserved verbatim) and in
-`src/walker2d/ulrich_loader.py`.
+> **2026-04-28 — this section was wrong, and it took down every
+> training run that trusted it.** See
+> [`PROJECT_TIMELINE.md § Phase 5`](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28)
+> for the discovery story. The corrected facts are below; the source
+> files (`extract_gait_cycle.py`, `ulrich_loader.py`,
+> `src/legacy/walker2d_v1/ppo_walker2d.py:91-109`) still apply
+> `walker = -opensim` to all six joints and are now known to be wrong
+> for hip and ankle.
+
+Walker2d's joint axes are all `[0, -1, 0]`. Empirical FK probes (run
+the snippet in `src/diagnostics/view_reference.py`'s docstring or
+`mj_kinematics` directly) give:
+
+| Joint | OpenSim convention | Walker2d convention | Flip needed? |
+|---|---|---|---|
+| Hip   | +flexion = leg forward (anterior)  | + = foot in +x = leg forward  | **No** |
+| Knee  | +flexion, range [0°, +66°]         | − = flexion, range [-150°, 0°]| **Yes** |
+| Ankle | +dorsiflexion (toe up)             | + = dorsiflexion (toe up)     | **No** |
+
+Walker2d's foot geom toes point **+x** at neutral and the gym
+`forward_reward = forward_reward_weight * x_velocity` rewards motion in
+**+x**. So a forward-walking heel strike has *positive* hip in both
+conventions. The `walker = -opensim` flip is correct only for the
+knee. Applying it to hip and ankle inverts the gait (heel-strike pose
+becomes toe-off pose; dorsiflexion becomes plantarflexion).
 
 Joint order in the 6-vector is
 `[hip_r, knee_r, ankle_r, hip_l, knee_l, ankle_l]`.

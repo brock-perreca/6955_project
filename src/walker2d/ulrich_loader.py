@@ -56,15 +56,17 @@ def load_ulrich_reference(subjects: list[int] | None = None,
 
         [hip_r, knee_r, ankle_r, hip_l, knee_l, ankle_l]
 
-    Values are in RADIANS, in the Walker2d sign convention. Walker2d's joint
-    axes are all `[0, -1, 0]`, so a positive rotation in OpenSim around +Y
-    maps to a negative angle in Walker2d:
+    Values are in RADIANS, in the Walker2d sign convention. Verified
+    2026-04-28 by FK probe on Walker2d-v4 (see docs/METHODS.md § Joint
+    sign convention and PROJECT_TIMELINE.md § Phase 5):
 
-        hip:   walker = -opensim   (flexion positive in OpenSim, negative in Walker2d)
-        knee:  walker = -opensim   (same sign flip)
-        ankle: walker = -opensim   (plantarflex negative in OpenSim, positive in Walker2d
-                                    — the negation lines up with Walker2d's foot_joint sign)
+        hip:   walker =  opensim   (positive = leg forward in both)
+        knee:  walker = -opensim   (OpenSim knee ∈ [0°, +66°],
+                                    Walker2d leg_joint ∈ [-150°, 0°])
+        ankle: walker =  opensim   (positive = dorsiflexion in both)
 
+    The original loader negated all six joints; that was correct for
+    the knee but inverted the gait on hip and ankle. Fixed 2026-04-28.
     See `docs/DATA_SOURCES.md` for OpenSim joint range references.
     """
     if subjects is None:
@@ -99,12 +101,12 @@ def load_ulrich_reference(subjects: list[int] | None = None,
                 return CubicSpline(orig_x, d[key])(new_x)
 
             seg = np.stack([
-                -np.deg2rad(resamp("hip_flexion_r")),
+                 np.deg2rad(resamp("hip_flexion_r")),
                 -np.deg2rad(resamp("knee_angle_r")),
-                -np.deg2rad(resamp("ankle_angle_r")),
-                -np.deg2rad(resamp("hip_flexion_l")),
+                 np.deg2rad(resamp("ankle_angle_r")),
+                 np.deg2rad(resamp("hip_flexion_l")),
                 -np.deg2rad(resamp("knee_angle_l")),
-                -np.deg2rad(resamp("ankle_angle_l")),
+                 np.deg2rad(resamp("ankle_angle_l")),
             ], axis=1)
             segments.append(seg)
             total_files += 1

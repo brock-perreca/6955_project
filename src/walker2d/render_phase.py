@@ -14,11 +14,16 @@ Optional flags:
           of the matplotlib animation. Recommended for visual checks — the
           matplotlib path can't sustain 125 fps with rgb_array frames and
           plays back ~5–6× slow.
+  --mp4 PATH  Write rgb_array frames to PATH as an mp4 (one file per run, with
+              run label as suffix when more than one run is supplied). Uses
+              imageio + ffmpeg.
 
 Examples:
   python render_phase.py results/my_run:15000000:"15M checkpoint"
   python render_phase.py results/run1:final results/run2:10000000
   python render_phase.py --live results/my_run:final
+  python render_phase.py --mp4 docs/figures/restart_b1.mp4 \\
+      results/restart_b1_dm:final results/restart_b1_dm_bc:final
 """
 import argparse
 import sys
@@ -128,6 +133,10 @@ def main():
     parser.add_argument("--seed",  type=int, default=0,
                         help="RNG seed for env.reset() (root-state noise). "
                              "Same seed → same rollout each invocation.")
+    parser.add_argument("--mp4",   default=None,
+                        help="If set, write rgb_array frames to this mp4 path. "
+                             "With multiple runs, the run label is inserted as "
+                             "a suffix (foo.mp4 -> foo_<label>.mp4).")
     args = parser.parse_args()
 
     runs = [parse_spec(s, args.xml) for s in args.specs]
@@ -138,6 +147,7 @@ def main():
 
     all_frames = []
     run_labels = []
+    per_run_frames: list[tuple[str, list]] = []
 
     for run in runs:
         ref      = np.load(f"{run['result_dir']}/reference.npy")
@@ -148,6 +158,7 @@ def main():
         )
         model = PPO.load(run["model_path"])
 
+        run_frames = []
         for ep in range(args.eps):
             start_phase = ep * len(ref) // args.eps
             obs, _ = env.reset(seed=args.seed + ep)
@@ -155,7 +166,11 @@ def main():
             qpos = env.data.qpos.copy()
             qvel = env.data.qvel.copy()
             qpos[3:9] = np.clip(ref[start_phase], _JNT_LO, _JNT_HI)
-            qvel[3:9] = 0.0
+            # Match training-time RSI: joint velocities from the reference
+            # derivative, body forward velocity at v_target. Earlier code
+            # zeroed qvel[3:9] which produced an unrealistic start state.
+            qvel[3:9] = env._ref_vel[start_phase]
+            qvel[0]   = env._v_target
             env.set_state(qpos, qvel)
             obs = env._get_obs()
 
@@ -169,12 +184,31 @@ def main():
 
             print(f"[{run['label']}] ep {ep+1}: {len(ep_frames)} steps")
             all_frames.extend(ep_frames)
+            run_frames.extend(ep_frames)
             run_labels.append((len(all_frames) - len(ep_frames),
                                len(ep_frames), run["label"], ep + 1))
 
+        per_run_frames.append((run["label"], run_frames))
         env.close()
 
     print(f"\nTotal frames: {len(all_frames)}")
+
+    if args.mp4:
+        import imageio.v2 as imageio
+        out = Path(args.mp4)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        if len(per_run_frames) == 1:
+            label, frames = per_run_frames[0]
+            imageio.mimsave(out, frames, fps=int(CTRL_HZ), macro_block_size=1)
+            print(f"Wrote {out}  ({len(frames)} frames @ {int(CTRL_HZ)} fps)")
+        else:
+            for label, frames in per_run_frames:
+                safe = "".join(c if c.isalnum() or c in "._-" else "_"
+                               for c in label)
+                p = out.with_name(f"{out.stem}_{safe}{out.suffix}")
+                imageio.mimsave(p, frames, fps=int(CTRL_HZ), macro_block_size=1)
+                print(f"Wrote {p}  ({len(frames)} frames @ {int(CTRL_HZ)} fps)")
+        return
 
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.axis("off")

@@ -2,6 +2,22 @@
 
 *Last updated: 2026-04-28.*
 
+> **STATUS: RESTARTING.** The reference data has been corrected
+> (`extract_gait_cycle.py` and `ulrich_loader.py` now flip only the
+> knee — `walker = -opensim` was wrong for hip and ankle on this
+> Walker2d model). The on-disk
+> `assets/reference/gait_cycle_reference.npy` was regenerated and
+> verified by FK probe to encode forward walking. The imitation
+> pipeline is being rebuilt from a DeepMimic-faithful baseline; per-
+> batch progress lives in [`RESTART_LOG.md`](RESTART_LOG.md).
+> Pre-restart runs (the `walker2d_phase_*` directories below) and the
+> exploit-patch reward terms (`swing_pen`, `contact_r`, per-joint
+> sharpness) were tuned against the corrupted reference and are kept
+> only as a historical record — see
+> [`REWARD_DESIGN.md`](REWARD_DESIGN.md) for the warning at the top.
+> [`METHODS.md § Joint sign convention`](METHODS.md#joint-sign-convention)
+> documents the corrected facts.
+
 For a chronological story of how we got here, see
 [`PROJECT_TIMELINE.md`](PROJECT_TIMELINE.md). For the formal writeup, see
 [`reports/writeup_filled_1.docx`](reports/writeup_filled_1.docx) (joint

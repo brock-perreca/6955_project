@@ -79,9 +79,14 @@ Note that the trial directories in the SimTK dump are named
 - Filters by `subjects` (default 1..10) and `trial_filter` (substring,
   e.g. `"baseline"`).
 - Each trial's IK is parsed via `load_sto`, resampled to `control_hz`,
-  converted to radians, and sign-flipped to Walker2d convention
-  (`walker = -opensim` for hip / knee / ankle — see
-  [`METHODS.md § Joint sign convention`](METHODS.md#joint-sign-convention)).
+  converted to radians, and sign-flipped via `walker = -opensim` on
+  every joint. **As of 2026-04-28 this flip is known to be wrong for
+  hip and ankle and correct only for the knee** — see
+  [`METHODS.md § Joint sign convention`](METHODS.md#joint-sign-convention)
+  and [`PROJECT_TIMELINE.md § Phase 5`](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28).
+  The loader still applies the all-six-joint flip; it has not yet been
+  corrected so that existing checkpoints keep loading against the same
+  conventions they were trained on.
 - All matching trials are concatenated end-to-end into a single
   `(T, 6)` array with column order
   `[hip_r, knee_r, ankle_r, hip_l, knee_l, ankle_l]`.

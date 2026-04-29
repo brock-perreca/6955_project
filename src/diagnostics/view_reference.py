@@ -85,14 +85,10 @@ def main():
                 if not viewer.is_running():
                     return
                 t0 = time.perf_counter()
-                # Walker2d's hip joint axis is [0,-1,0] and the reference's
-                # negated opensim values place flexion at negative hip angles
-                # (see ppo_walker2d.py:101-107). With those kinematics, "leg
-                # forward at heel strike" points toward -x, so the body must
-                # drift in -x to make the planted-foot illusion read as
-                # forward walking. The data is unchanged; this is purely a
-                # rendering-direction choice.
-                d.qpos[0] -= dx
+                # Drift +x: Walker2d's rewarded direction, foot toes point
+                # +x at neutral, and after the sign correction in
+                # load_ref_125hz the heel-strike leg is in +x.
+                d.qpos[0] += dx
                 d.qpos[1]  = TORSO_Z
                 d.qpos[2]  = 0.0
                 d.qpos[3:9] = ref[t]

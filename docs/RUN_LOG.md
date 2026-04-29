@@ -1,5 +1,16 @@
 # Walker2d Run Log
 
+> **2026-04-28 — every run on this page trained on a corrupted
+> reference.** Hip and ankle channels of `gait_cycle_reference.npy`
+> are gait-inverted; only the knee is correct (see
+> [`PROJECT_TIMELINE.md § Phase 5`](PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28)).
+> The "first walking policy" and the canonical 100M run still walk —
+> but they walk on a target that fights itself, which is part of why
+> the reward had to be so heavily engineered to suppress exploits.
+> Treat the entries below as a historical record. Do not branch off
+> these checkpoints for new work without first regenerating the
+> reference and retraining.
+
 This file is the project's run log. It covers (1) why the earliest
 phase-blind imitation runs failed, (2) the symmetry-reward pretrain
 detour and the local optima it found, and (3) the path to the first

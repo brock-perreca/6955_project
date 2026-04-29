@@ -44,7 +44,7 @@ is the authoritative current writeup): a pragmatic backup track on
 **2D MuJoCo Walker2d-v4** (torque-actuated, 6 joints) conditioned on
 **Ulrich treadmill IK** (Subject 1, 1.25 m/s). Two methods:
 - **Phase-conditioned PPO + DeepMimic-style multi-term reward + BC
-  warm-start** — Brock's track, committed, working primary baseline.
+  warm-start** — Brock's track, committed, primary baseline.
 - **Adversarial Motion Priors / AIRL** — Brian's track,
   [`src/walker2d/amp_walker2d.py`](src/walker2d/amp_walker2d.py) and
   [`src/walker2d/airl_walker2d.py`](src/walker2d/airl_walker2d.py).
@@ -54,7 +54,26 @@ is the authoritative current writeup): a pragmatic backup track on
   §6.3) due to discriminator memorisation of the compact expert
   manifold; needs the MJX-parallelised port for stable training.
 
-Full pivot history (Phase 0 → Phase 4) is in
+**Where we are now (Phase 5, 2026-04-28).** While building a
+kinematic visualization tool we discovered the on-disk reference is
+**hip-and-ankle inverted** — `walker = -opensim` is applied to all
+six joints in `extract_gait_cycle.py` and `ulrich_loader.py`, but it's
+only correct for the knee. Hip and ankle now match OpenSim's sign on
+this Walker2d model (FK-verified). Every PPO/AMP/AIRL run on disk was
+trained against a self-contradictory target: DeepMimic pose-tracking
+pulling toward a backward-walking pattern on hip/ankle, while the
+forward-velocity reward pulled toward +x. The reward design's
+exploit-patching is partly a record of the policy escaping that
+contradiction.
+
+We are restarting the imitation pipeline from the ground up, building
+the simplest plausible DeepMimic-faithful method on a corrected
+reference and only adding complexity for specific failures we observe.
+Code (env, phase obs, RSI, BC, AMP/AIRL discriminators, render and
+diagnostic scripts) is intact; checkpoints, reward constants, and the
+exploit taxonomy are suspect.
+
+Full pivot history (Phase 0 → Phase 5) is in
 [`docs/PROJECT_TIMELINE.md`](docs/PROJECT_TIMELINE.md).
 
 **What we still want — the focus that has not changed.** The current
@@ -112,6 +131,7 @@ musculoskeletal track — as on-mission, not scope creep.
 | Task / question | Read |
 |---|---|
 | What is this project right now? | [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) |
+| **What's been tried since the 2026-04-28 restart?** Per-batch setup + observations + render commands. | [`docs/RESTART_LOG.md`](docs/RESTART_LOG.md) |
 | Why is the codebase shaped this way? Original proposal vs current scope. | [`docs/PROJECT_TIMELINE.md`](docs/PROJECT_TIMELINE.md) |
 | Where does file X live? What's the import graph? | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Implementation details: env, reward, RSI, BC, optimizer, termination | [`docs/METHODS.md`](docs/METHODS.md) |
