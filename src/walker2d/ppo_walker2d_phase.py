@@ -725,6 +725,10 @@ def main():
 
     p.add_argument("--scale_model", action="store_true",
                    help="Use Subject-1-scaled MJCF (assets/mjcf/walker2d_subject1.xml)")
+    p.add_argument("--xml", type=str, default=None,
+                   help="Custom MJCF filename under assets/mjcf/ (e.g. "
+                        "walker2d_hipopen.xml). Overrides --scale_model. "
+                        "Use 'walker2d.xml' for the gym default.")
     p.add_argument("--no_tb",   action="store_true")
     p.add_argument("--out_dir", default=None)
     args = p.parse_args()
@@ -740,7 +744,17 @@ def main():
             control_hz=CTRL_HZ,
         )
 
-    if args.scale_model:
+    if args.xml is not None:
+        xml_path = args.xml
+        if xml_path != "walker2d.xml" and not Path(xml_path).is_absolute():
+            local = MJCF_ROOT / xml_path
+            if not local.exists():
+                raise FileNotFoundError(
+                    f"--xml {xml_path!r} not found at {local}; "
+                    "place a copy under assets/mjcf/."
+                )
+            print(f"Using custom MJCF: {local}")
+    elif args.scale_model:
         xml_path = str(MJCF_ROOT / "walker2d_subject1.xml")
         if not Path(xml_path).exists():
             print(f"[warn] --scale_model set but {xml_path} is missing; "
@@ -802,6 +816,7 @@ def main():
         "product_reward":     args.product_reward,
         "min_joint_pose":     args.min_joint_pose,
         "v_target":           args.v_target,
+        "xml_file":           xml_path,
     }
     (log_dir / "env_kwargs.json").write_text(
         json.dumps(env_kwargs_meta, indent=2), encoding="utf-8"

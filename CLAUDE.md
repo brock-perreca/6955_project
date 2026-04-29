@@ -60,21 +60,28 @@ knee-only flip is the correct sign convention; the loaders had been
 flipping all six joints). Every pre-restart PPO/AMP/AIRL run had been
 trained against a self-contradictory target. The loaders were
 corrected and the pipeline is being rebuilt from a DeepMimic-faithful
-baseline. Two batches done: the post-restart current best is
-`results/restart_b2_xvel/` (walks, but with stiff hips). The
-2026-04-29 overnight 19-experiment sweep showed the stiff-hip basin
-is **reward-driven, not optimizer-driven** — none of 8 aggregator
-ablations, 4 AMP/AIRL warm-starts, 3 preview-obs runs, or an SAC
-variant escaped it. The next move is restoring a peaked
-`forward_reward = exp(-3·(v-1.25)²)` and dropping the `xvel_term`
-floor. See:
+baseline. Four batches done: the post-restart prior best was
+`results/restart_b2_xvel/` (walks, but with stiff hips ~2° vs
+reference 45°). The 2026-04-29 overnight 19-experiment sweep
+(Batch 3) read as "reward-driven trap"; **Batch 4 superseded that
+diagnosis on the same day** — the stiff-hip basin was actually a
+**physical reachability** problem in the MJCF. Stock `walker2d.xml`
+constrains `thigh_joint` to `[-150°, 0°]`, but the reference asks for
++30° hip flexion. Opening the range to `[-30°, +60°]` in
+`assets/mjcf/walker2d_hipopen.xml` raised hip ROM from 1.8° to
+**91.5°** in 2M steps (`results/restart_b4_hipopen/`); a 5M follow-up
+(`results/restart_b4_hipopen_5M/`, **the current best policy**)
+narrowed it to 63° ROM at 1.40 m/s with all eval episodes surviving
+1000 steps. The 19 overnight ablations were all chasing a problem
+that lived upstream of the reward. See:
 
 - [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) — current state
-- [`docs/RESTART_LOG.md`](docs/RESTART_LOG.md) — per-batch progress
+- [`docs/RESTART_LOG.md § Batch 4`](docs/RESTART_LOG.md#batch-4--2026-04-29--joint-range-hypothesis-open-hip-mjcf--positive)
+  — joint-range diagnosis and fix
 - [`docs/REWARD_DESIGN.md § The stiff-hip trap`](docs/REWARD_DESIGN.md#the-stiff-hip-trap-2026-04-29-diagnosis)
-  — mechanism
-- [`docs/ROADMAP.md § 0`](docs/ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29)
-  — top-priority next step
+  — mechanism (with the Batch-4 update at the top)
+- [`docs/ROADMAP.md § 0`](docs/ROADMAP.md#0-narrow-the-hipopen-gait-toward-reference-tracking-new-2026-04-29)
+  — narrow the over-flexed hipopen gait toward reference tracking
 - [`docs/PROJECT_TIMELINE.md § Phase 5`](docs/PROJECT_TIMELINE.md#phase-5--the-sign-error-discovery-2026-04-28)
   — full sign-error story
 

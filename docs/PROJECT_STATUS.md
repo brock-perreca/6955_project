@@ -26,24 +26,44 @@ against a self-contradictory target; those checkpoints and the
 pre-restart engineered-reward constants are kept only as a historical
 record.
 
-The post-restart pipeline rebuild is in progress. Two batches done
+The post-restart pipeline rebuild is in progress. Four batches done
 (see [`RESTART_LOG.md`](RESTART_LOG.md) for full details):
 
-- **Batch 2** found the current best policy (`results/restart_b2_xvel/`)
+- **Batch 2** found the prior best policy (`results/restart_b2_xvel/`)
   via the `--xvel_term 0.3` floor termination. Walks, but with stiff
   hips (~2° ROM vs reference 45°) and 3× cadence as a downstream
   consequence.
 - **Batch 3** (2026-04-29 overnight, 19 experiments) tested 8
   reward-aggregator/termination ablations + 4 AMP/AIRL warm-started
   runs + 3 multi-step preview runs + an SAC variant. **All 19 fall
-  into the same stiff-hip basin or worse.** The basin is
-  reward-driven, not optimizer-driven — `xvel_term` acts as a
-  *survival floor* and the per-step pose loss isn't enough to dislodge
-  it. See [`REWARD_DESIGN.md § The stiff-hip trap`](REWARD_DESIGN.md#the-stiff-hip-trap-2026-04-29-diagnosis).
+  into the same stiff-hip basin or worse.** Headline read at the time
+  was "reward-driven trap"; batch 4 superseded that.
+- **Batch 4** (2026-04-29) **diagnosed the stiff-hip basin as a
+  joint-range problem in the MJCF**, not a reward problem. Stock
+  `walker2d.xml` constrains `thigh_joint` to `[-150°, 0°]`; the
+  reference's +30° hip-flexion peaks are unreachable. Opening the
+  range to `[-30°, +60°]` (`results/restart_b4_hipopen/`, 2M steps)
+  jumped hip ROM from 1.8° to **91.5°**. Every previous batch was
+  fighting an unreachable target. Variant B (re-invert hip column,
+  keep stock MJCF) only partially escapes — the +13° extension peak
+  still exceeds the 0° MJCF limit, producing a brittle deep-extension
+  kicking gait. See [`RESTART_LOG.md § Batch 4`](RESTART_LOG.md#batch-4--2026-04-29--joint-range-hypothesis-open-hip-mjcf--positive).
 
-**Top-priority next step:** restore `forward_reward = exp(-3·(v-1.25)²)`
-and remove the `xvel_term` floor — see
-[`ROADMAP.md § 0`](ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29).
+**Current best policy:** `results/restart_b4_hipopen_5M/` (5M steps,
+seed 6). Hip ROM 63.2° vs reference 43°, mean fwd vel 1.40 m/s vs
+target 1.25, all 4 deterministic eval episodes survive 1000 steps.
+Still over-flexes by ~10° at the swing-forward peak — pose-tracking
+forgives one overshooting joint when the others track — but a
+robust, real walking gait. Visual review pending.
+
+**Top-priority next steps** (see [`ROADMAP.md § 0`](ROADMAP.md#0-narrow-the-hipopen-gait-toward-reference-tracking-new-2026-04-29)):
+
+1. Visual review of `docs/figures/restart_b4_hipopen_5M.mp4`.
+2. Tighten pose tracking (`--pose_scale 20` or `--product_reward`)
+   to narrow the 10° overshoot.
+3. Re-run AMP/AIRL warm-started from `b4_hipopen_5M` — batch-3 AMP
+   failed partly because the underlying PPO couldn't produce
+   reference-like hip flexion; that constraint is now removed.
 
 ---
 

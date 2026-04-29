@@ -145,15 +145,33 @@ hopping if you let the ankle drift as far as hip/knee.
 
 ## The stiff-hip trap (2026-04-29 diagnosis)
 
+> **Update 2026-04-29 (later, post-Batch-4):** the stiff-hip trap is
+> primarily a **physical reachability** problem in `walker2d.xml`, not
+> a reward-shaping problem. Stock gym `walker2d.xml` constrains
+> `thigh_joint` to `[-150°, 0°]` while the reference asks for hip
+> flexion peaks of +30° on both sides — the simulator literally cannot
+> reach the reference target. The `restart_b2_xvel` policy spent 97.5%
+> of its rollout pinned within 1° of the upper joint limit. Opening
+> the MJCF range to `[-30°, +60°]` (`results/restart_b4_hipopen/`,
+> 2M steps) raised hip ROM from 1.8° to 91.5° in a single change; see
+> [`RESTART_LOG.md § Batch 4`](RESTART_LOG.md#batch-4--2026-04-29--joint-range-hypothesis-open-hip-mjcf--positive).
+>
+> The reward-side mechanism described below (5-of-6-joint loophole +
+> survival floor) is real and contributes — it explains why the policy
+> *settles* at the joint limit rather than fighting it. But the joint
+> limit is what made the reference unreachable in the first place;
+> reward changes alone cannot fix that.
+
 The 19-experiment overnight sweep
 ([`RESTART_LOG.md § Batch 3`](RESTART_LOG.md#batch-3--2026-04-29--overnight-19-experiment-sweep--negative-result))
 demonstrated that the current reward family — DeepMimic 4-term + the
-`xvel_term=0.3` survival floor that produced the best policy
+`xvel_term=0.3` survival floor that produced the prior best policy
 (`results/restart_b2_xvel/`) — is a **strong attractor for stiff-hip
 walking**: hips pinned at ~0° vs reference ~45°, knees and ankles
 wiggling around the reference, body translating forward at v_target.
 Eight reward-aggregator/weighting/termination knobs and an SAC
-optimizer swap all failed to escape.
+optimizer swap all failed to escape — because the escape required a
+joint range the MJCF didn't expose, not a different aggregator.
 
 ### The mechanism
 
@@ -185,20 +203,25 @@ Visual review (Brock, morning of 2026-04-29) is what cleanly
 distinguished the trap from real progress. The headline numbers
 flattered every Phase 1 variant.
 
-### What likely fixes this (Batch 4, queued)
+### What actually fixed it (Batch 4, 2026-04-29)
 
-Replace the `xvel_term` floor with a **peaked** forward-velocity
-reward:
+**Open the hip joint range in the MJCF.** A custom
+`assets/mjcf/walker2d_hipopen.xml` with `thigh_joint range="-30  60"`
+(`thigh_left_joint` matching) makes the reference's +30° flexion peaks
+reachable. Trained from scratch with the proven `xvel-5M` recipe (8
+envs, `--xvel_term 0.3`, no other changes), 2M steps was sufficient to
+escape the basin entirely: hip ROM 91.5°, fwd vel 2.07 m/s. The
+resulting gait is over-flexed and over-fast — the pose-tracking reward
+is too forgiving of a single overshooting joint and the over-flexion
+buys forward momentum — so a 5M follow-up + possibly `--pose_scale 20`
+or `--product_reward` are queued to narrow the gait toward reference
+tracking.
 
-```
-fwd_r = exp(−3 · (v_x − 1.25)²)
-```
-
-Bell-curve forward target penalises *both* standing still AND moving
-too fast or too slow, so the policy can no longer earn full reward by
-drifting at 0.4 m/s. The `fwd_r` term existed in the pre-restart code
-and was deleted as default-off on 2026-04-28; restoring it is the
-minimal-risk path. See [`ROADMAP.md § 0`](ROADMAP.md#0-structural-reward-reform-forward_reward--remove-xvel_term-floor-new-2026-04-29).
+Note that the reward-side fix originally proposed here (replace
+`--xvel_term` with a peaked `fwd_r = exp(−3·(v_x−1.25)²)`) was never
+tested standalone, because the MJCF fix made it moot for basin escape.
+A peaked forward reward may still be useful for *narrowing* the
+hipopen gait's 2.07 m/s toward 1.25; that's a tunable for batch 5.
 
 ---
 

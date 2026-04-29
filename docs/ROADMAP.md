@@ -6,45 +6,50 @@
 **Adjacent:** [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for "right now"
 · [`RESTART_LOG.md`](RESTART_LOG.md) for what just shipped.
 
-**Item 0 is the new top priority** after the 2026-04-29 overnight
-([`RESTART_LOG.md § Batch 3`](RESTART_LOG.md#batch-3--2026-04-29--overnight-19-experiment-sweep--negative-result));
-items 1-4 from the writeup §7 follow once the reward trap is fixed.
+**Item 0 is the new top priority** after the 2026-04-29 Batch 4
+([`RESTART_LOG.md § Batch 4`](RESTART_LOG.md#batch-4--2026-04-29--joint-range-hypothesis-open-hip-mjcf--positive))
+diagnosed the stiff-hip basin as a joint-range problem in `walker2d.xml`,
+fixed by `assets/mjcf/walker2d_hipopen.xml`. Items 1-4 from the writeup §7
+follow once the hipopen baseline is solid.
 
 ---
 
-## 0. Structural reward reform: forward_reward + remove xvel_term floor (NEW, 2026-04-29)
+## 0. Narrow the `hipopen` gait toward reference tracking (NEW, 2026-04-29)
 
-**Why:** the 19-experiment overnight sweep
-([`RESTART_LOG.md § Batch 3`](RESTART_LOG.md)) demonstrated that the
-current reward structure is a strong attractor for stiff-hip walking.
-Eight reward-aggregator/weighting/termination knobs and an SAC
-optimizer swap all failed to escape. The diagnosis: `xvel_term=0.3` is
-a *floor* — once the policy moves at v ≥ 0.31 m/s it earns full
-survival reward, regardless of joint kinematics. The per-step pose
-gradient toward hip flexion is smaller than the survival reward, so
-the policy's optimum is "drift forward stiffly, collect survival."
+**Why:** Batch 4 escaped the stiff-hip basin by opening
+`walker2d.xml`'s hip range from `[-150°, 0°]` to `[-30°, +60°]`
+(`assets/mjcf/walker2d_hipopen.xml`). At 2M steps the policy's hip ROM
+is **91.5°** vs reference 43°, mean fwd vel 2.07 m/s vs target 1.25.
+The basin is gone; the gait is over-flexed and over-fast. The
+pose-tracking reward `exp(-10·mean(diff²))` is too forgiving of one
+overshooting joint when the other five track.
 
-**Plan:** Restore the `forward_reward = exp(-3·(v-1.25)²)` term that
-was deleted as default-off on 2026-04-28
-([`REWARD_DESIGN.md § Removed terms`](REWARD_DESIGN.md#fwd_r--forward-velocity-reward)).
-Drop `xvel_term`. The bell-curve forward target replaces a survival
-floor with a peaked reward — drifting at v=0.4 no longer maxes out;
-only matching v_target does. Restoring as a CLI flag `--fwd_weight`
-(default ~0.10–0.20) is the minimal-risk path.
+**Plan, in order of escalation:**
 
-**Test plan:** ONE training run from scratch with `--fwd_weight 0.15`,
-no `--xvel_term`, otherwise the xvel-5M recipe. If hip ROM > 15° in
-visual review, the trap is broken; queue stacked variants with
-`--product_reward` and warm-started AMP. If still stiff-hip, the trap
-is deeper than reward (frame rate? phase obs?) and we move to a
-diagnostic experiment.
+1. **5M follow-up of `b4_hipopen` with the same recipe.** Already
+   queued (`results/restart_b4_hipopen_5M/`, seed 6). Hypothesis:
+   additional rollouts shrink the 91°→43° overshoot.
+2. **If (1) plateaus over-flexed, sharpen pose tracking.** Try
+   `--pose_scale 20` (50% reward at 0.18 rad RMS rather than 0.26)
+   *or* `--product_reward` (geometric-mean per-joint exps; one bad
+   joint hurts the whole reward). Single-knob ablation against (1).
+3. **If still over-fast, add the peaked forward reward** that was
+   originally Batch 4's plan: `fwd_r = exp(-3·(v-1.25)²)` with
+   `--fwd_weight 0.15`, drop `--xvel_term`. Now the survival floor
+   no longer rewards drift at any forward speed.
+4. **Once a clean tracking gait exists, retry AMP/AIRL warm-start.**
+   Batch 3's AMP runs failed partly because the underlying PPO policy
+   could not produce reference-like hip flexion (data-distribution
+   mismatch with the expert manifold). With a hipopen baseline that
+   actually tracks, the discriminator should have a learnable signal.
 
-**Owner:** Brock. Code change is small (~10 LOC; the `fwd_r` term and
-its CLI flag previously existed and are git-recoverable).
+**Owner:** Brock. Code change for (1) is zero (already running). (2)
+and (3) are existing CLI flags. (4) is the comparison track.
 
-**Skip:** more aggregator variants, hip_term, energy penalty, reverse
-curriculum, preview_k > 1. The data says these are not where the trap
-is.
+**Skip:** more aggregator variants on the *stock* MJCF, hip_term,
+energy penalty, reverse curriculum, preview_k > 1. Batch 3 already
+ruled all of those out as fixes for the basin; on the open MJCF some
+may help narrow the gait but they're lower-priority than (1)–(3).
 
 ---
 
