@@ -97,10 +97,17 @@ def run_training(cmd: list[str], out_dir: Path) -> dict:
     }
 
     t0 = time.time()
+    # Unbuffered Python so run.log is useful as a live progress view —
+    # otherwise stdout block-buffers when piped to a file and run.log stays
+    # 0 bytes for the entire training. utf-8 avoids cp1252 errors on the
+    # arrow chars in --help output.
+    env_extra = {**os.environ, "PYTHONUNBUFFERED": "1",
+                 "PYTHONIOENCODING": "utf-8"}
     with open(log_path, "wb") as logf:
         proc = subprocess.Popen(
             cmd, stdout=logf, stderr=subprocess.STDOUT,
             cwd=str(PROJECT_ROOT),
+            env=env_extra,
         )
         rc = proc.wait()
     meta["exit_code"]    = rc
