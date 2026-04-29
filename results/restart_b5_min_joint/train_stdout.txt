@@ -1,0 +1,32 @@
+Gait cycle: 56 frames @ 50.0Hz -> 140 frames @ 125.0Hz (cubic spline)
+Using custom MJCF: C:\Users\brock_qcs36gm\LocalDocuments\School\6955_Project\assets\mjcf\walker2d_hipopen.xml
+Reference shape: (140, 6)  (1.1s @ 125.0Hz)
+Saving to: C:\Users\brock_qcs36gm\LocalDocuments\School\6955_Project\results\restart_b5_min_joint
+TensorBoard logs: C:\Users\brock_qcs36gm\LocalDocuments\School\6955_Project\results\restart_b5_min_joint\tb  (run: tensorboard --logdir C:\Users\brock_qcs36gm\LocalDocuments\School\6955_Project\results\restart_b5_min_joint\tb)
+Training for 5,000,000 steps with 8 envs...
+[iter    50 | steps   204,800]  ep_r=     9.2  ep_len=    41  (n=5012)
+[iter   100 | steps   409,600]  ep_r=    19.3  ep_len=    77  (n=2660)
+[iter   150 | steps   614,400]  ep_r=    32.1  ep_len=   120  (n=1697)
+[iter   200 | steps   819,200]  ep_r=    57.6  ep_len=   222  (n=919)
+[iter   250 | steps 1,024,000]  ep_r=   100.1  ep_len=   340  (n=599)
+[iter   300 | steps 1,228,800]  ep_r=   136.5  ep_len=   397  (n=515)
+[iter   350 | steps 1,433,600]  ep_r=   217.6  ep_len=   606  (n=330)
+[iter   400 | steps 1,638,400]  ep_r=   485.3  ep_len=  1196  (n=165)
+[iter   450 | steps 1,843,200]  ep_r=   596.4  ep_len=  1324  (n=160)
+[iter   500 | steps 2,048,000]  ep_r=   958.5  ep_len=  1979  (n=101)
+[iter   550 | steps 2,252,800]  ep_r=   959.2  ep_len=  1887  (n=109)
+[iter   600 | steps 2,457,600]  ep_r=  1126.8  ep_len=  2151  (n=97)
+[iter   650 | steps 2,662,400]  ep_r=  1292.4  ep_len=  2386  (n=84)
+[iter   700 | steps 2,867,200]  ep_r=  1152.9  ep_len=  2074  (n=96)
+[iter   750 | steps 3,072,000]  ep_r=  1482.4  ep_len=  2647  (n=73)
+[iter   800 | steps 3,276,800]  ep_r=  1612.8  ep_len=  2822  (n=71)
+[iter   850 | steps 3,481,600]  ep_r=  2102.4  ep_len=  3620  (n=59)
+[iter   900 | steps 3,686,400]  ep_r=  1603.5  ep_len=  2709  (n=75)
+[iter   950 | steps 3,891,200]  ep_r=  1787.6  ep_len=  2997  (n=73)
+[iter  1000 | steps 4,096,000]  ep_r=  1884.6  ep_len=  3147  (n=65)
+[iter  1050 | steps 4,300,800]  ep_r=  2467.5  ep_len=  4135  (n=47)
+[iter  1100 | steps 4,505,600]  ep_r=  1867.8  ep_len=  3069  (n=65)
+[iter  1150 | steps 4,710,400]  ep_r=  2419.1  ep_len=  3968  (n=49)
+[iter  1200 | steps 4,915,200]  ep_r=  2071.1  ep_len=  3389  (n=63)
+ 100% ------------------ 5,001,216/5,000,000 [ 0:18:44 < 0:00:00 , 4,465 it/s ]
+Model saved -> C:\Users\brock_qcs36gm\LocalDocuments\School\6955_Project\results\restart_b5_min_joint\model.zip

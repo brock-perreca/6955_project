@@ -51,42 +51,36 @@ The post-restart pipeline rebuild is in progress. Four batches done
 - **Batch 5** (2026-04-29) ran the two queued aggregator-narrowing
   ablations on top of `hipopen`: `--pose_scale 20` (sharper mean
   aggregator) and `--min_joint_pose` (worst-joint floor). Both
-  produced **partial improvements** — hip ROM narrowed from 63° → 57°
-  on both variants and forward velocity dropped from 1.40 m/s toward
-  the 1.25 target (`min_joint` lands at 1.231 m/s — essentially
-  spot-on). Neither hits the prompt's full win criterion (hip ROM
-  ~43°), but both are valid candidates for the new current best,
-  pending visual A/B. See
+  numerically narrowed the gait — hip ROM 63° → 57° and `min_joint`
+  pulled fwd vel from 1.40 m/s to 1.231 m/s — but **visual A/B
+  (Brock) found all three policies (b4_hipopen_5M, b5_pose_scale20,
+  b5_min_joint) look essentially the same.** No variant promoted to
+  new current best; all three retained as comparison points. See
   [`RESTART_LOG.md § Batch 5`](RESTART_LOG.md#batch-5--2026-04-29--narrow-the-hipopen-over-flex--partial-positive-both-variants).
 
-**Current best policy (pending visual review):**
-`results/restart_b4_hipopen_5M/` (5M steps, seed 6). Hip ROM 63.2°
-vs reference 43°, mean fwd vel 1.40 m/s vs target 1.25, all 4
-deterministic eval episodes survive 1000 steps. Still over-flexes
-by ~10° at the swing-forward peak — pose-tracking forgives one
-overshooting joint when the others track — but a robust, real
-walking gait.
-
-**Batch-5 candidates** (`results/restart_b5_min_joint/`,
-`results/restart_b5_pose_scale20/`) both improve on baseline along
-hip-ROM and forward-velocity axes; `min_joint` is the leading
-candidate to supersede `b4_hipopen_5M` once visual A/B confirms.
+**Current best policy:** `results/restart_b4_hipopen_5M/` (5M steps,
+seed 6) — unchanged after Batch 5. Hip ROM 63.2° vs reference 43°,
+mean fwd vel 1.40 m/s vs target 1.25, all 4 deterministic eval
+episodes survive 1000 steps. Still over-flexes by ~10° at the
+swing-forward peak; the batch-5 metric improvements did not
+visibly translate to a different-looking gait.
 
 **Top-priority next steps** (see [`ROADMAP.md § 0`](ROADMAP.md#0-narrow-the-hipopen-gait-toward-reference-tracking-new-2026-04-29)):
 
-1. Visual A/B: `docs/figures/restart_b4_hipopen_5M.mp4` vs
-   `restart_b5_min_joint.mp4` vs `restart_b5_pose_scale20.mp4`.
-2. If still over-flexed, stack the two batch-5 knobs
-   (`--pose_scale 20 --min_joint_pose`) — neither single-knob run
-   tested this combination.
-3. If stacking still doesn't reach reference shape, the next
-   escalation is the peaked-forward-reward fallback
-   (`--fwd_weight 0.15 --xvel_term -1e9`) per
-   [`ROADMAP.md § 0`](ROADMAP.md#0-narrow-the-hipopen-gait-toward-reference-tracking-new-2026-04-29).
-4. Re-run AMP/AIRL warm-started from the best of the b4/b5 set —
-   batch-3 AMP failed partly because the underlying PPO couldn't
-   produce reference-like hip flexion; that constraint is now
-   removed.
+1. **Stack the two batch-5 knobs** (`--pose_scale 20
+   --min_joint_pose`) — neither single-knob run tested this
+   combination, and since both moved the gait in the same direction
+   stacking may compound. Lower expectations for visible change
+   given Batch 5's outcome.
+2. **Peaked-forward-reward fallback** per ROADMAP § 0 step 4 —
+   replaces the survival floor with a target-velocity bell curve.
+   Requires new code (not currently a CLI flag). May be the
+   load-bearing change if aggregator stacking also looks unchanged.
+3. **Re-run AMP/AIRL warm-started from `b4_hipopen_5M`** — batch-3
+   AMP failed partly because the underlying PPO couldn't produce
+   reference-like hip flexion; that constraint is now removed. The
+   discriminator may now have a learnable signal that aggregator
+   tweaks alone don't provide.
 
 ---
 
@@ -160,17 +154,17 @@ metric, plus a single `progress_score` in [0, 4]. See
   one clean stride from Ulrich Subject 1 baseline (56 frames @ 50 Hz,
   resampled to 140 frames @ 125 Hz inside the env). FK-verified after
   the 2026-04-28 sign fix to encode forward walking.
-- **Current best policy (pending visual review of batch 5):**
-  `results/restart_b4_hipopen_5M/` — 5M steps, seed 6, 8 envs,
-  `--xvel_term 0.3`, `--xml walker2d_hipopen.xml` (custom MJCF with
-  hip range opened to `[-30°, +60°]`). Hip ROM 63.2° vs reference
-  43°; mean fwd vel 1.40 m/s vs target 1.25; all 4 deterministic
-  eval episodes survive 1000 steps. Over-flexes ~10° at swing peak.
-  Two batch-5 candidates (`results/restart_b5_min_joint/`,
-  `results/restart_b5_pose_scale20/`) both narrow ROM to ~57° and
-  pull fwd vel toward target; `min_joint` lands at fwd vel 1.231
-  m/s and is the leading candidate to supersede this once visual
-  A/B confirms.
+- **Current best policy:** `results/restart_b4_hipopen_5M/` — 5M
+  steps, seed 6, 8 envs, `--xvel_term 0.3`,
+  `--xml walker2d_hipopen.xml` (custom MJCF with hip range opened
+  to `[-30°, +60°]`). Hip ROM 63.2° vs reference 43°; mean fwd vel
+  1.40 m/s vs target 1.25; all 4 deterministic eval episodes
+  survive 1000 steps. Over-flexes ~10° at swing peak. Two batch-5
+  variants (`restart_b5_pose_scale20/`, `restart_b5_min_joint/`)
+  numerically narrowed ROM to ~57° and `min_joint` pulled fwd vel
+  to 1.231 m/s — but visual A/B against this baseline showed no
+  perceptible difference, so all three are kept as comparison
+  points and the current-best designation stays here.
 - **Pre-batch-4 baseline (kept for reference):** `results/restart_b2_xvel/`
   — 5M steps, stock `walker2d.xml`, single-cycle reference, 8 envs.
   Same recipe minus the hipopen MJCF. Stiff-hip basin (hip ROM ~2°
@@ -190,9 +184,9 @@ MJCF to render.
 
 | Result dir | Steps | Notes |
 |---|---|---|
-| **`results/restart_b4_hipopen_5M/`** | **5M** | **Current best (pending visual A/B vs batch-5).** DeepMimic 4-term + `--xvel_term 0.3` + `--xml walker2d_hipopen.xml`. seed=6. Hip ROM 63°, fwd vel 1.40 m/s, 1000×4 eval survival. |
-| `results/restart_b5_min_joint/`     | 5M     | Batch 5 Variant B: above + `--min_joint_pose`. seed=8. Hip ROM 57°, fwd vel **1.23 m/s** (~target). Leading batch-5 candidate. |
-| `results/restart_b5_pose_scale20/`  | 5M     | Batch 5 Variant A: above + `--pose_scale 20`. seed=7. Hip ROM **56.6°**, fwd vel 1.35 m/s. Tightest ROM but fwd vel still 8% over. |
+| **`results/restart_b4_hipopen_5M/`** | **5M** | **Current best.** DeepMimic 4-term + `--xvel_term 0.3` + `--xml walker2d_hipopen.xml`. seed=6. Hip ROM 63°, fwd vel 1.40 m/s, 1000×4 eval survival. |
+| `results/restart_b5_min_joint/`     | 5M     | Batch 5 Variant B: above + `--min_joint_pose`. seed=8. Hip ROM 57°, fwd vel 1.23 m/s. Visually indistinguishable from b4 baseline. |
+| `results/restart_b5_pose_scale20/`  | 5M     | Batch 5 Variant A: above + `--pose_scale 20`. seed=7. Hip ROM 56.6°, fwd vel 1.35 m/s. Visually indistinguishable from b4 baseline. |
 | `results/restart_b4_hipopen/`       | 2M     | Pre-5M `b4_hipopen` checkpoint. seed=4. Hip ROM 91° (under-trained). |
 | `results/restart_b4_hipinvert/`     | 2M     | Batch 4 Variant B (re-invert hip ref, stock MJCF). seed=5. Brittle deep-extension kicking gait, episodes die at 47-250 steps. |
 | `results/restart_b2_xvel/` | 5M | Pre-batch-4 stiff-hip baseline. DeepMimic 4-term + `--xvel_term 0.3`. Stock walker2d.xml, seed=2. ep_len 2120, all-episode 2500-step survival on eval, but hip ROM ~2° vs ref 45°. |

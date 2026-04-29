@@ -1,0 +1,36 @@
+
+=== restart_b5_pose_scale20 (ckpt=final, xml=walker2d_hipopen.xml) ===
+  Episodes survived: [1000, 1000, 1000, 1000]  (target 1000)
+  Mean fwd velocity: +1.354 m/s   (target 1.25)
+  Reference hip_r ROM: 43.18 deg  (min=-13.49, max=+29.69)
+  XML thigh_joint range: [-30.00, +60.00] deg
+  Policy hip_r: ROM=56.58 deg  min=-16.70  max=+39.88
+  Policy hip_l: ROM=58.10 deg  min=-21.94  max=+36.16
+  per-ep hip_r max: [np.float64(37.53), np.float64(39.27), np.float64(38.0), np.float64(39.88)]
+  per-ep hip_r min: [np.float64(-15.97), np.float64(-14.82), np.float64(-16.7), np.float64(-16.63)]
+  hip_r within 1 deg of upper limit: 0.0%  hip_l: 0.0%
+  Verdict: POSITIVE: hip ROM > 20 deg on both sides — basin escaped
+
+=== restart_b5_min_joint (ckpt=final, xml=walker2d_hipopen.xml) ===
+  Episodes survived: [1000, 1000, 1000, 1000]  (target 1000)
+  Mean fwd velocity: +1.231 m/s   (target 1.25)
+  Reference hip_r ROM: 43.18 deg  (min=-13.49, max=+29.69)
+  XML thigh_joint range: [-30.00, +60.00] deg
+  Policy hip_r: ROM=57.08 deg  min=-19.21  max=+37.87
+  Policy hip_l: ROM=56.49 deg  min=-20.46  max=+36.02
+  per-ep hip_r max: [np.float64(35.41), np.float64(36.34), np.float64(37.87), np.float64(37.18)]
+  per-ep hip_r min: [np.float64(-18.3), np.float64(-19.21), np.float64(-16.66), np.float64(-16.0)]
+  hip_r within 1 deg of upper limit: 0.0%  hip_l: 0.0%
+  Verdict: POSITIVE: hip ROM > 20 deg on both sides — basin escaped
+
+=== restart_b4_hipopen_5M (ckpt=final, xml=walker2d_hipopen.xml) ===
+  Episodes survived: [1000, 1000, 1000, 1000]  (target 1000)
+  Mean fwd velocity: +1.395 m/s   (target 1.25)
+  Reference hip_r ROM: 43.18 deg  (min=-13.49, max=+29.69)
+  XML thigh_joint range: [-30.00, +60.00] deg
+  Policy hip_r: ROM=63.23 deg  min=-23.16  max=+40.07
+  Policy hip_l: ROM=59.35 deg  min=-17.70  max=+41.65
+  per-ep hip_r max: [np.float64(38.71), np.float64(37.35), np.float64(40.07), np.float64(37.73)]
+  per-ep hip_r min: [np.float64(-20.84), np.float64(-18.24), np.float64(-16.19), np.float64(-23.16)]
+  hip_r within 1 deg of upper limit: 0.0%  hip_l: 0.0%
+  Verdict: POSITIVE: hip ROM > 20 deg on both sides — basin escaped
