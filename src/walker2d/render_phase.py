@@ -34,8 +34,19 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, SAC
 from ppo_walker2d_phase import Walker2dPhaseAware, _JNT_LO, _JNT_HI, CTRL_HZ
+
+
+def _load_policy(model_path: str):
+    """Try PPO.load, fall back to SAC.load — overnight 2026-04-29."""
+    try:
+        return PPO.load(model_path)
+    except (TypeError, KeyError, AttributeError) as e:
+        try:
+            return SAC.load(model_path)
+        except Exception:
+            raise e
 
 
 def load_env_kwargs(result_dir: str) -> dict:
@@ -103,7 +114,7 @@ def run_live(runs, args):
             pose_term_thresh=9999.0, ankle_term_thresh=9999.0,
             **extras,
         )
-        model = PPO.load(run["model_path"])
+        model = _load_policy(run["model_path"])
 
         torso_id = mujoco.mj_name2id(env.model, mujoco.mjtObj.mjOBJ_BODY, "torso")
 
@@ -190,7 +201,7 @@ def main():
             pose_term_thresh=9999.0, ankle_term_thresh=9999.0,
             **extras,
         )
-        model = PPO.load(run["model_path"])
+        model = _load_policy(run["model_path"])
 
         run_frames = []
         for ep in range(args.eps):

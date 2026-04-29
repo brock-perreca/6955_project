@@ -45,7 +45,23 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, SAC
+
+
+def _load_policy(model_path: str):
+    """Load a saved policy. Tries PPO first, falls back to SAC.
+
+    The overnight Phase 5 SAC variant produces an SB3 SAC checkpoint
+    that PPO.load fails on with a use_sde-related TypeError. Detect
+    and dispatch.
+    """
+    try:
+        return PPO.load(model_path, device="cpu")
+    except (TypeError, KeyError, AttributeError) as e:
+        try:
+            return SAC.load(model_path, device="cpu")
+        except Exception:
+            raise e
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "walker2d"))
@@ -527,8 +543,8 @@ def main() -> None:
         print(f"[{label}] body weight: {body_weight_n:.1f} N "
               f"({body_weight_n / 9.81:.2f} kg)")
 
-        model = PPO.load(model_path, device="cpu")
-        print(f"[{label}] model: {model_path}")
+        model = _load_policy(model_path)
+        print(f"[{label}] model: {model_path}  ({type(model).__name__})")
 
         per_ep: list[dict] = []
         for i in range(args.eps):
