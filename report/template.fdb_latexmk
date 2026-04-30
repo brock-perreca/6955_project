@@ -1,18 +1,18 @@
 # Fdb version 4
-["bibtex template"] 1777524988.48321 "template.aux" "template.bbl" "template" 1777524994.24761 0
+["bibtex template"] 1777524988.48321 "template.aux" "template.bbl" "template" 1777525410.3345 0
   "./sample.bib" 1777520830 4585 bb72c377dd49c540f88dad3c309c2991 ""
   "c:/texlive/2025/texmf-dist/bibtex/bst/base/plain.bst" 1756830008 20613 bd3fbfa9f64872b81ac57a0dd2ed855f ""
-  "template.aux" 1777524993 11236 e172fa9561909f40c4c1582ab044bc2f "pdflatex"
+  "template.aux" 1777525409 11236 e172fa9561909f40c4c1582ab044bc2f "pdflatex"
   (generated)
   "template.bbl"
   "template.blg"
   (rewritten before read)
-["pdflatex"] 1777524991.54047 "c:/Users/brock/OtherDocuments/GitHub/CS6955 Advanced AI/6955_Project/report/template.tex" "template.pdf" "template" 1777524994.24822 0
+["pdflatex"] 1777525407.62634 "c:/Users/brock/OtherDocuments/GitHub/CS6955 Advanced AI/6955_Project/report/template.tex" "template.pdf" "template" 1777525410.33508 0
   "../docs/figures/amp_collapse_paper.png" 1777520742 120463 73fc9cb2ea9dae17e2490127515876d9 ""
   "../docs/figures/biomech_realism_dashboard_paper.png" 1777521256 558162 4c21039a71386431e15d3a04499a1093 ""
   "../docs/figures/ppo_training_curves_paper.png" 1777521263 126702 9ba21ecaf372db584105a9b2f8c8a03d ""
   "../docs/figures/tier0/C_hiprelax/C_hip_trace_comparison.png" 1777492546 352938 f443039afaeea41c4b3ad735b22dfd66 ""
-  "c:/Users/brock/OtherDocuments/GitHub/CS6955 Advanced AI/6955_Project/report/template.tex" 1777524982 25965 ed662c89d70721bdb7675398480ee106 ""
+  "c:/Users/brock/OtherDocuments/GitHub/CS6955 Advanced AI/6955_Project/report/template.tex" 1777525407 25945 ca1fde4bbe690da97d8250f486196735 ""
   "c:/texlive/2025/texmf-dist/fonts/enc/dvips/base/8r.enc" 1756833638 4850 80dc9bab7f31fb78a000ccfed0e27cab ""
   "c:/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-t1.enc" 1756831383 2971 def0b6c1f0b107b3b936def894055589 ""
   "c:/texlive/2025/texmf-dist/fonts/map/fontname/texfonts.map" 1756835616 3524 cb3e574dea2d1052e39280babc910dc8 ""
@@ -127,10 +127,10 @@
   "c:/texlive/2025/texmf-var/web2c/pdftex/pdflatex.fmt" 1756854298 3605797 995862eadbb043b63957ae516983eab4 ""
   "c:/texlive/2025/texmf.cnf" 1756854145 713 e69b156964470283e0530f5060668171 ""
   "project.sty" 1777524404 11231 a3a84ff8b00825bfa42b7b4399d7c39b ""
-  "template.aux" 1777524993 11236 e172fa9561909f40c4c1582ab044bc2f "pdflatex"
+  "template.aux" 1777525409 11236 e172fa9561909f40c4c1582ab044bc2f "pdflatex"
   "template.bbl" 1777524989 3619 ac75a154fa1a8a43fb5f29373b025b17 "bibtex template"
-  "template.out" 1777524993 3437 fc115bce9dfe26e8e87f42b7a08522ff "pdflatex"
-  "template.tex" 1777524982 25965 ed662c89d70721bdb7675398480ee106 ""
+  "template.out" 1777525409 3437 fc115bce9dfe26e8e87f42b7a08522ff "pdflatex"
+  "template.tex" 1777525407 25945 ca1fde4bbe690da97d8250f486196735 ""
   (generated)
   "template.aux"
   "template.log"
