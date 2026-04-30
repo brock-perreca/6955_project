@@ -12,10 +12,11 @@ biomechanical-realism scorecard
 ran on all four post-Tier-0 candidates plus the pre-Tier-0
 `b2_xvel` baseline and found that **none of them produce a
 biomechanically realistic gait**: double-support ~1% (vs ref 23%),
-peak vGRF 3.6–4.8 BW (vs ref 1.10), cadence 309–343 spm (vs ref
+peak vGRF 3.7–4.8 BW (vs ref 1.10), cadence 178–210 spm (vs ref
 107). The post-Tier-0 candidates barely beat the pre-Tier-0
-baseline on the 0–4 progress score. **Lead policy: `b4_hiprelax_s11`**
-(highest score, best LR symmetry, lowest peak vGRF, lowest DTW).
+baseline on the 0–4 progress score. **Lead policy: `b5_min_joint`**
+(highest score 2.66, lowest peak vGRF 3.70 BW, lowest double-support
+deviation; named on the post-strike-detector-fix scorecard).
 
 The new top priority is **item 1 (MJX/AMP)**, with item 0 retained
 below for historical context. Items 2–4 follow.

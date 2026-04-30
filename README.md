@@ -1,13 +1,31 @@
-# Walker2d Gait Imitation — RL pipeline
+# Walker2d Gait Imitation
 
-Reinforcement learning pipeline for learning human-like walking gait
-from Ulrich treadmill IK reference data, using MuJoCo's Walker2d-v4
-torque-actuated model.
+Can a 2D simulated character learn to walk like a real human just by
+watching motion-capture data? This repo is our attempt — a
+reinforcement-learning pipeline that trains MuJoCo's Walker2d to track
+human treadmill walking recorded by Ulrich et al. (Subject 1, 1.25 m/s),
+and then asks how close to *biomechanically realistic* gait we can get.
 
-Joint project with **Brian Keller**. The current authoritative writeup
-is [`report/writeup_filled_1.docx`](report/writeup_filled_1.docx).
-The project compares two imitation methods on Subject 1's baseline
-treadmill walking trial (1.25 m/s):
+Joint project with **Brian Keller** for CS 6955 (Advanced AI). The
+authoritative writeup is
+[`report/writeup_filled_1.docx`](report/writeup_filled_1.docx).
+
+## Quick tour
+
+- **Want to see a trained walker?** Render any policy under `results/`
+  with `python src/walker2d/render_phase.py --live <run_dir>:final` —
+  see the [render section](#4-render-a-trained-policy) below.
+- **Want the story of how we got here?** Start at
+  [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) (current snapshot)
+  or [`docs/PROJECT_TIMELINE.md`](docs/PROJECT_TIMELINE.md) (the
+  chronological version, including the pivot from a 3D
+  musculoskeletal proposal to this 2D backup track).
+- **Want to train your own?** Skip to [Environment setup](#environment-setup)
+  and the [Quickstart](#quickstart--active-walker2d-pipeline).
+
+## What's actually in here
+
+Two imitation methods on the same phase-conditioned environment:
 
 1. **Phase-conditioned PPO** with a multi-term DeepMimic-style reward,
    reference-state initialization, and an optional behavioral-cloning
@@ -15,7 +33,7 @@ treadmill walking trial (1.25 m/s):
    `mj_inverse`). This is the active code in
    [`src/walker2d/`](src/walker2d/) and produces the canonical walking
    policy.
-2. **Adversarial Motion Priors (AMP)** + **AIRL** as comparison
+2. **Adversarial Motion Priors (AMP)** and **AIRL** as comparison
    methods (Brian's track), in
    [`src/walker2d/amp_walker2d.py`](src/walker2d/amp_walker2d.py) and
    [`src/walker2d/airl_walker2d.py`](src/walker2d/airl_walker2d.py).

@@ -332,10 +332,13 @@ named 2026-04-29 by the held-out biomechanical-realism scorecard**
 ([`PROJECT_STATUS.md § Biomechanical-realism finding`](PROJECT_STATUS.md#biomechanical-realism-finding-2026-04-29--end-of-road-on-the-engineered-reward-track)
 and [`RESTART_LOG.md § Batch 6`](RESTART_LOG.md)):
 
-- **Lead: `restart_b4_hiprelax_s11`** — highest progress score (2.45),
-  best LR symmetry, lowest peak vGRF, lowest DTW.
+- **Lead: `restart_b5_min_joint`** — highest progress score (2.66),
+  lowest peak vGRF, lowest double-support deviation, per-stride hip
+  ROM 30°. (Pre-strike-detector-fix the same scorecard had ranked
+  `restart_b4_hiprelax_s11` first; the fix flipped the order — see
+  [`PROJECT_STATUS.md § Biomechanical-realism finding`](PROJECT_STATUS.md#biomechanical-realism-finding-2026-04-29--end-of-road-on-the-engineered-reward-track).)
 - Superseded comparison policies: `restart_b4_hipopen_5M`,
-  `restart_b5_pose_scale20`, `restart_b5_min_joint`.
+  `restart_b5_pose_scale20`, `restart_b4_hiprelax_s11`.
 
 The Batch 6 scorecard found that **none** of the candidates produces
 a biomechanically realistic gait — every one misses every

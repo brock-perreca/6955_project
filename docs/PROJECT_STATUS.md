@@ -63,21 +63,22 @@ The post-restart pipeline rebuild is in progress. Four batches done
   scorecard across all four post-Tier-0 candidates plus the
   pre-Tier-0 `b2_xvel` baseline. **None of the candidates produces
   a biomechanically realistic gait** (DSF ~1% vs ref 23%, peak vGRF
-  3.6–4.8 BW vs ref 1.10, cadence 309–343 spm vs ref 107).
-  **`b4_hiprelax_s11` named as the lead policy** on the strength
-  of the scorecard. End-of-road on the engineered-reward Walker2d
-  track. See
-  [`RESTART_LOG.md § Batch 6`](RESTART_LOG.md#batch-6--2026-04-29--biomechanical-realism-scorecard--end-of-road-lead-named)
-  and the "Biomechanical-realism finding" section below.
+  3.7–4.8 BW vs ref 1.10, cadence 178–210 spm vs ref 107). After a
+  same-day strike-detector fix to `eval_biomech.py` (see
+  "Biomechanical-realism finding" below), **`b5_min_joint` was
+  named as the lead policy** on the corrected scorecard.
+  End-of-road on the engineered-reward Walker2d track. See
+  [`RESTART_LOG.md § Batch 6`](RESTART_LOG.md#batch-6--2026-04-29--biomechanical-realism-scorecard--end-of-road-lead-named).
 
-**Current lead: `results/restart_b4_hiprelax_s11/`** — named
-2026-04-29 after the held-out biomechanical-realism scorecard run
-across all four candidates (see next section). hiprelax_s11 is
-the most reference-faithful of the four on every biomech axis that
-matters: highest progress score (2.45), best LR symmetry (0.11),
-lowest peak vGRF (3.98 BW, vs 4.78 for hipopen), lowest hip-knee
-DTW (0.150). It still misses every spatiotemporal/kinetic target
-by 50%+; it just misses by less than the alternatives.
+**Current lead: `results/restart_b5_min_joint/`** — named 2026-04-29
+on the post-strike-detector-fix biomech-realism scorecard. min_joint
+wins on the corrected scorecard: highest progress score (**2.66**),
+lowest peak vGRF among the post-Tier-0 candidates (3.70 BW), lowest
+double-support deviation, per-stride hip ROM 30°. It still misses
+every spatiotemporal/kinetic target by 50 %+; it just misses by less
+than the alternatives. Pre-fix, the same scorecard had ranked
+`b4_hiprelax_s11` first — the strike-detector min_gap artifact
+flattered hiprelax's chatter-counted cadence (see next section).
 
 The other three are kept on disk as superseded comparison points,
 not as live candidates:
@@ -86,34 +87,27 @@ not as live candidates:
 `[-30, +60]`. Superseded.*
 
 - `results/restart_b4_hipopen_5M/` — 5M, seed 6,
-  `--xvel_term 0.3`, `--xml walker2d_hipopen.xml`. Full-rollout
-  hip max−min 63° (biased upward by sporadic kicks); per-stride
-  median (the metric biomech papers actually use) is 20.5°. Mean
-  fwd vel 1.40 m/s vs target 1.25; all 4 deterministic eval
-  episodes survive 1000 steps. **Lowest progress score of the four
-  (1.89).**
+  `--xvel_term 0.3`, `--xml walker2d_hipopen.xml`. Per-stride
+  median hip ROM 30.6°, score 2.40. **Highest peak vGRF (4.77 BW)
+  of the four post-Tier-0 candidates.**
 - `results/restart_b5_pose_scale20/` — Batch-5 follow-up,
-  `--pose_scale 20`, seed 7. Per-stride hip ROM 20.7°, mean fwd
-  vel 1.35 m/s, score 2.24.
-- `results/restart_b5_min_joint/` — Batch-5 follow-up,
-  `--min_joint_pose`, seed 8. Per-stride hip ROM 15.3°, mean fwd
-  vel 1.23 m/s (essentially exactly target), score 2.19.
+  `--pose_scale 20`, seed 7. Per-stride hip ROM 30.0°, score 2.26.
 
   *(Visual A/B between the three hipopen runs found no perceptible
-  difference; the per-stride biomech scorecard now confirms why —
-  all three produce essentially the same bouncing gait at slightly
-  different cadences.)*
+  difference; the per-stride biomech scorecard confirms why — all
+  three produce essentially the same bouncing gait at slightly
+  different cadences. min_joint edges the other two by sitting at
+  ref forward velocity and lowest peak vGRF.)*
 
 *hiprelax track (Brock-O11) — minimal-headroom bracket
-`[-150, +35]`. **Lead.***
+`[-150, +35]`. Superseded.*
 
-- **`results/restart_b4_hiprelax_s11/`** — 5M, seed 11,
-  `--xvel_term 0.3`, `--xml walker2d_hiprelax.xml`. Best of three
-  Tier 0 C seeds on LR symmetry, all-joints DTW, progress score,
-  peak vGRF. Per-stride hip ROM 18.9° *under* the 45° target, but
-  the trace tracks reference shape and frequency cleanly. Visual
-  review (Brock, 2026-04-29): "all the videos look great" relative
-  to xvel-5M. Confirmed as lead by the biomech scorecard.
+- `results/restart_b4_hiprelax_s11/` — 5M, seed 11,
+  `--xvel_term 0.3`, `--xml walker2d_hiprelax.xml`. xvel-5M recipe
+  verbatim except for the relaxed MJCF. Per-stride hip ROM 30.5°,
+  score 2.24 — last among the four post-Tier-0 candidates after
+  the strike-detector fix. (Pre-fix it ranked first because the
+  chatter-counted cadence happened to land closest to ref.)
 
 **Decision (2026-04-29):** the engineered-reward Walker2d track has
 been pushed to its useful limit on this stack. Further reward-knob
@@ -397,12 +391,12 @@ MJCF to render.
 
 | Result dir | Steps | Notes |
 |---|---|---|
-| **`results/restart_b4_hiprelax_s11/`** | **5M** | **Lead (named 2026-04-29 by the biomech-realism scorecard).** xvel-5M recipe + `--xml walker2d_hiprelax.xml` (`thigh_joint range="-150 35"`). Best of 4 candidates on progress score (2.45), LR symmetry (0.11), all-joints DTW (0.150 hip-knee, 0.53 all-joints), peak vGRF (3.98 BW). Per-stride hip_r ROM 18.9°, hip_l 15.0° — undershoots the 45° reference but tracks shape/frequency cleanly. |
-| `results/restart_b4_hipopen_5M/` | 5M | Superseded comparison run (hipopen track). DeepMimic 4-term + `--xvel_term 0.3` + `--xml walker2d_hipopen.xml`. seed=6. Per-stride hip ROM 20.5° (full-rollout max−min 63°, biased by sporadic kicks). Lowest progress score of the 4 (1.89), highest peak vGRF (4.78 BW). 1000×4 eval survival. |
+| **`results/restart_b5_min_joint/`** | **5M** | **Lead (named 2026-04-29 on the post-strike-detector-fix biomech-realism scorecard).** hipopen + `--min_joint_pose`, seed=8. Highest progress score (2.66), lowest peak vGRF (3.70 BW), lowest double-support deviation, per-stride hip ROM 30°, mean fwd vel 1.23 m/s (essentially ref). |
+| `results/restart_b4_hipopen_5M/` | 5M | Superseded comparison run (hipopen track). DeepMimic 4-term + `--xvel_term 0.3` + `--xml walker2d_hipopen.xml`. seed=6. Per-stride hip ROM 30.6°, score 2.40, highest peak vGRF (4.77 BW). 1000×4 eval survival. |
+| `results/restart_b5_pose_scale20/`  | 5M     | Superseded comparison: hipopen + `--pose_scale 20`. seed=7. Per-stride hip ROM 30.0°, fwd vel 1.35 m/s, score 2.26. Visually indistinguishable from b4_hipopen_5M. |
+| `results/restart_b4_hiprelax_s11/` | 5M | Superseded (was lead pre-strike-detector-fix). xvel-5M recipe + `--xml walker2d_hiprelax.xml` (`thigh_joint range="-150 35"`). seed=11. Per-stride hip ROM 30.5°, score 2.24 — last among the four post-Tier-0 candidates after the fix. |
 | `results/restart_b4_hiprelax_s12/` | 5M | Tier 0 C seed 12. Higher knee ROM (38.6°) but worse LR symmetry (0.143) and DTW (0.641). Kept for the 3-seed comparison artifact. |
-| `results/restart_b4_hiprelax_s13/` | 5M | Tier 0 C seed 13. Slightly slower cadence (323.6 vs 332.7) but worst progress score (2.11) and highest peak vGRF (4.18). Kept for the 3-seed comparison artifact. |
-| `results/restart_b5_min_joint/`     | 5M     | Superseded comparison: hipopen + `--min_joint_pose`. seed=8. Per-stride hip ROM 15.3°, fwd vel 1.23 m/s, score 2.19. Visually indistinguishable from b4_hipopen_5M. |
-| `results/restart_b5_pose_scale20/`  | 5M     | Superseded comparison: hipopen + `--pose_scale 20`. seed=7. Per-stride hip ROM 20.7°, fwd vel 1.35 m/s, score 2.24. Visually indistinguishable from b4_hipopen_5M. |
+| `results/restart_b4_hiprelax_s13/` | 5M | Tier 0 C seed 13. Slightly slower cadence than s11 but worst progress score (2.11) and highest peak vGRF among the hiprelax seeds (4.18). Kept for the 3-seed comparison artifact. |
 | `results/restart_b4_hipopen/`       | 2M     | Pre-5M `b4_hipopen` checkpoint. seed=4. Hip ROM 91° (under-trained). |
 | `results/restart_b4_hipinvert/`     | 2M     | Batch 4 Variant B (re-invert hip ref, stock MJCF). seed=5. Brittle deep-extension kicking gait, episodes die at 47-250 steps. |
 | `results/restart_b2_xvel/` | 5M | Pre-Tier-0 / pre-batch-4 stiff-hip baseline. DeepMimic 4-term + `--xvel_term 0.3`. Stock walker2d.xml, seed=2. ep_len 2120, all-episode 2500-step survival on eval, but hip ROM ~2° vs ref 45° because the joint range literally couldn't reach the reference. Visual review (Brock, 2026-04-29): "looks pretty bad" relative to the relaxed-MJCF runs; do not branch new work off this. |
@@ -423,11 +417,12 @@ see `RESTART_LOG.md § Batch 3`).
 Render the lead policy with:
 
 ```
-python src/walker2d/render_phase.py --live results/restart_b4_hiprelax_s11:final
-python src/walker2d/render_phase.py --mp4 docs/figures/foo.mp4 results/restart_b4_hiprelax_s11:final
+python src/walker2d/render_phase.py --live results/restart_b5_min_joint:final
+python src/walker2d/render_phase.py --mp4 docs/figures/foo.mp4 results/restart_b5_min_joint:final
 ```
 
-The other three (hipopen variants) are kept for visual comparison only.
+The other three (the two remaining hipopen variants and `b4_hiprelax_s11`)
+are kept for visual comparison only.
 
 Since the 2026-04-29 merge, `render_phase.py` automatically reads
 `xml_file` from each run's `env_kwargs.json`, so the trained-against
