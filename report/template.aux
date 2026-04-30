@@ -1,0 +1,100 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{uhlrich2023opencap}
+\citation{todorov2012mujoco}
+\citation{schulman2017ppo,raffin2021sb3}
+\citation{peng2018deepmimic}
+\citation{peng2021amp,escontrela2022amp}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{From the original proposal to a scaled-down question.}{1}{section*.2}\protected@file@percent }
+\citation{peng2018deepmimic}
+\citation{peng2021amp,escontrela2022amp}
+\citation{escontrela2022amp}
+\citation{ho2016gail,fu2018airl}
+\citation{rudin2022parallel}
+\citation{mujocomjx}
+\citation{simos2025kinesis,cotton2025kintwin}
+\@writefile{toc}{\contentsline {paragraph}{This paper.}{2}{section*.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Related Work}{2}{section.2}\protected@file@percent }
+\newlabel{sec:related}{{2}{2}{Related Work}{section.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{DeepMimic~\cite  {peng2018deepmimic}.}{2}{section*.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Adversarial Motion Priors~\cite  {peng2021amp,escontrela2022amp}.}{2}{section*.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Massively parallel deep RL~\cite  {rudin2022parallel}.}{2}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Muscle-driven imitation~\cite  {simos2025kinesis,cotton2025kintwin}.}{2}{section*.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Problem Statement}{2}{section.3}\protected@file@percent }
+\newlabel{sec:problem}{{3}{2}{Problem Statement}{section.3}{}}
+\newlabel{eq:obs}{{1}{2}{Problem Statement}{equation.1}{}}
+\@writefile{toc}{\contentsline {paragraph}{Held-out biomechanical evaluation.}{2}{section*.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Method}{2}{section.4}\protected@file@percent }
+\newlabel{sec:method}{{4}{2}{Method}{section.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Phase-conditioned PPO + DeepMimic reward}{2}{subsection.4.1}\protected@file@percent }
+\newlabel{sec:method-ppo}{{4.1}{2}{Phase-conditioned PPO + DeepMimic reward}{subsection.4.1}{}}
+\citation{peng2021amp,escontrela2022amp}
+\citation{fu2018airl}
+\citation{todorov2012mujoco}
+\citation{simtkulrich}
+\citation{raffin2021sb3}
+\@writefile{toc}{\contentsline {paragraph}{Behavioral cloning warm-start.}{3}{section*.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Adversarial Motion Priors and AIRL}{3}{subsection.4.2}\protected@file@percent }
+\newlabel{sec:method-amp}{{4.2}{3}{Adversarial Motion Priors and AIRL}{subsection.4.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Held-out biomechanical-realism scorecard}{3}{subsection.4.3}\protected@file@percent }
+\newlabel{sec:scorecard-method}{{4.3}{3}{Held-out biomechanical-realism scorecard}{subsection.4.3}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Experimental Design}{3}{section.5}\protected@file@percent }
+\newlabel{sec:experiments}{{5}{3}{Experimental Design}{section.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{Hypotheses.}{3}{section*.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Domain and data.}{3}{section*.11}\protected@file@percent }
+\citation{escontrela2022amp}
+\@writefile{toc}{\contentsline {paragraph}{Trained variants.}{4}{section*.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}Results and Discussion}{4}{section.6}\protected@file@percent }
+\newlabel{sec:results}{{6}{4}{Results and Discussion}{section.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Phase-conditioned PPO produces visually walking policies (H1)}{4}{subsection.6.1}\protected@file@percent }
+\newlabel{sec:results-h1}{{6.1}{4}{Phase-conditioned PPO produces visually walking policies (H1)}{subsection.6.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Phase-conditioned PPO training curves over 5M environment steps, EMA-smoothed. The lead policy (blue) by held-out biomech realism ranks last on training-time return. Training-time metrics are not a reliable proxy for what a held-out evaluation will say.}}{4}{figure.caption.13}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:ppo-curves}{{1}{4}{Phase-conditioned PPO training curves over 5M environment steps, EMA-smoothed. The lead policy (blue) by held-out biomech realism ranks last on training-time return. Training-time metrics are not a reliable proxy for what a held-out evaluation will say}{figure.caption.13}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Reward exploits are structured Goodhart cases (H2)}{4}{subsection.6.2}\protected@file@percent }
+\newlabel{sec:exploits}{{6.2}{4}{Reward exploits are structured Goodhart cases (H2)}{subsection.6.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}AMP collapses at small environment count (H3)}{4}{subsection.6.3}\protected@file@percent }
+\newlabel{sec:amp}{{6.3}{4}{AMP collapses at small environment count (H3)}{subsection.6.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4}No engineered-reward variant passes the biomechanical-realism scorecard (H4)}{4}{subsection.6.4}\protected@file@percent }
+\newlabel{sec:scorecard}{{6.4}{4}{No engineered-reward variant passes the biomechanical-realism scorecard (H4)}{subsection.6.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Reward-hacking failure modes encountered during reward design. Each is a canonical Goodhart case: the policy maximizes the partial reward by exploiting a degree of freedom that was unconstrained by the reward as written. The last row foreshadows the morphology issue analyzed in detail in Sec.~\ref {sec:morph}.}}{5}{table.caption.14}\protected@file@percent }
+\newlabel{tab:exploits}{{1}{5}{Reward-hacking failure modes encountered during reward design. Each is a canonical Goodhart case: the policy maximizes the partial reward by exploiting a degree of freedom that was unconstrained by the reward as written. The last row foreshadows the morphology issue analyzed in detail in Sec.~\ref {sec:morph}}{table.caption.14}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces AMP discriminator collapse at small environment count. Style reward (left) never enters the target band (green); 8-env warm-started variants converge to the collapse floor of 0.03, 16-env variants to 0.06. Discriminator loss (right, log scale) drops as the discriminator achieves near-perfect separation, eliminating the style gradient.}}{5}{figure.caption.15}\protected@file@percent }
+\newlabel{fig:amp-collapse}{{2}{5}{AMP discriminator collapse at small environment count. Style reward (left) never enters the target band (green); 8-env warm-started variants converge to the collapse floor of 0.03, 16-env variants to 0.06. Discriminator loss (right, log scale) drops as the discriminator achieves near-perfect separation, eliminating the style gradient}{figure.caption.15}{}}
+\@writefile{toc}{\contentsline {paragraph}{Discussion.}{5}{section*.18}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Biomechanical-realism dashboard. Top two rows: per-joint angle traces over one stride, sim variants overlaid on the measured reference (black). Right: vertical ground reaction force during stance, sim vs reference. Third row: hip-knee phase planes (R, L) and progress score. Bottom: $\pm $20\% credible-band scorecard, closer to zero is more realistic. No sim variant lies inside the band on any spatiotemporal or kinetic metric.}}{6}{figure.caption.17}\protected@file@percent }
+\newlabel{fig:dashboard}{{3}{6}{Biomechanical-realism dashboard. Top two rows: per-joint angle traces over one stride, sim variants overlaid on the measured reference (black). Right: vertical ground reaction force during stance, sim vs reference. Third row: hip-knee phase planes (R, L) and progress score. Bottom: $\pm $20\% credible-band scorecard, closer to zero is more realistic. No sim variant lies inside the band on any spatiotemporal or kinetic metric}{figure.caption.17}{}}
+\citation{mujocomjx}
+\citation{escontrela2022amp}
+\citation{simos2025kinesis}
+\citation{cotton2025kintwin}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Held-out biomechanical-realism scorecard. Sim values are per-stride medians over 6 deterministic episodes $\times $ 2500 steps; reference values are per-stride medians from Subject 1's own force-plate and IK data. Percent error vs reference in parentheses. No variant passes the $\pm $20\% credible band on any metric except mirror-leg knee ROM.}}{7}{table.caption.16}\protected@file@percent }
+\newlabel{tab:scorecard}{{2}{7}{Held-out biomechanical-realism scorecard. Sim values are per-stride medians over 6 deterministic episodes $\times $ 2500 steps; reference values are per-stride medians from Subject 1's own force-plate and IK data. Percent error vs reference in parentheses. No variant passes the $\pm $20\% credible band on any metric except mirror-leg knee ROM}{table.caption.16}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.5}Morphology can mask reward problems (H5)}{7}{subsection.6.5}\protected@file@percent }
+\newlabel{sec:morph}{{6.5}{7}{Morphology can mask reward problems (H5)}{subsection.6.5}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Hip-angle traces. Baseline (left) vs three relaxed-MJCF seeds. The baseline's hip is parked at the $+0^\circ $ wall (dotted green line); relaxing the joint range lets the policy sweep through the reference range. H5 supported.}}{7}{figure.caption.19}\protected@file@percent }
+\newlabel{fig:hip-trace}{{4}{7}{Hip-angle traces. Baseline (left) vs three relaxed-MJCF seeds. The baseline's hip is parked at the $+0^\circ $ wall (dotted green line); relaxing the joint range lets the policy sweep through the reference range. H5 supported}{figure.caption.19}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Conclusion and Future Work}{7}{section.7}\protected@file@percent }
+\newlabel{sec:future}{{7}{7}{Conclusion and Future Work}{section.7}{}}
+\bibstyle{plain}
+\bibdata{sample}
+\bibcite{cotton2025kintwin}{{1}{}{{}}{{}}}
+\bibcite{escontrela2022amp}{{2}{}{{}}{{}}}
+\bibcite{fu2018airl}{{3}{}{{}}{{}}}
+\bibcite{mujocomjx}{{4}{}{{}}{{}}}
+\bibcite{ho2016gail}{{5}{}{{}}{{}}}
+\bibcite{peng2018deepmimic}{{6}{}{{}}{{}}}
+\bibcite{peng2021amp}{{7}{}{{}}{{}}}
+\bibcite{raffin2021sb3}{{8}{}{{}}{{}}}
+\bibcite{rudin2022parallel}{{9}{}{{}}{{}}}
+\bibcite{schulman2017ppo}{{10}{}{{}}{{}}}
+\bibcite{simos2025kinesis}{{11}{}{{}}{{}}}
+\bibcite{todorov2012mujoco}{{12}{}{{}}{{}}}
+\bibcite{simtkulrich}{{13}{}{{}}{{}}}
+\bibcite{uhlrich2023opencap}{{14}{}{{}}{{}}}
+\@writefile{toc}{\contentsline {paragraph}{Two paths forward.}{8}{section*.20}\protected@file@percent }
+\providecommand\NAT@force@numbers{}\NAT@force@numbers
+\gdef \@abspage@last{9}

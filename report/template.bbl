@@ -1,0 +1,90 @@
+\begin{thebibliography}{10}
+
+\bibitem{cotton2025kintwin}
+R.~James Cotton.
+\newblock {KinTwin}: Imitation learning with torque and muscle driven
+  biomechanical models enables precise replication of able-bodied and impaired
+  movement from markerless motion capture.
+\newblock {\em arXiv preprint arXiv:2505.13436}, 2025.
+
+\bibitem{escontrela2022amp}
+Alejandro Escontrela, Xue~Bin Peng, Wenhao Yu, Tingnan Zhang, Atil Iscen, Ken
+  Goldberg, and Pieter Abbeel.
+\newblock Adversarial motion priors make good substitutes for complex reward
+  functions.
+\newblock In {\em IEEE/RSJ International Conference on Intelligent Robots and
+  Systems (IROS)}, 2022.
+
+\bibitem{fu2018airl}
+Justin Fu, Katie Luo, and Sergey Levine.
+\newblock Learning robust rewards with adversarial inverse reinforcement
+  learning.
+\newblock In {\em International Conference on Learning Representations (ICLR)},
+  2018.
+
+\bibitem{mujocomjx}
+{Google DeepMind}.
+\newblock {MuJoCo MJX}: A {JAX}-based reimplementation of {MuJoCo}.
+\newblock \url{https://github.com/google-deepmind/mujoco_mjx}, 2024.
+
+\bibitem{ho2016gail}
+Jonathan Ho and Stefano Ermon.
+\newblock Generative adversarial imitation learning.
+\newblock In {\em Advances in Neural Information Processing Systems (NeurIPS)},
+  2016.
+
+\bibitem{peng2018deepmimic}
+Xue~Bin Peng, Pieter Abbeel, Sergey Levine, and Michiel van~de Panne.
+\newblock {DeepMimic}: Example-guided deep reinforcement learning of
+  physics-based character skills.
+\newblock {\em ACM Transactions on Graphics (SIGGRAPH)}, 37(4), 2018.
+
+\bibitem{peng2021amp}
+Xue~Bin Peng, Ze~Ma, Pieter Abbeel, Sergey Levine, and Angjoo Kanazawa.
+\newblock {AMP}: Adversarial motion priors for stylized physics-based character
+  control.
+\newblock {\em ACM Transactions on Graphics (SIGGRAPH)}, 40(4), 2021.
+
+\bibitem{raffin2021sb3}
+Antonin Raffin, Ashley Hill, Adam Gleave, Anssi Kanervisto, Maximilian
+  Ernestus, and Noah Dormann.
+\newblock Stable-baselines3: Reliable reinforcement learning implementations.
+\newblock {\em Journal of Machine Learning Research}, 22(268), 2021.
+
+\bibitem{rudin2022parallel}
+Nikita Rudin, David Hoeller, Philipp Reist, and Marco Hutter.
+\newblock Learning to walk in minutes using massively parallel deep
+  reinforcement learning.
+\newblock In {\em Conference on Robot Learning (CoRL)}, 2022.
+
+\bibitem{schulman2017ppo}
+John Schulman, Filip Wolski, Prafulla Dhariwal, Alec Radford, and Oleg Klimov.
+\newblock Proximal policy optimization algorithms.
+\newblock {\em arXiv preprint arXiv:1707.06347}, 2017.
+
+\bibitem{simos2025kinesis}
+Merkourios Simos, Antoine Chiappa, and Alexander Mathis.
+\newblock {KINESIS}: Reinforcement learning-based motion imitation for
+  physiologically plausible musculoskeletal motor control.
+\newblock {\em arXiv preprint arXiv:2503.14637}, 2025.
+
+\bibitem{todorov2012mujoco}
+Emanuel Todorov, Tom Erez, and Yuval Tassa.
+\newblock {MuJoCo}: A physics engine for model-based control.
+\newblock In {\em IEEE/RSJ International Conference on Intelligent Robots and
+  Systems (IROS)}, 2012.
+
+\bibitem{simtkulrich}
+Scott~D. Uhlrich and Scott~L. Delp.
+\newblock Muscle coordination retraining to reduce knee loading: Treadmill
+  walking dataset.
+\newblock SimTK project repository, 2018.
+\newblock \url{https://simtk.org/projects/coordretraining}.
+
+\bibitem{uhlrich2023opencap}
+Scott~D. Uhlrich, Antoine Falisse, {\L}ukasz Kidzi{\'n}ski, Julie Muccini,
+  Michael Ko, Akshay~S. Chaudhari, Jennifer~L. Hicks, and Scott~L. Delp.
+\newblock {OpenCap}: Human movement dynamics from smartphone videos.
+\newblock {\em PLOS Computational Biology}, 19(10):e1011462, 2023.
+
+\end{thebibliography}

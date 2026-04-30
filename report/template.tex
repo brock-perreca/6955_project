@@ -31,44 +31,20 @@
 \usepackage{amsfonts}
 \usepackage{amssymb}
 \usepackage{graphicx}
-\usepackage{lipsum}  
 
-\title{Title Here}
-
-% The \author macro works with any number of authors. There are two commands
-% used to separate the names and addresses of multiple authors: \And and \AND.
-%
-% Using \And between authors leaves it to LaTeX to determine where to break the
-% lines. Using \AND forces a line break at that point. So, if LaTeX puts 3 of 4
-% authors names on the first line, and the last on the second line, try using
-% \AND instead of \And before the third author name.
+\title{Can Phase-Conditioned Imitation Recover Biomechanically Realistic Gait? \\
+A Walker2D Case Study. }
 
 \author{%
-  David S.~Hippocampus \\
-  Department of Computer Science\\
-  Cranberry-Lemon University\\
-  \texttt{hippo@cs.cranberry-lemon.edu} \\
-  % examples of more authors
+  Brian Keller \\
+  Department of Biomedical Engineering \\
+  University of Utah \\
+  \texttt{brian.keller@utah.edu} \\
   \And
-  Coauthor \\
-  Affiliation \\
-  Address \\
-  \texttt{email} \\
-  % \AND
-  % Coauthor \\
-  % Affiliation \\
-  % Address \\
-  % \texttt{email} \\
-  % \And
-  % Coauthor \\
-  % Affiliation \\
-  % Address \\
-  % \texttt{email} \\
-  % \And
-  % Coauthor \\
-  % Affiliation \\
-  % Address \\
-  % \texttt{email} \\
+  Brock Perreca \\
+  Kahlert School of Computing \\
+  University of Utah \\
+  \texttt{brock.perreca@gmail.com} \\
 }
 
 \begin{document}
@@ -76,62 +52,499 @@
 \maketitle
 
 \begin{abstract}
- \textbf{Instructions:} You project report should be between 4-6 pages long, not including references. It should be structured like a workshop paper that would appear at a top robotics or ML conference with the following sections: introduction, related work, problem statement, methodology, and experiments. You should end with a a section on limitations and future work and a conclusion/summary.
+Understanding human walking at the level of joint angles, ground
+reaction forces, and inter-limb timing matters for clinical
+biomechanics, rehabilitation, and assistive device design.
+Reinforcement-learning agents that imitate recorded human motion
+offer a tempting cheaper substitute for instrumented motion-capture
+labs: train a simulated body to track a reference, and the internal
+forces and gait-cycle structure should fall out of the physics for
+free. We ask whether that promise actually holds for a common
+research configuration. Can phase-conditioned PPO with a
+DeepMimic-style engineered reward, applied to MuJoCo Walker2d-v4
+conditioned on real human inverse-kinematics reference data, recover
+a gait that holds up against held-out force-plate ground truth from
+the same subject? We train phase-aware PPO with a behavioral-cloning
+warm-start and reference-state initialization, alongside a parallel
+attempt at Adversarial Motion Priors (AMP). The phase-aware policies
+visually walk, but a held-out biomechanical-realism scorecard against
+the same subject's measured kinematics and ground reaction forces
+tells a different story. None of our trained variants pass. Peak
+vertical ground reaction force lands at 3.7 to 4.8 times body weight
+against a reference of 1.1, and double-support fraction sits below
+2\% against a reference of 23\%. Those are the kinetic signatures
+of bouncing or running, not walking. The negative result motivates
+two paths forward we did not get to: AMP at GPU-parallel scale,
+where the discriminator escapes its small-data memorization regime,
+or a return to muscle-actuated models, where physiological force
+limits would make the running-gait failure mode structurally
+unreachable.
 \end{abstract}
 
 \section{Introduction}
-\lipsum[2]
 
-\section{BibTex References}
-Use Bibtex for references. You can get bibtex from Google scholar by looking up an article, clicking the cite button, and then clicking the BibTex button and copying and pasting that into the sample.bib file. Then you can reference in the paper. E.g., First well-known example of behavioral cloning was proposed by Pomerleau~\cite{pomerleau1988alvinn}. Also here is another reference~\cite{ha2018world}.
+Understanding human walking at the level of muscle forces, joint
+contact loads, and ground reaction forces matters for clinical
+biomechanics, rehabilitation, and assistive device design. The
+usual instrumented laboratory --- optical mocap, force plates,
+EMG --- costs upwards of \$150{,}000. Reinforcement-learning
+agents that imitate recorded human motion are a tempting
+alternative: if a simulated body tracks a reference closely enough,
+internal forces and gait-cycle structure should emerge from the
+physics for free.
 
-\section{Figures and Tables}
+\paragraph{From the original proposal to a scaled-down question.}
+This project began as a study of \emph{lab-to-field transfer in
+musculoskeletal reinforcement learning}: 3D, 80-muscle MyoLeg
+agents trained on lab-grade marker/force-plate/EMG references
+versus markerless smartphone mocap from
+OpenCap~\cite{uhlrich2023opencap}. That scope was infeasible for
+one semester. We carried the spirit of the question into a
+smaller setting: the 2D MuJoCo Walker2d-v4 planar
+biped~\cite{todorov2012mujoco} with a single-subject IK reference
+at 1.25 m/s.
 
-Table~\ref{sample-table} is an example of how to make a pretty table:
+\paragraph{This paper.}
+We train phase-conditioned PPO~\cite{schulman2017ppo,raffin2021sb3}
+with a multi-term DeepMimic~\cite{peng2018deepmimic} reward and a
+behavioral-cloning warm-start, then evaluate the visually walking
+policies against held-out biomechanical ground truth from the
+same subject's force-plate and IK data. We additionally implement
+Adversarial Motion Priors (AMP)~\cite{peng2021amp,escontrela2022amp}
+as a learned-reward comparison. The visually walking policies
+produce running-gait kinetics; AMP at small environment counts
+collapses to a near-zero style reward, consistent with the
+GPU-parallel scaling the original paper required.
+
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{DeepMimic~\cite{peng2018deepmimic}.}
+The modern recipe for physics-based motion imitation: a
+phase-indexed reference drives a dense reward of weighted
+exponential penalties on pose, velocity, end-effector, and root
+tracking error, with Reference State Initialization for uniform
+phase coverage. Our reward and RSI follow this framework on a
+planar biped; unlike DeepMimic, we evaluate against held-out
+kinetic ground truth at test time.
+
+\paragraph{Adversarial Motion Priors~\cite{peng2021amp,escontrela2022amp}.}
+AMP replaces hand-crafted imitation terms with a learned LSGAN
+discriminator over reference vs policy state-transitions plus a
+small task reward. Escontrela et al.~\cite{escontrela2022amp}
+trained at 4096 parallel environments on a GPU cluster; we reuse
+their design at 8--16 CPU environments and reproduce the
+small-scale collapse implicit in their parallelism requirement.
+GAIL and AIRL~\cite{ho2016gail,fu2018airl} are the
+discriminator-as-reward predecessors and share the same collapse
+pathology; we implement AIRL alongside AMP for comparison.
+
+\paragraph{Massively parallel deep RL~\cite{rudin2022parallel}.}
+Rudin et al. cut legged-locomotion training time from hours to
+minutes with thousands of GPU-parallel environments --- the
+empirical anchor behind the AMP scaling requirement and our
+planned MuJoCo MJX~\cite{mujocomjx} port.
+
+\paragraph{Muscle-driven imitation~\cite{simos2025kinesis,cotton2025kintwin}.}
+KINESIS and KinTwin are recent imitation pipelines on Hill-type
+muscle humanoids: emergent activations correlate with recorded
+EMG without explicit EMG terms, and the approach reproduces
+able-bodied and impaired gait from markerless input. They
+motivate the muscle-actuation direction in Sec.~\ref{sec:future},
+where physiological force limits make our Walker2d failure mode
+structurally unreachable.
+
+\section{Problem Statement}
+\label{sec:problem}
+
+We formalize gait imitation as a Markov Decision Process
+$M = (\mathcal{S}, \mathcal{A}, T, r, \gamma)$ augmented with a
+reference motion. Let $q$, $\dot q$ be Walker2d's joint positions
+and velocities, $s_\text{base} = [q,\,\dot q]$. The reference is
+a periodic sequence
+$R = \{q^\text{ref}_t\}_{t=0}^{T-1}$ of bilateral hip, knee, and
+ankle angles at 1.25 m/s, sampled at the simulator control rate.
+A scalar phase $\varphi \in \{0,\dots,T-1\}$ advances by one per
+step modulo $T$; the phase-conditioned observation is
+\begin{equation}
+  s = \big[\,s_\text{base}\;|\;q^\text{ref}_\varphi\;|\;\sin(2\pi\varphi/T)\;|\;\cos(2\pi\varphi/T)\,\big].
+  \label{eq:obs}
+\end{equation}
+The agent maximizes
+$\mathbb{E}_{\tau\sim\pi}\big[\sum_t \gamma^t r(s_t, a_t, \varphi_t)\big]$
+where $r$ encodes fidelity to $R$.
+
+\paragraph{Held-out biomechanical evaluation.}
+Separately, let $B^*$ be biomechanical metrics from the same
+subject's force-plate and IK data: stride period, cadence,
+double-support fraction, peak vertical ground reaction force (vGRF),
+and per-joint range of motion. The realism gap is the deviation
+$|B(\pi) - B^*|$, aggregated as a 0--4 progress score with a
+$\pm 20\%$ credible band per metric
+(Sec.~\ref{sec:scorecard-method}). The training reward sees only
+$R$; the kinetic targets in $B^*$ are held out.
+
+\section{Method}
+\label{sec:method}
+
+\subsection{Phase-conditioned PPO + DeepMimic reward}
+\label{sec:method-ppo}
+
+The Walker2d-v4 default observation is phase-blind. The policy sees
+joint angles and velocities but no information about where it is in
+the gait cycle. We augment the observation with the reference pose
+at the current phase plus $\sin\varphi$ and $\cos\varphi$ as in
+Eq.~\ref{eq:obs}, and at the start of each episode we set the joint
+angles, joint velocities, and forward velocity of the body to the
+reference values for a uniformly sampled starting phase. This is
+DeepMimic's Reference State Initialization. The forward-velocity
+init matters: without it the body is dropped mid-stride at zero
+forward speed and immediately falls.
+
+The reward sums four DeepMimic tracking terms (exponential
+penalties on joint pose, joint velocity, foot end-effector
+position, and root height) and terminates the episode if forward
+velocity drops below 0.3 m/s. Our best policy uses a worst-joint
+pose aggregator (minimum over per-joint penalties) so the policy
+cannot hide a stiff joint behind compliant ones.
+
+\paragraph{Behavioral cloning warm-start.}
+We pretrain on PD-controller rollouts inside the simulator before
+PPO fine-tuning. Inverse-dynamics torques would ignore ground
+reaction forces and be systematically wrong during stance; PD
+rollouts inside the full simulator produce torques consistent
+with stance-phase loading.
+
+\subsection{Adversarial Motion Priors and AIRL}
+\label{sec:method-amp}
+
+As a comparison track we implement AMP~\cite{peng2021amp,escontrela2022amp}
+on top of the same Walker2d environment. A discriminator is trained
+on state-transition pairs in 12-dimensional joint space using the
+LSGAN loss with a zero-centered gradient penalty on expert samples.
+The bounded style reward $r_s = \max(0,\,1 - 0.25(D - 1)^2)$ replaces
+the hand-crafted pose reward, combined with a forward-velocity task
+reward as $r = w_g\,r_\text{task} + w_s\,r_s$ with $w_g = 0.35$,
+$w_s = 0.65$. We additionally implement AIRL~\cite{fu2018airl} with
+the same discriminator backbone and a state-only reward
+parameterization.
+
+\subsection{Held-out biomechanical-realism scorecard}
+\label{sec:scorecard-method}
+
+For each policy we run 6 deterministic rollouts of 2500 steps,
+detect heel-strikes from per-foot contact-force rising edges with
+a 0.5\,s debounce, and slice into per-stride windows. Per-stride
+medians are computed for stride period, cadence, double-support
+fraction, peak vGRF (body-weight units), per-joint ROM, and L-R
+asymmetry. Reference values use the same methodology on Subject
+1's force-plate and IK data. Each metric contributes to a 0--4
+progress score via a $\pm 20\%$ credible band, scaling linearly
+from 1.0 inside the band to 0 at its edge.
+
+\section{Experimental Design}
+\label{sec:experiments}
+
+\paragraph{Hypotheses.}
+\begin{itemize}
+\itemsep0em
+  \item[\textbf{H1.}] A phase-conditioned observation with multi-term
+        imitation reward produces \emph{qualitatively} walking
+        policies (balance maintained, bilateral foot alternation,
+        forward translation) where a phase-blind policy with only
+        forward velocity does not.
+  \item[\textbf{H2.}] The multi-term reward is exploitable. Each
+        unconstrained degree of freedom yields a characteristic
+        Goodhart-style failure (ankle paddling, one-legged hopping,
+        toe-walking, controlled forward fall, stand-and-wiggle).
+  \item[\textbf{H3.}] AMP at fewer than $\sim$100 parallel environments
+        produces discriminator collapse: style reward converges to
+        near-zero, eliminating the style gradient.
+  \item[\textbf{H4.}] (\emph{Headline.}) Even when H1 holds and the
+        policy visually walks, no engineered-reward variant we tested
+        passes the held-out biomechanical-realism scorecard against
+        force-plate-derived targets.
+  \item[\textbf{H5.}] Failure modes that look reward-driven can have
+        structural causes such as joint-range limits in the
+        simulator's MJCF. Diagnosing reward issues without first
+        checking the kinematic feasibility of the reference is
+        unsafe.
+\end{itemize}
+
+\paragraph{Domain and data.}
+Simulator: MuJoCo 3.3.0~\cite{todorov2012mujoco} via Gymnasium
+Walker2d-v4. Reference motion: inverse-kinematics reconstruction of
+treadmill walking from the SimTK Coordination Retraining
+dataset~\cite{simtkulrich} (Subject 1, baseline trial, 1.25 m/s),
+processed into one clean gait cycle of 56 frames at 50 Hz and
+resampled to 140 frames at 125 Hz via cubic spline. Policy network:
+256$\times$256 MLP, tanh activations
+(Stable-Baselines3~\cite{raffin2021sb3} defaults). AMP discriminator:
+two hidden layers of 64 units, ELU. Training: 8 parallel CPU
+environments, 5M steps per run, PPO with $n_\text{steps} = 2048$,
+batch size 64, $\gamma = 0.99$, $\lambda_\text{GAE} = 0.95$, learning
+rate $3\times10^{-4}$.
+
+\paragraph{Trained variants.}
+Four post-pivot policies are evaluated against the scorecard:
+\emph{Baseline (stock joints)};
+\emph{Permissive hips} ($-30^\circ$ to $+60^\circ$ thigh range);
+\emph{Constrained hips} ($-150^\circ$ to $+35^\circ$, $5^\circ$
+of headroom over the reference's flexion peak); and
+\emph{Best engineered (lead)}, the permissive MJCF plus the
+worst-joint pose aggregator. AMP/AIRL collapse before producing
+clean strides and are evaluated on training-time
+discriminator/style-reward curves (Sec.~\ref{sec:amp}).
+
+\section{Results and Discussion}
+\label{sec:results}
+
+\subsection{Phase-conditioned PPO produces visually walking policies (H1)}
+\label{sec:results-h1}
+
+All four variants converge to forward-translating policies within
+5M steps (Fig.~\ref{fig:ppo-curves}), with episode lengths reaching
+3500--5500 steps and returns 1100--3800. Visual inspection of
+deterministic rollouts confirms balance, foot alternation, and
+forward progression near target speed. H1 is supported. Notably,
+the variant that ranks highest on the held-out scorecard ranks
+\emph{lowest} on training return (\emph{Best engineered}, blue):
+the worst-joint aggregator is harder to optimize but closes a
+reward-hacking loophole. Training-time return is not a reliable
+proxy for biomechanical realism.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{../docs/figures/ppo_training_curves_paper.png}
+  \caption{Phase-conditioned PPO training curves over 5M environment
+  steps, EMA-smoothed. The lead policy (blue) by held-out biomech
+  realism ranks last on training-time return. Training-time metrics
+  are not a reliable proxy for what a held-out evaluation will say.}
+  \label{fig:ppo-curves}
+\end{figure}
+
+\subsection{Reward exploits are structured Goodhart cases (H2)}
+\label{sec:exploits}
+
+The multi-term reward arrived through iterative refinement. At each
+stage, the optimizer found a locally optimal degenerate strategy,
+and a new term was added to close it. Table~\ref{tab:exploits}
+catalogues the characteristic exploits, each locally optimal for
+the partial reward as written. None required pathological optimizer
+behavior. H2 is supported.
 
 \begin{table}[h]
-  \caption{Sample table title}
-  \label{sample-table}
+  \caption{Reward-hacking failure modes encountered during reward
+  design. Each is a canonical Goodhart case: the policy maximizes
+  the partial reward by exploiting a degree of freedom that was
+  unconstrained by the reward as written. The last row foreshadows
+  the morphology issue analyzed in detail in Sec.~\ref{sec:morph}.}
+  \label{tab:exploits}
   \centering
-  \begin{tabular}{lll}
+  \small
+  \begin{tabular}{p{0.20\textwidth} p{0.42\textwidth} p{0.30\textwidth}}
     \toprule
-    \multicolumn{2}{c}{Part}                   \\
-    \cmidrule(r){1-2}
-    Name     & Description     & Size ($\mu$m) \\
+    \textbf{Exploit} & \textbf{Mechanism} & \textbf{Closing patch} \\
     \midrule
-    Dendrite & Input terminal  & $\sim$100     \\
-    Axon     & Output terminal & $\sim$10      \\
-    Soma     & Cell body       & up to $10^6$  \\
+    Ankle paddling & Reference ankle oscillates regardless of foot
+    contact, so rapid ankle motion alone satisfies the joint-tracking
+    reward with no forward progress. & Direct swing-foot contact
+    penalty $-w_{\text{swing}}\tanh(F_{\text{swing}}/50)$. \\
+    \addlinespace[2pt]
+    One-legged hopping & Planting one foot and using the other as a
+    balance pole satisfies stance-leg pose tracking without
+    requiring bilateral coordination. & Explicit contact-alternation
+    reward keyed to the reference stance foot. \\
+    \addlinespace[2pt]
+    Toe-walking & Permanent ankle plantarflexion satisfies the
+    ankle-pose reward by walking on the toes. & End-effector
+    tracking on foot world position. \\
+    \addlinespace[2pt]
+    Controlled forward fall & The agent leans forward to maximize
+    $\dot x$ while staying above the height termination threshold
+    until the lean is irrecoverable. & Pitch magnitude included in
+    the root-tracking term and pitch-magnitude termination. \\
+    \addlinespace[2pt]
+    Stand-and-wiggle & A mean-aggregator pose reward is satisfied
+    by wiggling five of six joints while the hip stays stiff,
+    hiding one bad joint behind the average. & Worst-joint
+    aggregator: take the minimum over per-joint penalties instead
+    of the mean. \\
+    \addlinespace[2pt]
+    Stiff-hip stand & With stock MJCF's $[-150^\circ, 0^\circ]$
+    thigh range, the hip parks at the $+0^\circ$ wall (reference
+    asks for $+30^\circ$) and the policy minimizes the unreachable
+    error by holding still. & Open the MJCF thigh range to admit
+    the reference flexion peak (see Sec.~\ref{sec:morph}). \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-Figure~\ref{fig:three graphs} is an example of how to have multiple figures in a row:
-\begin{figure}
-     \centering
-     \begin{subfigure}[b]{0.3\textwidth}
-         \centering
-         \includegraphics[width=\textwidth]{example-image-a}
-         \caption{$y=x$}
-         \label{fig:y equals x}
-     \end{subfigure}
-     \hfill
-     \begin{subfigure}[b]{0.3\textwidth}
-         \centering
-         \includegraphics[width=\textwidth]{example-image-b}
-         \caption{$y=3sinx$}
-         \label{fig:three sin x}
-     \end{subfigure}
-     \hfill
-     \begin{subfigure}[b]{0.3\textwidth}
-         \centering
-         \includegraphics[width=\textwidth]{example-image-c}
-         \caption{$y=5/x$}
-         \label{fig:five over x}
-     \end{subfigure}
-        \caption{Three simple graphs}
-        \label{fig:three graphs}
+\subsection{AMP collapses at small environment count (H3)}
+\label{sec:amp}
+
+We trained AMP and AIRL (including warm-started variants from a
+working PPO policy) on the same environment. At 8 and 16 parallel
+environments, the style reward $r_s$ never enters the target band
+$[0.5, 1.0]$: it starts at 0.22--0.25 and decays toward the
+collapse floor $\sim$0.03 over 5M steps
+(Fig.~\ref{fig:amp-collapse}), with discriminator loss plummeting
+as separation becomes near-perfect. The mechanism is structural:
+$\sim$140 expert transitions on a 1-D manifold embedded in a 24-D
+input vs only 8--16 environments of policy diversity --- the
+discriminator has far more capacity than data and memorizes. The
+16-env variant collapses more slowly (final $r_s = 0.06$) but
+does not escape. Escontrela et al.~\cite{escontrela2022amp} ran
+4096 environments on a GPU cluster; the path out is GPU-parallel
+training (Sec.~\ref{sec:future}). H3 is supported.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{../docs/figures/amp_collapse_paper.png}
+  \caption{AMP discriminator collapse at small environment count.
+  Style reward (left) never enters the target band (green); 8-env
+  warm-started variants converge to the collapse floor of 0.03,
+  16-env variants to 0.06. Discriminator loss (right, log scale)
+  drops as the discriminator achieves near-perfect separation,
+  eliminating the style gradient.}
+  \label{fig:amp-collapse}
 \end{figure}
+
+\subsection{No engineered-reward variant passes the biomechanical-realism scorecard (H4)}
+\label{sec:scorecard}
+
+This is the central result of the paper. Table~\ref{tab:scorecard}
+shows per-metric values for the four variants against the measured
+Subject 1 baseline. Every variant misses every spatiotemporal and
+kinetic target by $\geq 40\%$. Stride period 0.57--0.67~s vs
+1.12~s (cadence 1.7--2.0$\times$ too fast); peak vGRF
+3.7--4.8$\times$ body weight vs 1.10; double-support 0.7--7\% vs
+23\%. These are the kinetic signatures of running or bouncing,
+not walking --- walking has $\sim$23\% double-support and peak
+vGRF near body weight, running has near-zero double-support and
+$\sim 2.5\times$ vGRF. Our values exceed even running.
+
+\begin{table}[h]
+  \caption{Held-out biomechanical-realism scorecard. Sim values are
+  per-stride medians over 6 deterministic episodes $\times$ 2500
+  steps; reference values are per-stride medians from Subject 1's
+  own force-plate and IK data. Percent error vs reference in
+  parentheses. No variant passes the $\pm$20\% credible band on any
+  metric except mirror-leg knee ROM.}
+  \label{tab:scorecard}
+  \centering
+  \small
+  \begin{tabular}{lcccccc}
+    \toprule
+    metric & reference & Baseline & Permissive & Constrained & Best (lead) \\
+           &           & (stock)  & hips       & hips        & engineered  \\
+    \midrule
+    stride period (s)        & \textbf{1.12}  & 0.63 (-44\%)  & 0.67 (-40\%)  & 0.57 (-49\%)  & 0.63 (-44\%)  \\
+    cadence (steps/min)      & \textbf{107}   & 191 (+78\%)   & 179 (+67\%)   & 210 (+96\%)   & 192 (+79\%)   \\
+    double-support fraction  & \textbf{0.227} & 0.072 (-68\%) & 0.017 (-92\%) & 0.017 (-92\%) & 0.007 (-97\%) \\
+    peak vGRF / BW           & \textbf{1.10}  & 3.29 (+199\%) & 4.77 (+333\%) & 4.05 (+268\%) & 3.70 (+236\%) \\
+    hip ROM (deg, R)         & \textbf{45.4}  & 2.78 (-94\%)  & 30.6 (-33\%)  & 30.5 (-33\%)  & 30.2 (-34\%)  \\
+    knee ROM (deg, R)        & \textbf{65.7}  & 44.4 (-32\%)  & 72.7 (+11\%)  & 68.2 (+4\%)   & 72.2 (+10\%)  \\
+    ankle ROM (deg, R)       & \textbf{40.0}  & 33.4 (-17\%)  & 26.4 (-34\%)  & 19.8 (-51\%)  & 21.8 (-45\%)  \\
+    \midrule
+    \textbf{progress score (0--4)} & \textbf{4.00} & 2.47 & 2.40 & 2.24 & \textbf{2.66} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Figure~\ref{fig:dashboard} visualizes the same data as joint-angle
+overlays, vGRF stance curves, and phase-plane portraits.
+Kinematic shapes roughly track the reference, but the vGRF curves
+diverge sharply: where the reference shows the classic
+double-hump walking trace near $1\times$ body weight, the policies
+produce spikes of 3.7--4.8$\times$. The hip-knee phase planes
+show much smaller cycles than the reference, the signature of
+reduced ROM and shorter stride. H4 is confirmed.
+
+\begin{figure}[p]
+  \centering
+  \makebox[\textwidth][c]{\includegraphics[width=1.25\textwidth]{../docs/figures/biomech_realism_dashboard_paper.png}}
+  \caption{Biomechanical-realism dashboard. Top two rows: per-joint
+  angle traces over one stride, sim variants overlaid on the measured
+  reference (black). Right: vertical ground reaction force during
+  stance, sim vs reference. Third row: hip-knee phase planes (R, L)
+  and progress score. Bottom: $\pm$20\% credible-band scorecard,
+  closer to zero is more realistic. No sim variant lies inside the
+  band on any spatiotemporal or kinetic metric.}
+  \label{fig:dashboard}
+\end{figure}
+
+\paragraph{Discussion.}
+The torque actuator has no mechanism by which producing 4 to 5
+times body-weight ground reaction forces is more expensive than
+producing $1\times$ — both are just torque commands. Closing the
+gap inside this paradigm would require explicit reward terms on
+double-support, vGRF magnitude, and stride period, which is no
+longer imitation but hand-engineered gait shaping with the
+imitation cost as a regularizer. We read the negative result as
+structural to the engineered-reward + torque-actuated combination,
+not as a tuning failure.
+
+\subsection{Morphology can mask reward problems (H5)}
+\label{sec:morph}
+
+Earlier batches chased a ``stiff-hip'' failure (trained hip range
+$\sim 2^\circ$ vs a reference asking for $\sim 45^\circ$). The
+root cause was not the reward: stock \texttt{walker2d.xml}
+constrains the thigh to $[-150^\circ, 0^\circ]$, while the
+reference's flexion peak is $+30^\circ$. About 68\% of every
+reference cycle lay outside the joint range, and the policy was
+pinned at the $0^\circ$ wall for 95\% of frames
+(Fig.~\ref{fig:hip-trace}). Opening the range produced an
+order-of-magnitude jump in hip ROM. Methodological lesson: check
+kinematic feasibility before tuning the reward.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../docs/figures/tier0/C_hiprelax/C_hip_trace_comparison.png}
+  \caption{Hip-angle traces. Baseline (left) vs three relaxed-MJCF
+  seeds. The baseline's hip is parked at the $+0^\circ$ wall (dotted
+  green line); relaxing the joint range lets the policy sweep through
+  the reference range. H5 supported.}
+  \label{fig:hip-trace}
+\end{figure}
+
+\section{Conclusion and Future Work}
+\label{sec:future}
+
+Can engineered-reward phase-conditioned PPO on torque-actuated
+Walker2d recover a biomechanically realistic gait against
+held-out force-plate ground truth? The answer is \textbf{no}. The
+visually walking policies produce running-gait kinetics (peak
+vGRF 3.7--4.8 BW, near-zero double-support); AMP at 8--16
+environments collapses before producing clean strides. The
+engineered reward closes individual reward-hacking loopholes
+through hand-engineering, but those loopholes do not include peak
+vGRF or double-support, and no variant crosses the $\pm 20\%$
+credible band on those metrics. The torque actuator does not
+penalize 4-BW foot-slamming, and a reward shape that does
+penalize it amounts to engineering walking by hand.
+
+\paragraph{Two paths forward.}
+First, port the environment to MuJoCo
+MJX~\cite{mujocomjx} and train AMP at 2{,}000--4{,}000 parallel
+environments on a single GPU, matching Escontrela et
+al.~\cite{escontrela2022amp}. At that scale, policy diversity
+forces the discriminator to generalize, and $r_s$ should escape
+the collapse floor. Second, return to the original proposal's
+muscle-actuated humanoid scope: KINESIS~\cite{simos2025kinesis}
+and KinTwin~\cite{cotton2025kintwin} demonstrate that
+muscle-driven imitation reproduces able-bodied and impaired gait,
+including from markerless mocap. Hill-type muscles cannot produce
+$4\times$ BW peak vGRF without violating force-length-velocity
+limits --- the muscle actuator is, in effect, the implicit
+biomechanical-realism prior we tried to construct as a reward.
+Either path, evaluated against the same scorecard, would directly
+measure the realism gap this paper documents.
+
+\section*{Code}
+
+\url{https://github.com/Brock-Perreca/6955_Project/tree/main}
 
 \bibliographystyle{plain}
 \bibliography{sample}

@@ -193,8 +193,8 @@ def render_dashboard(runs: list[dict], targets: dict, traces: list[dict | None],
     n_runs = len(runs)
     colours = plt.get_cmap("tab10").colors
 
-    fig = plt.figure(figsize=(18, 14))
-    gs = GridSpec(4, 6, figure=fig, hspace=0.45, wspace=0.32,
+    fig = plt.figure(figsize=(20, 16))
+    gs = GridSpec(4, 6, figure=fig, hspace=0.75, wspace=0.55,
                   height_ratios=[1.0, 1.0, 1.0, 1.4])
 
     # Block A: kinematics, 2 rows × 3 cols (top 2 rows)
@@ -342,8 +342,12 @@ def render_dashboard(runs: list[dict], targets: dict, traces: list[dict | None],
     ax_pct.legend(fontsize=7, ncol=min(n_runs + 1, 6), loc="upper right")
     ax_pct.grid(alpha=0.3, axis="y")
 
-    # Joint-axes legend (single legend in joint_axes["hip_r"])
-    joint_axes["hip_r"].legend(fontsize=7, loc="upper right")
+    # Joint-axes legend (single shared legend below the kinematics block so
+    # it doesn't cover any of the joint-angle traces).
+    handles, labels_ = joint_axes["hip_r"].get_legend_handles_labels()
+    fig.legend(handles, labels_, loc="upper center",
+               bbox_to_anchor=(0.31, 0.965), ncol=min(len(labels_), 5),
+               fontsize=8, frameon=True)
     ax_grf_r.legend(fontsize=7, loc="upper right")
 
     fig.suptitle("Walker2d biomechanical realism — sim policies vs Ulrich Subject 1 baseline",
