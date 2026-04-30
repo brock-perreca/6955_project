@@ -1,15 +1,5 @@
 # Walker2d Gait Imitation
 
-Can a 2D simulated character learn to walk like a real human just by
-watching motion-capture data? This repo is our attempt — a
-reinforcement-learning pipeline that trains MuJoCo's Walker2d to track
-human treadmill walking recorded by Ulrich et al. (Subject 1, 1.25 m/s),
-and then asks how close to *biomechanically realistic* gait we can get.
-
-Joint project with **Brian Keller** for CS 6955 (Advanced AI). The
-authoritative writeup is
-[`report/writeup_filled_1.docx`](report/writeup_filled_1.docx).
-
 ## Quick tour
 
 - **Want to see a trained walker?** Render any policy under `results/`
