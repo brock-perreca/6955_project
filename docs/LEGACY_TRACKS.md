@@ -52,8 +52,8 @@ different reward designs** that were superseded.
 This is the original proposal scope: **3D, 80-muscle, 20-DoF MyoLeg**
 agents trained on **OpenCap markerless** vs **lab-grade marker + force
 plate + EMG** references, with SAC and SAC+GAIL. See
-[`PROJECT_TIMELINE.md § Phase 0`](PROJECT_TIMELINE.md#phase-0--original-proposal-proposal-stage-see-reportsadvanced_ai_project_reportpdf)
-and `docs/reports/Advanced_AI_Project_Report.pdf`.
+[`PROJECT_TIMELINE.md § Phase 0`](PROJECT_TIMELINE.md#phase-0--original-proposal-proposal-stage-see-reportadvanced_ai_project_reportpdf)
+and [`../report/Advanced_AI_Project_Report.pdf`](../report/Advanced_AI_Project_Report.pdf).
 
 It was dropped because the 3D + muscle + adversarial + multi-condition
 combination was too ambitious for a one-semester course project. The

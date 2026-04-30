@@ -124,9 +124,14 @@ def _rollout_traces(run_dir: Path, model_path: Path, xml: str,
                     n_strides: int = 3, max_steps: int = 800):
     """Re-run a deterministic rollout and return per-stride angle/vGRF traces.
 
-    Returns dict with keys: `t` (s), `hip_r`, `knee_r`, `ankle_r` (degrees),
-    `vgrf_r_bw`, `r_strikes` (frame idx into the trace). Returns None on
+    Returns dict with keys: `t` (s), per-leg `hip/knee/ankle` (degrees),
+    per-leg `vgrf_bw`, per-leg `strikes` (frame idx). Returns None on
     rollout failure.
+
+    The MJCF is taken from `<run_dir>/env_kwargs.json` if present, falling
+    back to the `xml` arg. This matters because the hipopen/hiprelax
+    candidates were trained against custom MJCFs and rolling them out under
+    stock walker2d.xml gives nonsense.
     """
     try:
         from stable_baselines3 import PPO
@@ -141,41 +146,70 @@ def _rollout_traces(run_dir: Path, model_path: Path, xml: str,
     else:
         reference = load_ref_cycle(PROJECT_ROOT / "assets" / "reference"
                                    / "gait_cycle_reference.npy")
-    env = Walker2dPhaseAware(reference=reference, xml_file=xml)
+
+    env_kwargs_path = run_dir / "env_kwargs.json"
+    extras: dict = {}
+    if env_kwargs_path.exists():
+        try:
+            meta = json.loads(env_kwargs_path.read_text(encoding="utf-8"))
+        except Exception:
+            meta = {}
+        for k in ("preview_k", "pose_joint_weights", "product_reward",
+                  "min_joint_pose", "v_target", "ref_root_drop"):
+            if k in meta:
+                extras[k] = meta[k]
+        if "pose_joint_weights" in extras:
+            extras["pose_joint_weights"] = tuple(extras["pose_joint_weights"])
+        xml_resolved = str(meta.get("xml_file", xml))
+    else:
+        xml_resolved = xml
+
+    env = Walker2dPhaseAware(reference=reference, xml_file=xml_resolved, **extras)
     body_weight_n = float(np.sum(env.model.body_mass)) * abs(
         float(env.model.opt.gravity[2]))
     model = PPO.load(str(model_path), device="cpu")
 
-    qpos_log, vgrf_r = [], []
+    qpos_log, vgrf_r, vgrf_l = [], [], []
     obs, _ = env.reset()
     for _ in range(max_steps):
         action, _ = model.predict(obs, deterministic=True)
         obs, _, term, trunc, _ = env.step(action)
         qpos_log.append(env.data.qpos[3:9].copy())
         vgrf_r.append(abs(float(env.data.cfrc_ext[4, 5])))
+        vgrf_l.append(abs(float(env.data.cfrc_ext[7, 5])))
         if term or trunc:
             break
     env.close()
 
     qpos = np.asarray(qpos_log)
-    vgrf = np.asarray(vgrf_r) / body_weight_n
+    vgrf_r_bw = np.asarray(vgrf_r) / body_weight_n
+    vgrf_l_bw = np.asarray(vgrf_l) / body_weight_n
     if len(qpos) < 30:
         return None
 
-    # Detect right strikes in the rollout trace for the phase plane
-    above = vgrf > 0.05
-    edges = np.where(above[1:] & ~above[:-1])[0] + 1
-    strikes = []
-    for e in edges:
-        if not strikes or e - strikes[-1] >= 25:
-            strikes.append(int(e))
+    min_gap = int(round(0.5 * CTRL_HZ))  # 0.5-s debounce, matches eval_biomech
+    def _strikes(v: np.ndarray) -> list[int]:
+        above = v > 0.05
+        edges = np.where(above[1:] & ~above[:-1])[0] + 1
+        kept: list[int] = []
+        for e in edges:
+            if not kept or e - kept[-1] >= min_gap:
+                kept.append(int(e))
+        return kept
+
     return {
-        "t":        np.arange(len(qpos)) / CTRL_HZ,
-        "hip_r":    np.rad2deg(qpos[:, 0]),
-        "knee_r":   np.rad2deg(qpos[:, 1]),
-        "ankle_r":  np.rad2deg(qpos[:, 2]),
-        "vgrf_r_bw": vgrf,
-        "r_strikes": strikes,
+        "t":         np.arange(len(qpos)) / CTRL_HZ,
+        "hip_r":     np.rad2deg(qpos[:, 0]),
+        "knee_r":    np.rad2deg(qpos[:, 1]),
+        "ankle_r":   np.rad2deg(qpos[:, 2]),
+        "hip_l":     np.rad2deg(qpos[:, 3]),
+        "knee_l":    np.rad2deg(qpos[:, 4]),
+        "ankle_l":   np.rad2deg(qpos[:, 5]),
+        "vgrf_r_bw": vgrf_r_bw,
+        "vgrf_l_bw": vgrf_l_bw,
+        "r_strikes": _strikes(vgrf_r_bw),
+        "l_strikes": _strikes(vgrf_l_bw),
+        "xml":       xml_resolved,
     }
 
 

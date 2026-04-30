@@ -102,8 +102,19 @@ def _load_env_kwargs(run_dir: str) -> dict:
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 
-def _rising_edges(x: np.ndarray, thresh: float, min_gap: int = 25) -> np.ndarray:
-    """Indices where x crosses thresh from below, with a min-gap debounce."""
+_STRIKE_MIN_GAP_FRAMES = int(round(0.5 * CTRL_HZ))  # 0.5 s at the sim control rate
+
+
+def _rising_edges(x: np.ndarray, thresh: float,
+                  min_gap: int = _STRIKE_MIN_GAP_FRAMES) -> np.ndarray:
+    """Indices where x crosses thresh from below, with a min-gap debounce.
+
+    The default 0.5-s window matches `extract_reference_biomech.py`'s
+    same-foot-strike debounce on the 50 Hz force-plate stream. The earlier
+    `min_gap=25` was the right *frame* count at 50 Hz but only 0.2 s at the
+    125 Hz sim rate, which let stiff/bouncy contact chatter register as
+    extra strides and inflated reported cadence ~3×.
+    """
     above = x > thresh
     edges = np.where(above[1:] & ~above[:-1])[0] + 1
     if len(edges) == 0:
@@ -212,8 +223,8 @@ def episode_metrics(
     bw       = body_weight_n
     contact_thresh = 0.05 * bw  # >5% BW = "in contact"
 
-    r_strikes = _rising_edges(vgrf_r, thresh=contact_thresh, min_gap=25)
-    l_strikes = _rising_edges(vgrf_l, thresh=contact_thresh, min_gap=25)
+    r_strikes = _rising_edges(vgrf_r, thresh=contact_thresh)
+    l_strikes = _rising_edges(vgrf_l, thresh=contact_thresh)
     n_strides = max(0, len(r_strikes) - 1)
 
     out: dict = {"n_strides_detected": int(n_strides), "ep_len_steps": int(T)}

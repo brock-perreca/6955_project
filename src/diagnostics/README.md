@@ -36,7 +36,7 @@ python src/diagnostics/diag_ref.py
 
 ## Validating progress against real biomechanics
 
-The two-tool flow that lets an AI agent grade a run *without eyeballing
+The flow that lets an AI agent grade a run *without eyeballing
 video*:
 
 ```bash
@@ -44,21 +44,32 @@ video*:
 python src/diagnostics/extract_reference_biomech.py        # Subject1, walking_baseline1
 
 # 2. (per run / per checkpoint) sim biomech + delta vs ref + 0–4 score
-python src/diagnostics/eval_biomech.py --xml walker2d.xml --eps 6 --steps 2500 \
+python src/diagnostics/eval_biomech.py --eps 6 --steps 2500 \
     results/<run>:final:<label> --out results/<run>_eval.json \
     --csv results/biomech_history.csv
 
-# 3. (per writeup pass) render markdown table + 6-panel comparison figure
+# 3a. (per writeup pass, single run, R leg only) markdown table + 6-panel figure
 python scripts/biomech_report.py results/<run>_eval.json --rerollout
+
+# 3b. (multi-run side-by-side, both legs) realism dashboard with scorecard
+python src/diagnostics/eval_biomech.py --eps 6 --steps 2500 \
+    results/<runA>:final:<labelA> results/<runB>:final:<labelB> \
+    ... --out results/multi_eval.json
+python scripts/biomech_realism_dashboard.py results/multi_eval.json
 ```
 
 After step 2 the per-run JSON has a `vs_reference` block (`delta`,
 `pct_err` for every metric with a measured Ulrich target) and a
-`progress_score` in [0, 4]. After step 3 you get
-`docs/figures/biomech_report.{md,png}` ready to drop into the writeup
-or `RESTART_LOG.md`. The `biomech_history.csv` accumulates one row per
-eval run so you can plot any metric across batches without parsing
-JSON.
+`progress_score` in [0, 4]. Step 3a (`biomech_report.py`) covers a
+single run on the right leg. Step 3b (`biomech_realism_dashboard.py`,
+new 2026-04-29) is the **multi-run** view: L+R kinematics overlay,
+both-leg vGRF stance curves, hip-knee phase plane R + L, and a
+±20%-credible-band scorecard. The 2026-04-29 end-of-road biomech
+finding (see [`PROJECT_STATUS.md`](../../docs/PROJECT_STATUS.md))
+was produced by step 3b on `results/biomech_candidates_eval.json`,
+yielding `docs/figures/biomech_realism_dashboard.{png,md}`. The
+`biomech_history.csv` accumulates one row per eval run for
+across-batch plotting without re-parsing JSON.
 
 ## Visual track — the same question, eyeball-driven
 

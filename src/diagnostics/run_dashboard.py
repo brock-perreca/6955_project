@@ -101,7 +101,7 @@ def rollout_with_traces(env, model, max_steps, seed):
 def _pick_cycle_window(vgrf_r, body_weight_n, T):
     """Return (s, e) for first R-strike → R-strike window, or fallback."""
     contact_thresh = 0.05 * body_weight_n
-    strikes = _rising_edges(vgrf_r, thresh=contact_thresh, min_gap=25)
+    strikes = _rising_edges(vgrf_r, thresh=contact_thresh)
     if len(strikes) >= 2:
         return int(strikes[0]), int(strikes[1]), True
     fallback_end = min(NOMINAL_CYCLE_FRAMES, T)

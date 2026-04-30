@@ -6,7 +6,7 @@ phase-conditioned imitation pipeline.
 or the optimizer; or looking up a CLI flag default.
 **Adjacent docs:** [`REWARD_DESIGN.md`](REWARD_DESIGN.md) for the *why*
 behind each reward term · [`ARCHITECTURE.md`](ARCHITECTURE.md) for the
-import graph and entry points · [`reports/writeup_filled_1.docx`](reports/writeup_filled_1.docx)
+import graph and entry points · [`../report/writeup_filled_1.docx`](../report/writeup_filled_1.docx)
 for the formal-paper version.
 
 The active code is `src/walker2d/ppo_walker2d_phase.py`. The off-policy

@@ -296,8 +296,8 @@ reference shape and frequency, but with truncated amplitude.
 | metric | xvel-5M (stock) | hiprelax_s11 | hiprelax_s12 | hiprelax_s13 | reference |
 |---|---|---|---|---|---|
 | ep_len_steps        | 2500 | 2500 | 2500 | 2500 | — |
-| stride_period_s     | 0.327 | 0.361 | 0.347 | 0.371 | **1.120** |
-| cadence (steps/min) | 367.6 | 332.7 | 346.3 | 323.6 | **107.1** |
+| stride_period_s †   | 0.327 | 0.361 | 0.347 | 0.371 | **1.120** |
+| cadence (steps/min) †| 367.6 | 332.7 | 346.3 | 323.6 | **107.1** |
 | double_support_frac | 0.074 | 0.018 | 0.019 | 0.010 | **0.227** |
 | **hip_r ROM (deg)** | **1.77** | **19.79** | **19.92** | **16.50** | **45.4** |
 | **hip_l ROM (deg)** | **1.94** | **15.27** | **16.56** | **18.52** | **45.4** |
@@ -324,11 +324,20 @@ The morphology hypothesis is **strongly confirmed**:
   `xvel-5M_final.mp4` and `00_reference_replay.mp4`.
 
 But the reward is **still binding on top of morphology**:
-- Hip ROM is **~40 % of reference** (17-20° vs 45.4°). The trace tracks
+- Hip ROM is **~40 % of reference** on the per-stride windows the
+  pre-fix detector cut (17-20° vs 45.4°); the **post-fix re-eval
+  on the same hiprelax_s11 model reads ~30°** (~67 % of ref) — the
+  difference is downstream of the strike-detector fix sliced
+  cleaner stride windows. Either way the trace tracks reference
   shape but with truncated peaks.
-- Cadence is still **~3× too fast** (~330 vs 107.1 steps/min), and
-  *worse* on hiprelax than xvel-5M relative to the reference (333 ≪
-  368, but the gap to 107 is similar).
+- † **Stride/cadence values in the table above are pre 2026-04-29
+  strike-detector fix.** `_rising_edges` had `min_gap=25` frames
+  (= 0.2 s at 125 Hz) — too short to filter out impact-chatter
+  contacts (4–5 BW slams, 30 ms bouts) that split each real
+  stride into 2–3 detected strikes. With the corrected 0.5-s
+  debounce (matching the reference extractor), hiprelax_s11
+  reads stride 0.572 s / cadence 210 spm — i.e. **~1.95× too
+  fast, not 3×**. Real gap, smaller than previously framed.
 - Peak vGRF/BW *increased* from 3.28 to ~4.0 — the body is hitting
   the floor harder per stride, the running-not-walking signature.
 - Progress score is essentially unchanged (~2.3 across all four

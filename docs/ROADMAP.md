@@ -6,23 +6,36 @@
 **Adjacent:** [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for "right now"
 · [`RESTART_LOG.md`](RESTART_LOG.md) for what just shipped.
 
-**Item 0 is the new top priority** after the 2026-04-29 Batch 4 / 4b
-diagnosis ([`RESTART_LOG.md § Batch 4`](RESTART_LOG.md) and
-[`TIER0_DIAGNOSTICS.md`](TIER0_DIAGNOSTICS.md)) showed the stiff-hip
-basin was a joint-range problem in `walker2d.xml`. Two parallel,
-two-machine ablations both fixed it — `walker2d_hipopen.xml`
-(`[-30, 60]`, Brock-Asus-Laptop) and `walker2d_hiprelax.xml`
-(`[-150, 35]`, Brock-O11). Both leave a residual reward gap that's
-the next thing to close. Items 1-4 from the writeup §7 follow once
-that gap is closed on at least one of the two relaxed-MJCF tracks.
+**Item 0 is DEPRIORITISED as of 2026-04-29.** The held-out
+biomechanical-realism scorecard
+([`PROJECT_STATUS.md § Biomechanical-realism finding`](PROJECT_STATUS.md#biomechanical-realism-finding-2026-04-29--end-of-road-on-the-engineered-reward-track))
+ran on all four post-Tier-0 candidates plus the pre-Tier-0
+`b2_xvel` baseline and found that **none of them produce a
+biomechanically realistic gait**: double-support ~1% (vs ref 23%),
+peak vGRF 3.6–4.8 BW (vs ref 1.10), cadence 309–343 spm (vs ref
+107). The post-Tier-0 candidates barely beat the pre-Tier-0
+baseline on the 0–4 progress score. **Lead policy: `b4_hiprelax_s11`**
+(highest score, best LR symmetry, lowest peak vGRF, lowest DTW).
+
+The new top priority is **item 1 (MJX/AMP)**, with item 0 retained
+below for historical context. Items 2–4 follow.
 
 ---
 
-## 0. Close the residual reward gap on relaxed-hip MJCFs (UPDATED, 2026-04-29 post-Tier-0)
+## 0. Close the residual reward gap on relaxed-hip MJCFs — **DEPRIORITISED 2026-04-29**
 
-**Why:** opening the hip joint range fixed the dominant cause of
-stiff-hip walking, but each variant leaves a different residual gap
-that points back at the reward:
+**Status:** retained as historical context only. The biomech-realism
+scorecard
+([`PROJECT_STATUS.md`](PROJECT_STATUS.md#biomechanical-realism-finding-2026-04-29--end-of-road-on-the-engineered-reward-track))
+showed that closing the residual reward gap on the engineered-reward
+stack would require hand-engineering double-support, vGRF, and
+cadence into the reward — which defeats the imitation-only goal.
+Reward-knob experiments on this stack are paused until a more
+fundamental change (AMP/MJX or muscle actuators) lands.
+
+**Why (original framing):** opening the hip joint range fixed the
+dominant cause of stiff-hip walking, but each variant leaves a
+different residual gap that points back at the reward:
 
 - **hipopen (`[-30, 60]`)**: at 5M (`results/restart_b4_hipopen_5M/`)
   hip ROM is **63°** vs reference 43°, mean fwd vel 1.40 m/s vs
@@ -30,11 +43,14 @@ that points back at the reward:
   `exp(-10·mean(diff²))` is too forgiving of one overshooting joint
   when the other five track.
 - **hiprelax (`[-150, 35]`)**: at 5M (`results/restart_b4_hiprelax_s11/`)
-  hip ROM is **17–20°** vs reference 43°, cadence ~3× too fast,
-  peak vGRF/BW worsens (4.0 vs 3.3). **Under-flexed and over-fast.**
-  `xvel_term=0.3` is a *floor* — any forward velocity ≥ 0.31 m/s
-  satisfies survival, so the policy's optimum is "drift fast and
-  short" even with the wall relaxed.
+  hip ROM is **17–20°** vs reference 43° (per-stride medians sliced
+  by the pre-fix detector; post strike-detector-fix re-eval reads
+  ~30° per stride, ~67 % of ref), cadence **~1.95× too fast** (not
+  3× as previously framed — see PROJECT_STATUS.md), peak vGRF/BW
+  worsens (4.0 vs 3.3). **Under-flexed and over-fast.** `xvel_term=0.3`
+  is a *floor* — any forward velocity ≥ 0.31 m/s satisfies survival,
+  so the policy's optimum is "drift fast and short" even with the
+  wall relaxed.
 
 The two variants together bracket the reward question: hipopen
 overshoots ROM, hiprelax undershoots ROM, and **both** are over-fast.

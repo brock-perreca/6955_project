@@ -129,7 +129,7 @@ parser — handles only space-delimited tabular `.sto`.
 
 Used by the **musculoskeletal** track (`src/legacy/musculoskeletal/`)
 from the original 3D project scope (writeup-replaced; see
-[`PROJECT_TIMELINE.md § Phase 0`](PROJECT_TIMELINE.md#phase-0--original-proposal-proposal-stage-see-reportsadvanced_ai_project_reportpdf)).
+[`PROJECT_TIMELINE.md § Phase 0`](PROJECT_TIMELINE.md#phase-0--original-proposal-proposal-stage-see-reportadvanced_ai_project_reportpdf)).
 **Not consumed by the active Walker2d pipeline.**
 
 OpenCap pipeline paper:

@@ -24,7 +24,7 @@ duplicating content.
 | [`LEGACY_TRACKS.md`](LEGACY_TRACKS.md) | "what's frozen and why" | `src/legacy/` contents and re-run requirements |
 | [`RUN_LOG.md`](RUN_LOG.md) | "legacy demos" | The four symmetry-pretrain failure-mode demos with reproduce commands |
 | [`papers/papers.md`](papers/papers.md) | "primary sources" | Per-paper "what it is + when to read it" index |
-| [`reports/`](reports/) | "writeups" | Original proposal PDF + current authoritative `.docx` |
+| [`../report/`](../report/) | "writeups + Overleaf template + rubric" | Top-level `report/` folder: original proposal, current authoritative `.docx`, Overleaf template/style files, and the final-report assignment rubric |
 
 ## Quick navigation to non-doc content
 

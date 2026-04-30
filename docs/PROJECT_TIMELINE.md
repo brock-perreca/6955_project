@@ -12,7 +12,7 @@ rebuild, see [`RESTART_LOG.md`](RESTART_LOG.md).
 
 ---
 
-## Phase 0 — Original proposal (proposal stage, see `reports/Advanced_AI_Project_Report.pdf`)
+## Phase 0 — Original proposal (proposal stage, see `report/Advanced_AI_Project_Report.pdf`)
 
 **Title:** *Lab-to-Field Transfer in Musculoskeletal Reinforcement Learning.*
 
@@ -179,7 +179,7 @@ adversarial alternatives. Two new methods:
   potential `f(s,s') + γh(s') − h(s)`.
 
 **Status:** Both methods are described in the writeup
-(`docs/reports/writeup_filled_1.docx` §4.4 and §6.3). Code is committed
+(`report/writeup_filled_1.docx` §4.4 and §6.3). Code is committed
 at [`../src/walker2d/amp_walker2d.py`](../src/walker2d/amp_walker2d.py)
 and [`../src/walker2d/airl_walker2d.py`](../src/walker2d/airl_walker2d.py)
 (cherry-picked from upstream `bk-37/6955_Project@3e4c3fa` on 2026-04-28).
@@ -327,16 +327,26 @@ hypothesis from earlier batches). Both XML variants ship in
 [`assets/mjcf/README.md`](../assets/mjcf/README.md) for picking
 between them.
 
-**Where Phase 5b lands.** Four candidate "current best" policies
-on disk (the user has not picked a single favorite):
+**Where Phase 5b lands.** Four candidates on disk; **lead policy
+named 2026-04-29 by the held-out biomechanical-realism scorecard**
+([`PROJECT_STATUS.md § Biomechanical-realism finding`](PROJECT_STATUS.md#biomechanical-realism-finding-2026-04-29--end-of-road-on-the-engineered-reward-track)
+and [`RESTART_LOG.md § Batch 6`](RESTART_LOG.md)):
 
-- hipopen: `restart_b4_hipopen_5M`, `restart_b5_pose_scale20`, `restart_b5_min_joint`
-- hiprelax: `restart_b4_hiprelax_s11`
+- **Lead: `restart_b4_hiprelax_s11`** — highest progress score (2.45),
+  best LR symmetry, lowest peak vGRF, lowest DTW.
+- Superseded comparison policies: `restart_b4_hipopen_5M`,
+  `restart_b5_pose_scale20`, `restart_b5_min_joint`.
 
-Tier 1 — restore `forward_reward = exp(-3·(v-1.25)²)`, drop
-`xvel_term`, run on **both** MJCFs to bracket the residual reward
-gap from below and above — is the next move
-([`ROADMAP.md`](ROADMAP.md) item 0).
+The Batch 6 scorecard found that **none** of the candidates produces
+a biomechanically realistic gait — every one misses every
+spatiotemporal/kinetic target by ≥ 50 %, and the post-Tier-0
+candidates barely beat the pre-Tier-0 baseline. **Conclusion:
+end-of-road on the engineered-reward Walker2d track.** Tier 1
+(peaked-forward reward) is **deprioritised** because the reward
+shape that would close the DSF / vGRF / cadence gap amounts to
+engineering walking by hand, which defeats the imitation-only goal.
+Future work runs through MJX/AMP (writeup §7.1) or a measured
+return to the musculoskeletal track.
 
 ---
 

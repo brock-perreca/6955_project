@@ -36,9 +36,16 @@ under `src/walker2d/` is the live pipeline; anything under
 │   ├── DATA_SOURCES.md                  #   ← Ulrich + OpenCap layouts
 │   ├── LEGACY_TRACKS.md                 #   ← what's frozen in src/legacy/
 │   ├── RUN_LOG.md                       #   ← legacy symmetry-pretrain demos
-│   ├── reports/                          # Original proposal + current writeup
 │   ├── papers/                           # Primary-source PDFs + index
 │   └── figures/                          # Diagnostic plot outputs
+│
+├── report/                                # Formal write-up materials (see report/README.md)
+│   ├── Final_Project_Report.pdf          #   ← assignment rubric (Canvas handout)
+│   ├── template.tex / project.sty / sample.bib  #  Overleaf template
+│   ├── writeup_filled_1.docx             #   ← current authoritative narrative writeup
+│   ├── writeup_extracted.txt             #   ← grep-friendly extraction
+│   ├── methods_analysis.docx             #   ← pre-pivot methods doc
+│   └── Advanced_AI_Project_Report.pdf    #   ← original musculoskeletal proposal
 │
 ├── src/
 │   ├── walker2d/                         # ── ACTIVE: phase-conditioned imitation ──

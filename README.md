@@ -5,7 +5,7 @@ from Ulrich treadmill IK reference data, using MuJoCo's Walker2d-v4
 torque-actuated model.
 
 Joint project with **Brian Keller**. The current authoritative writeup
-is [`docs/reports/writeup_filled_1.docx`](docs/reports/writeup_filled_1.docx).
+is [`report/writeup_filled_1.docx`](report/writeup_filled_1.docx).
 The project compares two imitation methods on Subject 1's baseline
 treadmill walking trial (1.25 m/s):
 

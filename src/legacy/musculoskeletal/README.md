@@ -3,7 +3,7 @@
 The original proposal scope: **3D, 80-muscle, 20-DoF MyoLeg** agents
 trained on **OpenCap markerless** vs **lab-grade marker + force plate +
 EMG** references, with SAC and SAC+GAIL. See
-[`../../../docs/reports/Advanced_AI_Project_Report.pdf`](../../../docs/reports/Advanced_AI_Project_Report.pdf)
+[`../../../report/Advanced_AI_Project_Report.pdf`](../../../report/Advanced_AI_Project_Report.pdf)
 for the original proposal.
 
 **Out of scope for the current writeup** but preserved here in case the

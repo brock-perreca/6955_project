@@ -16,7 +16,7 @@ imitation work** — read the narrative arc below, then
 ## The narrative arc — what we wanted, what we had to settle for, what's still the dream
 
 **Where we started**
-([`docs/reports/Advanced_AI_Project_Report.pdf`](docs/reports/Advanced_AI_Project_Report.pdf),
+([`report/Advanced_AI_Project_Report.pdf`](report/Advanced_AI_Project_Report.pdf),
 the original proposal): *Lab-to-Field Transfer in Musculoskeletal
 Reinforcement Learning.* A 6-condition study (R1–R6) training **3D,
 80-muscle, 20-DoF MyoLeg** agents on **OpenCap markerless** vs
@@ -39,7 +39,7 @@ place tapping feet). Phase conditioning, not clever reward shaping,
 turned out to be the missing ingredient.
 
 **Where we landed**
-([`docs/reports/writeup_filled_1.docx`](docs/reports/writeup_filled_1.docx)
+([`report/writeup_filled_1.docx`](report/writeup_filled_1.docx)
 is the authoritative current writeup): a pragmatic backup track on
 **2D MuJoCo Walker2d-v4** (torque-actuated, 6 joints) conditioned on
 **Ulrich treadmill IK** (Subject 1, 1.25 m/s). Two methods:
@@ -86,27 +86,59 @@ parallel variants together bracket the answer:
   `thigh_joint range="-150 35"` — minimal +5° headroom over the
   reference peak. Three-seed × 5M sweep
   (`results/restart_b4_hiprelax_s11/.../s13/`); hip ROM 1.8° →
-  17–20°; reference shape/frequency tracked but amplitude only ~40 %
-  of the reference's 45°, cadence ~3× too fast, vGRF too high.
+  ~30° (per-stride median, post strike-detector fix); reference
+  shape tracked but amplitude ~67 % of the reference's 45°,
+  cadence ~1.95× too fast, vGRF too high.
 
 Together the two ablations confirm **morphology was the dominant
 cause** of stiff-hip in every pre-Tier-0 run. The hipopen variant
-*overshoots* (91.5° on a 45° target); the hiprelax variant
-*undershoots* (17–20°). **Brock has not picked a single "current
-best" yet** — there are four candidates kept on disk for visual
-A/B and writeup comparison:
+*overshoots* on full-rollout max−min (91.5° on a 45° target, kicks
+included) but settles to ~30° per-stride median; the hiprelax
+variant lands at the same ~30°.
 
-- `results/restart_b4_hipopen_5M/` (hipopen, baseline 5M)
-- `results/restart_b5_pose_scale20/` (hipopen + sharper aggregator)
-- `results/restart_b5_min_joint/` (hipopen + worst-joint floor;
-  fwd vel essentially exactly the 1.25 m/s target)
-- `results/restart_b4_hiprelax_s11/` (hiprelax, canonical Tier 0 C seed)
+**Current lead policy: `results/restart_b5_min_joint/`** (named
+2026-04-29 after a strike-detector bug fix in `eval_biomech.py`
+— pre-fix the same scorecard had ranked `b4_hiprelax_s11` first.
+See
+[`docs/figures/biomech_realism_dashboard.png`](docs/figures/biomech_realism_dashboard.png)
+and [`docs/PROJECT_STATUS.md § Biomechanical-realism finding`](docs/PROJECT_STATUS.md#biomechanical-realism-finding-2026-04-29--end-of-road-on-the-engineered-reward-track)).
+min_joint wins on the corrected scorecard: highest progress score
+(2.66), lowest peak vGRF among the post-Tier-0 candidates (3.70 BW),
+lowest double-support deviation, per-stride hip ROM 30° (~67 % of
+ref). It is the most reference-faithful of the four, even though
+it still misses double-support and peak-vGRF by ~90 % / ~240 %.
 
-The verdict is **mixed**: morphology dominant, reward binding on top.
-The planned Tier 1 reward reform — `forward_reward = exp(-3·(v-1.25)²)`
-+ drop `xvel_term` — should run on **both** the hipopen and
-hiprelax MJCFs to bracket how much of the residual amplitude gap
-is reward-driven. See:
+The other three (`b4_hipopen_5M`, `b5_pose_scale20`,
+`b4_hiprelax_s11`) are kept as comparison points but **superseded
+as the lead**.
+
+**Eval-detector fix (2026-04-29).** Pre-fix the eval reported
+stride ~0.36 s and "cadence 3× too fast" — that was a strike-
+detector artifact. `_rising_edges` had `min_gap=25` hardcoded,
+which at the 125 Hz sim rate is only 0.2 s; the high-impact
+contact chatter (4–5 BW slams, 30 ms bouts) in these stiff-legged
+gaits registered as 2–3 separate strikes per real stride. The
+reference extractor used a 0.5-s debounce on the 50 Hz force-
+plate stream (25 samples = 0.5 s — the right *time* but
+accidentally the same *frame count*). Fix: scale the eval's
+debounce to `int(0.5 * CTRL_HZ) = 62` frames so both detectors
+share the same 0.5-s window. Pre-fix artifacts archived at
+`results/biomech_candidates_eval.pre-mingap-fix.json`.
+
+**End-of-road finding (2026-04-29, post strike-detector fix):**
+every candidate fails the biomech scorecard. Stride 0.57–0.68 s
+vs ref 1.12 s (~1.7–2.0× too fast, *not* 3× as previously
+claimed), double-support ~1–2 % vs ref 23 % (these are
+bouncing/skipping, not walking), peak vGRF 3.7–4.8 BW vs ref 1.10
+BW (slamming, not loading), hip ROM 30° (per-stride median) vs
+ref 45°. The post-Tier-0 candidates only modestly beat the
+pre-Tier-0 `b2_xvel` baseline (score 2.47) on the same scorecard. The conclusion is
+that **phase-conditioned PPO + DeepMimic-style engineered reward
+on Walker2d does not recover human walking biomechanics**, even
+with the kinematic-ceiling fix. Further reward-knob experiments
+on this stack are deprioritised; the path to biomechanically
+realistic gait runs through the imitation-only dream (AMP/MJX) or
+back to the musculoskeletal track. See:
 
 - [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) — current state
 - [`docs/TIER0_DIAGNOSTICS.md`](docs/TIER0_DIAGNOSTICS.md) — Tier 0 per-experiment ledger + verdict (Brock-O11)
@@ -152,12 +184,15 @@ musculoskeletal track — as on-mission, not scope creep.
 - **Frozen code:** [`src/legacy/`](src/legacy/). Don't extend without
   asking the user first.
 - **Authoritative writeup for the *current* (backup) scope:**
-  [`docs/reports/writeup_filled_1.docx`](docs/reports/writeup_filled_1.docx)
+  [`report/writeup_filled_1.docx`](report/writeup_filled_1.docx)
   (joint with Brian Keller). The PDF in the same folder
-  ([`Advanced_AI_Project_Report.pdf`](docs/reports/Advanced_AI_Project_Report.pdf))
+  ([`Advanced_AI_Project_Report.pdf`](report/Advanced_AI_Project_Report.pdf))
   is the original musculoskeletal proposal — its big-picture goal
   (imitation-only biomechanically realistic locomotion) is still what
-  we'd love to reach; see the narrative arc above.
+  we'd love to reach; see the narrative arc above. The Overleaf
+  template (`report/template.tex`, `project.sty`, `sample.bib`) and
+  the assignment rubric (`report/Final_Project_Report.pdf`) also live
+  in [`report/`](report/) — see [`report/README.md`](report/README.md).
 - **Authors:** joint with **Brian Keller**. Brian's AMP/AIRL code
   lives in [`src/walker2d/amp_walker2d.py`](src/walker2d/amp_walker2d.py)
   and [`src/walker2d/airl_walker2d.py`](src/walker2d/airl_walker2d.py)
@@ -177,7 +212,7 @@ musculoskeletal track — as on-mission, not scope creep.
 | Why is the codebase shaped this way? Original proposal vs current scope. | [`docs/PROJECT_TIMELINE.md`](docs/PROJECT_TIMELINE.md) |
 | Where does file X live? What's the import graph? | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Implementation details: env, reward, RSI, BC, optimizer, termination | [`docs/METHODS.md`](docs/METHODS.md) |
-| **How do I validate progress against real biomechanics?** Two-tool flow: `extract_reference_biomech.py` → `eval_biomech.py --targets` → `scripts/biomech_report.py`. Emits `vs_reference` deltas, a 0–4 progress score, and a writeup-ready figure. | [`docs/METHODS.md § Held-out biomechanical evaluation`](docs/METHODS.md#held-out-biomechanical-evaluation-the-two-tool-flow), [`src/diagnostics/README.md`](src/diagnostics/README.md) |
+| **How do I validate progress against real biomechanics?** Two-tool flow: `extract_reference_biomech.py` → `eval_biomech.py --targets` → `scripts/biomech_report.py`. Emits `vs_reference` deltas, a 0–4 progress score, and a writeup-ready figure. For multi-run side-by-side L+R kinematics, both-leg vGRF curves, and a ±20% credible-band scorecard, use `scripts/biomech_realism_dashboard.py` on the eval JSON. | [`docs/METHODS.md § Held-out biomechanical evaluation`](docs/METHODS.md#held-out-biomechanical-evaluation-the-two-tool-flow), [`src/diagnostics/README.md`](src/diagnostics/README.md), [`scripts/README.md`](scripts/README.md) |
 | Why does each reward term exist? What exploit closes which gap? | [`docs/REWARD_DESIGN.md`](docs/REWARD_DESIGN.md) |
 | Past runs / failure modes / curated demos with reproduce commands | [`docs/RUN_LOG.md`](docs/RUN_LOG.md) |
 | Future work (MJX, multi-step preview, DTW, multi-cycle) | [`docs/ROADMAP.md`](docs/ROADMAP.md) |
@@ -210,17 +245,19 @@ project is doing or why), the writeup wins.
    tuned constant, a workaround for a specific bug.
 5. **Don't write new top-level files at the repo root.** Documentation
    goes under [`docs/`](docs/), code under [`src/`](src/), assets under
-   [`assets/`](assets/), data references under
-   `<repo>/Ulrich_Treadmill_Data/` (gitignored). The repo root holds
-   `CLAUDE.md`, `README.md`, `.gitignore`, and platform-agnostic config
-   only.
+   [`assets/`](assets/), formal write-up materials (Overleaf template,
+   .docx writeups, assignment rubric) under [`report/`](report/), data
+   references under `<repo>/Ulrich_Treadmill_Data/` (gitignored). The
+   repo root holds `CLAUDE.md`, `README.md`, `.gitignore`, and
+   platform-agnostic config only.
 6. **`writeup_filled_1.docx` documents the current (backup) scope and
    recent advancements. `Advanced_AI_Project_Report.pdf` is the
    original musculoskeletal proposal — historical for the *file
    structure*, but its big-picture goal (imitation-only,
    biomechanically realistic locomotion) is still the project's
    north star. See the narrative arc at the top of this file.** Both
-   live under [`docs/reports/`](docs/reports/).
+   live under [`report/`](report/), alongside the Overleaf template
+   and the final-report assignment rubric.
 
 ---
 
@@ -244,8 +281,14 @@ project is doing or why), the writeup wins.
 │   ├── LEGACY_TRACKS.md             ←   what each old track was
 │   ├── RUN_LOG.md                   ←   legacy symmetry-pretrain demos
 │   ├── papers/                       ←   primary-source PDFs + index
-│   ├── reports/                      ←   the writeups
 │   └── figures/                      ←   diagnostic plots + curated mp4s
+├── report/                            ← formal write-up materials (see report/README.md)
+│   ├── Final_Project_Report.pdf      ←   assignment rubric (Canvas handout)
+│   ├── template.tex / project.sty / sample.bib  ←  Overleaf template
+│   ├── writeup_filled_1.docx         ←   current authoritative narrative writeup
+│   ├── writeup_extracted.txt         ←   plain-text extraction (grep-friendly)
+│   ├── methods_analysis.docx         ←   pre-pivot methods doc
+│   └── Advanced_AI_Project_Report.pdf ←  original musculoskeletal proposal
 ├── src/
 │   ├── walker2d/                     ← ACTIVE phase-conditioned imitation
 │   ├── diagnostics/                  ←   sanity checks + biomech eval (see README)

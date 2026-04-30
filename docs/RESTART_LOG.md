@@ -208,8 +208,8 @@ two-tool eval flow.
 |---|---|---|---|
 | ep_len_steps (median)   | 2500       | 92         | —                 |
 | n_strides (median)      | 61         | 1          | —                 |
-| stride_period_s         | 0.323      | 0.252      | **1.120**         |
-| cadence (steps/min)     | 372        | 476        | **107.1**         |
+| stride_period_s         | 0.323†     | 0.252†     | **1.120**         |
+| cadence (steps/min)     | 372†       | 476†       | **107.1**         |
 | double_support_frac     | 0.074      | 0.298      | **0.227**         |
 | LR_stride_asymmetry     | 0.099      | 0.330      | < 0.10            |
 | swing_drag_frac         | 0.0        | 0.0        | 0.0               |
@@ -220,14 +220,23 @@ two-tool eval flow.
 | ankle_r ROM (deg)       | 20.3       | 11.7       | **40.0**          |
 | progress_score (0–4)    | 2.466      | 0.644      | **4.000**         |
 
+† **Stale stride/cadence values** (computed pre 2026-04-29
+strike-detector fix). The eval's `_rising_edges` debounce was 0.2 s
+at the 125 Hz sim rate; impact-chatter contacts split each real
+stride into 2–3 detected "strikes." Re-running on this run-set
+(`results/biomech_candidates_eval.json`) gives `b2_xvel_baseline`
+stride **0.630 s** / cadence **191 spm**. The "3×" framing in the
+text below should now be read as **~1.8×**.
+
 **`xvel`** survives every episode (6/6 hit the 2500-step cap), is
 symmetric (LR_asymmetry 0.066), and never drags the swing foot. It is
 robustly walking. Two real residual problems:
 
-1. **Cadence ~3× too fast** (stride 0.32 s vs reference 1.12 s; 371
-   steps/min vs ~107). Body is running-cadence-but-walking-speed —
-   ~0.34 m/step. A single 1.12-s reference cycle is being "consumed"
-   by ~3.5 physical strides.
+1. **Cadence ~1.8× too fast** (corrected from "~3× too fast"
+   pre-fix; stride 0.63 s vs reference 1.12 s; 191 steps/min vs
+   ~107). Body is faster-than-walking cadence at walking speed —
+   ~0.66 m/step. A single 1.12-s reference cycle is being "consumed"
+   by ~1.8 physical strides.
 2. **Thighs barely move** (Brock, eyeball check). Confirmed by the
    numerical diagnostic from batch 1 (hip_r ∈ [-12°, +2°] vs reference
    [-13°, +30°]) — `r_pose = 0.564` is hiding stiff hips behind
@@ -507,8 +516,10 @@ space — the pose-tracking `r_pose = exp(-10·mean(diff²))` is forgiving
 of a single overshooting joint when the other five track. A 5M
 follow-up was queued and ran; it narrows substantially (see below).
 
-**`b4_hipopen_5M` (Variant A, 5M follow-up) — current best policy.**
-Same recipe, seed 6, ran cleanly. Convergence trajectory in training
+**`b4_hipopen_5M` (Variant A, 5M follow-up) — was named "current
+best" at this batch; later (Batch 6) superseded by `b4_hiprelax_s11`
+on the biomech-realism scorecard.** Same recipe, seed 6, ran cleanly.
+Convergence trajectory in training
 log: ep_len 660 (2M) → 1325 (1.84M) → 3052 (2.87M) → 5837 (4.51M);
 ep_rew 323 → 4163. Eval shows the gait narrowed:
 
@@ -521,10 +532,12 @@ ep_rew 323 → 4163. Eval shows the gait narrowed:
   on the swing-forward half. Pose-tracking forgiveness still
   asymmetric (one hip vs five other joints).
 
-The 5M run is the new current-best policy — supersedes
-`results/restart_b2_xvel/` (which is now stiff-hip-baseline only).
+The 5M run was named the current-best at this batch — superseded
+`results/restart_b2_xvel/` (which became stiff-hip-baseline only).
 Visual review is the load-bearing check; metrics suggest a real,
-stable, slightly over-flexed walk.
+stable, slightly over-flexed walk. **(Later in Batch 6 the
+biomech-realism scorecard demoted this in favour of
+`b4_hiprelax_s11`; see [Batch 6](#batch-6--2026-04-29--biomechanical-realism-scorecard--end-of-road-lead-named).)**
 
 **`b4_hipinvert` (Variant B) — partial / brittle.** Hip ROM technically
 > 20° (77.3°), but reading the per-episode min values (-37.7°, -66.2°,
@@ -705,8 +718,8 @@ score 2.41; lowest peak vGRF/BW 3.97). Brock visual review
 | **hip_l ROM (deg)** | **1.94** | **15.27** | **16.56** | **18.52** | **45.4** |
 | knee_r ROM (deg)    | 22.18 | 26.57 | 38.56 | 32.70 | 65.7 |
 | knee_l ROM (deg)    | 22.50 | 26.30 | 36.80 | 31.80 | 66.1 |
-| stride_period_s     | 0.327 | 0.361 | 0.347 | 0.371 | **1.120** |
-| cadence (steps/min) | 367.6 | 332.7 | 346.3 | 323.6 | **107.1** |
+| stride_period_s †   | 0.327 | 0.361 | 0.347 | 0.371 | **1.120** |
+| cadence (steps/min) †| 367.6 | 332.7 | 346.3 | 323.6 | **107.1** |
 | LR_stride_asymmetry | 0.138 | **0.097** | 0.143 | 0.122 | < 0.10 |
 | peak_vgrf_bw        | 3.28 | **3.97** | 4.02 | 4.18 | 1.10 |
 | all_joints_dtw      | n/a   | **0.532** | 0.641 | 0.543 | lower better |
@@ -726,14 +739,24 @@ reference shape but doesn't fully extend.
 
 **Verdict.** **Mixed (range + reward), both fixes needed.**
 
+† **Stride/cadence values above are pre 2026-04-29 strike-detector
+fix** — the eval's `_rising_edges` debounce was 0.2 s at 125 Hz and
+counted impact-chatter as extra strikes. Re-running the same set
+(`results/biomech_candidates_eval.json`) with the corrected 0.5-s
+debounce gives stride 0.57 s / cadence 210 spm for s11 — i.e. ~1.9×
+too fast, not 3×. The morphology / amplitude / vGRF conclusions
+below are unchanged; the cadence framing softens.
+
 The morphology hypothesis is strongly confirmed — hip ROM grew ~10×
 across all three seeds, the flat-topped clamping signature
 disappeared, the trace tracks reference shape and frequency. But
-amplitude plateaued at ~40 % of reference, cadence stayed ~3× too
-fast, and peak vGRF/BW *worsened* (4.0 vs 3.3 — running-not-walking
-signature persists). With `xvel_term=0.3` rewarding survival floor
-at any forward velocity ≥ 0.31 m/s, the policy converges to fast,
-low-amplitude strides regardless of morphology.
+amplitude plateaued at ~40–67 % of reference (per-stride vs
+full-rollout-max varies), cadence stayed **~1.9× too fast**
+(corrected from "~3× too fast"), and peak vGRF/BW *worsened*
+(4.0 vs 3.3 — running-not-walking signature persists). With
+`xvel_term=0.3` rewarding survival floor at any forward velocity
+≥ 0.31 m/s, the policy converges to fast, low-amplitude strides
+regardless of morphology.
 
 ### Next step
 
@@ -932,3 +955,156 @@ ROADMAP § 0 step (3) escalation.
 For the parallel hiprelax track's visual triage (Tier 0 C panel
 + per-seed mp4s + comparison plot), see Batch 4b's Render block
 above.
+
+---
+
+## Batch 6 — 2026-04-29 — biomechanical-realism scorecard — **end-of-road, lead named**
+
+> **Headline:** ran a held-out biomechanical-realism scorecard
+> across all four post-Tier-0 candidates plus the pre-Tier-0
+> `b2_xvel` baseline. **None of the candidates produces a
+> biomechanically realistic gait** — every one misses every
+> spatiotemporal/kinetic target by ≥ 50 %. The post-Tier-0
+> candidates barely beat the pre-Tier-0 baseline on the 0–4
+> progress score. **`b4_hiprelax_s11` named as the lead policy**
+> on the strength of the scorecard (highest score, best LR
+> symmetry, lowest peak vGRF, lowest DTW). Engineered-reward
+> Walker2d track is concluded; future work runs through AMP/MJX
+> or musculoskeletal.
+
+### Setup
+
+`src/diagnostics/eval_biomech.py` (existing) on each candidate
++ baseline, 6 deterministic episodes × 2500 steps, with
+`--targets assets/reference/biomech_targets.json` for the
+`vs_reference` block. Each run uses its own `xml_file` from
+`env_kwargs.json` (the eval respects this; the renderer fix
+landed in this batch).
+
+```
+python src/diagnostics/eval_biomech.py \
+    results/restart_b4_hipopen_5M:final:b4_hipopen_5M \
+    results/restart_b4_hiprelax_s11:final:b4_hiprelax_s11 \
+    results/restart_b5_min_joint:final:b5_min_joint \
+    results/restart_b5_pose_scale20:final:b5_pose_scale20 \
+    results/restart_b2_xvel:final:b2_xvel_baseline \
+    --eps 6 --steps 2500 \
+    --out results/biomech_candidates_eval.json \
+    --csv results/biomech_history.csv
+```
+
+Then the new dashboard tool:
+
+```
+python scripts/biomech_realism_dashboard.py results/biomech_candidates_eval.json
+```
+
+### New / updated tooling
+
+- **`scripts/biomech_realism_dashboard.py`** (new) — multi-run
+  biomech dashboard: 6 joint-angle panels (hip/knee/ankle × R/L)
+  overlaid on the Ulrich reference, both-leg vGRF stance curves,
+  hip-knee phase plane R + L, progress-score bars, and a
+  ±20%-credible-band scorecard with per-metric % error. Sister
+  to `biomech_report.py` (R-leg only). Writes
+  `docs/figures/biomech_realism_dashboard.{png,md}`.
+- **`scripts/biomech_report.py`** (fixed) — `--rerollout` now
+  reads each run's training MJCF from `env_kwargs.json` instead
+  of forcing one CLI `--xml` for every run. Also extended to
+  log the L leg in addition to R. Pre-fix it would silently
+  mis-render hipopen/hiprelax models under stock `walker2d.xml`.
+
+### Observation (per-stride medians, 6 eps × 2500 steps)
+
+Reference (Ulrich Subject 1, baseline trial): stride 1.12 s,
+cadence 107 spm, double-support 22.7 %, peak vGRF 1.10 BW, hip
+ROM ≈ 45°, knee ROM ≈ 66°, ankle ROM ≈ 40°.
+
+| Run | Score | Stride (s) | Cadence | DSF | vGRF/BW | hip_r ROM |
+|---|---|---|---|---|---|---|
+| reference | 4.00 | 1.12 | 107 | 0.227 | 1.10 | 45° |
+| **`b5_min_joint`** (lead) | **2.66** | 0.63 | 192 | 0.007 | 3.70 | 30.2° |
+| `b2_xvel` (pre-Tier-0) | 2.47 | 0.63 | 191 | 0.072 | 3.29 | 2.78° |
+| `b4_hipopen_5M` | 2.40 | 0.67 | 179 | 0.017 | 4.77 | 30.6° |
+| `b5_pose_scale20` | 2.26 | 0.68 | 178 | 0.021 | 4.48 | 30.0° |
+| `b4_hiprelax_s11` | 2.24 | 0.57 | 210 | 0.017 | 4.05 | 30.5° |
+
+**Strike-detector fix (2026-04-29).** Pre-fix the same eval
+reported stride ~0.36 s and cadence ~330 spm across all
+candidates; that was an `eval_biomech._rising_edges` debounce
+artifact (`min_gap=25` frames = 0.2 s at 125 Hz, short enough
+that 4–5 BW impact-chatter contacts split each real stride into
+2–3 detected strikes). The reference extractor uses 0.5 s. Fix:
+`int(0.5 * CTRL_HZ) = 62` frames, matching the reference side.
+Pre-fix artifacts archived at
+`results/biomech_candidates_eval.pre-mingap-fix.json` and
+`results/biomech_history.pre-mingap-fix.csv`. **The post-fix
+ranking changed**: `b5_min_joint` is now the lead at 2.66, and
+`b4_hiprelax_s11` (which was the pre-fix lead at 2.45) drops
+to last at 2.24.
+
+**Three diagnoses on the corrected table:**
+
+1. **Cadence is ~1.7–2.0× too fast, not 3×.** Stride 0.57–0.68 s
+   vs ref 1.12 s; cadence 178–210 spm vs 107. Real gap, smaller
+   than previously framed.
+2. **Double-support fraction and peak vGRF are the real
+   smoking guns.** Walking has substantial DSF (~23 %); running
+   has zero. Every candidate sits at 1–2 % DSF with peak vGRF
+   3.7–4.8 BW — bouncing/skipping, not walking. Hip ROM is
+   actually 30° per-stride (~67 % of ref 45°), not the ~18° the
+   pre-fix table reported (which sliced ROM windows by the same
+   over-counted strikes). Knee ROM tracks within +10 %.
+3. **`b5_min_joint` is the biomech-faithful lead** — best
+   progress score (2.66), lowest peak vGRF, lowest DSF
+   deviation, hip ROM matches the other relaxed-thigh
+   candidates. The "fwd vel exactly 1.23 m/s" win from B5
+   training time was real and the corrected scorecard
+   confirms it generalises to better gait quality, not worse.
+
+### Verdict
+
+**End-of-road on the engineered-reward Walker2d track.** The
+reward shape that would close the DSF / vGRF / cadence gap
+amounts to engineering a walking gait by hand (DSF-overlap
+incentive, vGRF cap penalty, peaked-velocity target) — the
+opposite of the imitation-only goal in the narrative arc.
+ROADMAP § 0 (peaked-forward reward, stacked aggregators) is
+**deprioritised**. Future work runs through AMP/MJX (writeup
+§7.1) or a measured return to the musculoskeletal track.
+
+**`b5_min_joint` is the named lead policy** as of this batch
+(post strike-detector fix). The other three (`b4_hipopen_5M`,
+`b5_pose_scale20`, `b4_hiprelax_s11`) remain on disk as
+superseded comparison points.
+
+### Render
+
+Lead policy:
+
+```
+python src/walker2d/render_phase.py --live results/restart_b5_min_joint:final
+python src/walker2d/render_phase.py --mp4 docs/figures/restart_b5_min_joint.mp4 results/restart_b5_min_joint:final
+```
+
+Full scorecard (re-runnable):
+
+```
+python src/diagnostics/eval_biomech.py \
+    results/restart_b4_hipopen_5M:final:b4_hipopen_5M \
+    results/restart_b4_hiprelax_s11:final:b4_hiprelax_s11 \
+    results/restart_b5_min_joint:final:b5_min_joint \
+    results/restart_b5_pose_scale20:final:b5_pose_scale20 \
+    results/restart_b2_xvel:final:b2_xvel_baseline \
+    --eps 6 --steps 2500 --out results/biomech_candidates_eval.json
+python scripts/biomech_realism_dashboard.py results/biomech_candidates_eval.json
+```
+
+Pre-rendered:
+
+- `docs/figures/biomech_realism_dashboard.png` — the headline figure.
+- `docs/figures/biomech_realism_dashboard.md` — markdown table with
+  absolute sim values + % err vs reference per metric.
+- `results/biomech_candidates_eval.json` — full per-run JSON
+  (per-episode metrics, summaries, vs-reference blocks, vGRF curves).
+- `results/biomech_history.csv` — appended one row per candidate.
