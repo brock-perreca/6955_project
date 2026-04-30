@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.28 (TeX Live 2025) (preloaded format=pdflatex 2025.9.2)  29 APR 2026 22:56
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (TeX Live 2025) (preloaded format=pdflatex 2025.9.2)  29 APR 2026 23:12
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -395,6 +395,9 @@ File: pdftex.def 2024/04/13 v1.2c Graphics/color driver for pdftex
 \Gin@req@height=\dimen192
 \Gin@req@width=\dimen193
 )
+(c:/texlive/2025/texmf-dist/tex/latex/placeins/placeins.sty
+Package: placeins 2005/04/18  v 2.2
+)
 (c:/texlive/2025/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
 File: l3backend-pdftex.def 2025-06-09 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count321
@@ -402,24 +405,24 @@ File: l3backend-pdftex.def 2025-06-09 L3 backend support: PDF output (pdfTeX)
 (./template.aux)
 \openout1 = `template.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 50.
-LaTeX Font Info:    ... okay on input line 50.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 50.
-LaTeX Font Info:    ... okay on input line 50.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 50.
-LaTeX Font Info:    ... okay on input line 50.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 50.
-LaTeX Font Info:    ... okay on input line 50.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 50.
-LaTeX Font Info:    ... okay on input line 50.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 50.
-LaTeX Font Info:    ... okay on input line 50.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 50.
-LaTeX Font Info:    ... okay on input line 50.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 50.
-LaTeX Font Info:    ... okay on input line 50.
-LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 50.
-LaTeX Font Info:    ... okay on input line 50.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 51.
+LaTeX Font Info:    ... okay on input line 51.
 
 *geometry* driver: auto-detecting
 *geometry* detected driver: pdftex
@@ -487,18 +490,18 @@ LaTeX Font Info:    ... okay on input line 50.
 * \@reversemarginfalse
 * (1in=72.27pt=25.4mm, 1cm=28.453pt)
 
-Package hyperref Info: Link coloring OFF on input line 50.
+Package hyperref Info: Link coloring OFF on input line 51.
 (./template.out) (./template.out)
 \@outlinefile=\write3
 \openout3 = `template.out'.
 
-LaTeX Info: Redefining \microtypecontext on input line 50.
-Package microtype Info: Applying patch `item' on input line 50.
-Package microtype Info: Applying patch `toc' on input line 50.
-Package microtype Info: Applying patch `eqnum' on input line 50.
-Package microtype Info: Applying patch `footnote' on input line 50.
-Package microtype Info: Applying patch `verbatim' on input line 50.
-LaTeX Info: Redefining \microtypesetup on input line 50.
+LaTeX Info: Redefining \microtypecontext on input line 51.
+Package microtype Info: Applying patch `item' on input line 51.
+Package microtype Info: Applying patch `toc' on input line 51.
+Package microtype Info: Applying patch `eqnum' on input line 51.
+Package microtype Info: Applying patch `footnote' on input line 51.
+Package microtype Info: Applying patch `verbatim' on input line 51.
+LaTeX Info: Redefining \microtypesetup on input line 51.
 Package microtype Info: Generating PDF output.
 Package microtype Info: Character protrusion enabled (level 2).
 Package microtype Info: Using default protrusion set `alltext'.
@@ -542,7 +545,7 @@ e
 File: mt-cmr.cfg 2013/05/19 v2.2 microtype config. file: Computer Modern Roman 
 (RS)
 )
-LaTeX Font Info:    Trying to load font information for U+msa on input line 53.
+LaTeX Font Info:    Trying to load font information for U+msa on input line 54.
 
 
 (c:/texlive/2025/texmf-dist/tex/latex/amsfonts/umsa.fd
@@ -551,7 +554,7 @@ File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 (c:/texlive/2025/texmf-dist/tex/latex/microtype/mt-msa.cfg
 File: mt-msa.cfg 2006/02/04 v1.1 microtype config. file: AMS symbols (a) (RS)
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 53.
+LaTeX Font Info:    Trying to load font information for U+msb on input line 54.
 
 
 (c:/texlive/2025/texmf-dist/tex/latex/amsfonts/umsb.fd
@@ -581,110 +584,111 @@ ips/cm-super/cm-super-t1.enc}]
 File: ../docs/figures/ppo_training_curves_paper.png Graphic file (type png)
 <use ../docs/figures/ppo_training_curves_paper.png>
 Package pdftex.def Info: ../docs/figures/ppo_training_curves_paper.png  used on
- input line 318.
+ input line 319.
 (pdftex.def)             Requested size: 397.48499pt x 146.24643pt.
 
-Underfull \hbox (badness 2744) in paragraph at lines 356--358
+Underfull \hbox (badness 2744) in paragraph at lines 357--359
 []\T1/ptm/m/n/9 (+20) Explicit contact-alternation re-
  []
 
 
-Underfull \hbox (badness 2790) in paragraph at lines 360--362
+Underfull \hbox (badness 2790) in paragraph at lines 361--363
 []\T1/ptm/m/n/9 (+20) End-effector track-ing on foot
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 363--363
+Underfull \hbox (badness 10000) in paragraph at lines 364--364
 []\T1/ptm/m/n/9 (+20) Controlled for-ward
  []
 
 
-Underfull \hbox (badness 4634) in paragraph at lines 365--367
+Underfull \hbox (badness 4634) in paragraph at lines 366--368
 \T1/ptm/m/n/9 (+20) root-tracking term and pitch-
  []
 
 
-Overfull \hbox (4.20045pt too wide) in paragraph at lines 345--381
+Overfull \hbox (4.20045pt too wide) in paragraph at lines 346--382
  [][] 
  []
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
 
 <../docs/figures/amp_collapse_paper.png, id=152, 787.743pt x 297.2706pt>
 File: ../docs/figures/amp_collapse_paper.png Graphic file (type png)
 <use ../docs/figures/amp_collapse_paper.png>
 Package pdftex.def Info: ../docs/figures/amp_collapse_paper.png  used on input 
-line 403.
+line 404.
 (pdftex.def)             Requested size: 397.48499pt x 150.00026pt.
 
-LaTeX Warning: `h' float specifier changed to `ht'.
+LaTeX Warning: `!h' float specifier changed to `!ht'.
 
 
 
 [4 <../docs/figures/ppo_training_curves_paper.png>]
 
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-<../docs/figures/biomech_realism_dashboard_paper.png, id=166, 1186.1916pt x 108
+[5 <../docs/figures/amp_collapse_paper.png>]
+<../docs/figures/biomech_realism_dashboard_paper.png, id=176, 1186.1916pt x 108
 0.6774pt>
 File: ../docs/figures/biomech_realism_dashboard_paper.png Graphic file (type pn
 g)
 <use ../docs/figures/biomech_realism_dashboard_paper.png>
 Package pdftex.def Info: ../docs/figures/biomech_realism_dashboard_paper.png  u
-sed on input line 466.
+sed on input line 477.
 (pdftex.def)             Requested size: 496.85623pt x 452.64468pt.
 
 
-[5 <../docs/figures/amp_collapse_paper.png>]
-
-[6 <../docs/figures/biomech_realism_dashboard_paper.png>]
-<../docs/figures/tier0/C_hiprelax/C_hip_trace_comparison.png, id=184, 1300.86pt
+[6]
+<../docs/figures/tier0/C_hiprelax/C_hip_trace_comparison.png, id=182, 1300.86pt
  x 433.62pt>
 File: ../docs/figures/tier0/C_hiprelax/C_hip_trace_comparison.png Graphic file 
 (type png)
 <use ../docs/figures/tier0/C_hiprelax/C_hip_trace_comparison.png>
 Package pdftex.def Info: ../docs/figures/tier0/C_hiprelax/C_hip_trace_compariso
-n.png  used on input line 504.
+n.png  used on input line 505.
 (pdftex.def)             Requested size: 377.60951pt x 125.86568pt.
 
 
-[7 <../docs/figures/tier0/C_hiprelax/C_hip_trace_comparison.png>]
-(./template.bbl
+[7 <../docs/figures/biomech_realism_dashboard_paper.png>] (./template.bbl
 
-[8])
+[8 <../docs/figures/tier0/C_hiprelax/C_hip_trace_comparison.png>])
 
 [9] (./template.aux)
  ***********
 LaTeX2e <2025-06-01> patch level 1
 L3 programming layer <2025-08-13>
  ***********
+
+
+LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
+
 Package rerunfilecheck Info: File `template.out' has not changed.
 (rerunfilecheck)             Checksum: FC115BCE9DFE26E8E87F42B7A08522FF;3437.
  ) 
 Here is how much of TeX's memory you used:
- 14810 strings out of 467800
- 233203 string characters out of 5436062
- 677021 words of memory out of 5000000
- 42981 multiletter control sequences out of 15000+600000
- 671451 words of font info for 222 fonts, out of 8000000 for 9000
+ 14847 strings out of 467800
+ 233943 string characters out of 5436062
+ 676939 words of memory out of 5000000
+ 43005 multiletter control sequences out of 15000+600000
+ 671743 words of font info for 228 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,15n,79p,1005b,621s stack positions out of 10000i,1000n,20000p,200000b,200000s
-<c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb><c:/tex
-live/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb><c:/texlive/2025
-/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb><c:/texlive/2025/texmf-dis
-t/fonts/type1/public/amsfonts/cm/cmmi9.pfb><c:/texlive/2025/texmf-dist/fonts/ty
-pe1/public/amsfonts/cm/cmr10.pfb><c:/texlive/2025/texmf-dist/fonts/type1/public
-/amsfonts/cm/cmr7.pfb><c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/c
-m/cmr9.pfb><c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pf
-b><c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb><c:/texl
-ive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb><c:/texlive/2025/t
-exmf-dist/fonts/type1/public/amsfonts/cm/cmsy9.pfb><c:/texlive/2025/texmf-dist/
-fonts/type1/public/amsfonts/symbols/msbm10.pfb><c:/texlive/2025/texmf-dist/font
-s/type1/public/cm-super/sftt1000.pfb><c:/texlive/2025/texmf-dist/fonts/type1/ur
-w/times/utmb8a.pfb><c:/texlive/2025/texmf-dist/fonts/type1/urw/times/utmr8a.pfb
-><c:/texlive/2025/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on template.pdf (9 pages, 1275182 bytes).
+ 75i,15n,79p,1005b,593s stack positions out of 10000i,1000n,20000p,200000b,200000s
+
+pdfTeX warning (dest): name{figure.caption.19} has been referenced but does not
+ exist, replaced by a fixed one
+
+<c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb><c:/texli
+ve/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb><c:/texlive/2025/t
+exmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb><c:/texlive/2025/texmf-dist/
+fonts/type1/public/amsfonts/cm/cmmi9.pfb><c:/texlive/2025/texmf-dist/fonts/type
+1/public/amsfonts/cm/cmr10.pfb><c:/texlive/2025/texmf-dist/fonts/type1/public/a
+msfonts/cm/cmr7.pfb><c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/
+cmr9.pfb><c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb>
+<c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb><c:/texliv
+e/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb><c:/texlive/2025/tex
+mf-dist/fonts/type1/public/amsfonts/cm/cmsy9.pfb><c:/texlive/2025/texmf-dist/fo
+nts/type1/public/amsfonts/symbols/msbm10.pfb><c:/texlive/2025/texmf-dist/fonts/
+type1/public/cm-super/sftt1000.pfb><c:/texlive/2025/texmf-dist/fonts/type1/urw/
+times/utmb8a.pfb><c:/texlive/2025/texmf-dist/fonts/type1/urw/times/utmr8a.pfb><
+c:/texlive/2025/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
+Output written on template.pdf (9 pages, 1275338 bytes).
 PDF statistics:
  298 PDF objects out of 1000 (max. 8388607)
  243 compressed objects within 3 object streams

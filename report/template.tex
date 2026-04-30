@@ -31,6 +31,7 @@
 \usepackage{amsfonts}
 \usepackage{amssymb}
 \usepackage{graphicx}
+\usepackage{placeins}
 
 \title{Can Phase-Conditioned Imitation Recover Biomechanically Realistic Gait? \\
 A Walker2D Case Study. }
@@ -86,8 +87,8 @@ unreachable.
 Understanding human walking at the level of muscle forces, joint
 contact loads, and ground reaction forces matters for clinical
 biomechanics, rehabilitation, and assistive device design. The
-usual instrumented laboratory --- optical mocap, force plates,
-EMG --- costs upwards of \$150{,}000. Reinforcement-learning
+usual instrumented laboratory uses optical mocap, force plates,
+and EMG, and costs upwards of \$150{,}000. Reinforcement-learning
 agents that imitate recorded human motion are a tempting
 alternative: if a simulated body tracks a reference closely enough,
 internal forces and gait-cycle structure should emerge from the
@@ -141,9 +142,9 @@ pathology; we implement AIRL alongside AMP for comparison.
 
 \paragraph{Massively parallel deep RL~\cite{rudin2022parallel}.}
 Rudin et al. cut legged-locomotion training time from hours to
-minutes with thousands of GPU-parallel environments --- the
-empirical anchor behind the AMP scaling requirement and our
-planned MuJoCo MJX~\cite{mujocomjx} port.
+minutes with thousands of GPU-parallel environments. This is the
+empirical anchor behind the AMP scaling requirement and motivates
+our planned MuJoCo MJX~\cite{mujocomjx} port.
 
 \paragraph{Muscle-driven imitation~\cite{simos2025kinesis,cotton2025kintwin}.}
 KINESIS and KinTwin are recent imitation pipelines on Hill-type
@@ -303,17 +304,17 @@ discriminator/style-reward curves (Sec.~\ref{sec:amp}).
 \label{sec:results-h1}
 
 All four variants converge to forward-translating policies within
-5M steps (Fig.~\ref{fig:ppo-curves}), with episode lengths reaching
-3500--5500 steps and returns 1100--3800. Visual inspection of
-deterministic rollouts confirms balance, foot alternation, and
-forward progression near target speed. H1 is supported. Notably,
-the variant that ranks highest on the held-out scorecard ranks
-\emph{lowest} on training return (\emph{Best engineered}, blue):
-the worst-joint aggregator is harder to optimize but closes a
-reward-hacking loophole. Training-time return is not a reliable
-proxy for biomechanical realism.
+5M steps (Fig.~\ref{fig:ppo-curves}), with episode lengths
+reaching 3500 to 5500 steps and returns of 1100 to 3800. Visual
+inspection of deterministic rollouts confirms balance, foot
+alternation, and forward progression near target speed. H1 is
+supported. The variant that ranks highest on the held-out
+scorecard ranks \emph{lowest} on training return (\emph{Best
+engineered}, blue). The worst-joint aggregator is harder to
+optimize but closes a reward-hacking loophole. Training-time
+return is not a reliable proxy for biomechanical realism.
 
-\begin{figure}[h]
+\begin{figure}[t]
   \centering
   \includegraphics[width=\textwidth]{../docs/figures/ppo_training_curves_paper.png}
   \caption{Phase-conditioned PPO training curves over 5M environment
@@ -333,7 +334,7 @@ catalogues the characteristic exploits, each locally optimal for
 the partial reward as written. None required pathological optimizer
 behavior. H2 is supported.
 
-\begin{table}[h]
+\begin{table}[t]
   \caption{Reward-hacking failure modes encountered during reward
   design. Each is a canonical Goodhart case: the policy maximizes
   the partial reward by exploiting a degree of freedom that was
@@ -389,16 +390,16 @@ environments, the style reward $r_s$ never enters the target band
 $[0.5, 1.0]$: it starts at 0.22--0.25 and decays toward the
 collapse floor $\sim$0.03 over 5M steps
 (Fig.~\ref{fig:amp-collapse}), with discriminator loss plummeting
-as separation becomes near-perfect. The mechanism is structural:
-$\sim$140 expert transitions on a 1-D manifold embedded in a 24-D
-input vs only 8--16 environments of policy diversity --- the
-discriminator has far more capacity than data and memorizes. The
-16-env variant collapses more slowly (final $r_s = 0.06$) but
+as separation becomes near-perfect. The mechanism is structural.
+With $\sim$140 expert transitions on a 1-D manifold embedded in
+a 24-D input and only 8 to 16 environments of policy diversity,
+the discriminator has far more capacity than data and memorizes.
+The 16-env variant collapses more slowly (final $r_s = 0.06$) but
 does not escape. Escontrela et al.~\cite{escontrela2022amp} ran
 4096 environments on a GPU cluster; the path out is GPU-parallel
 training (Sec.~\ref{sec:future}). H3 is supported.
 
-\begin{figure}[h]
+\begin{figure}[t]
   \centering
   \includegraphics[width=\textwidth]{../docs/figures/amp_collapse_paper.png}
   \caption{AMP discriminator collapse at small environment count.
@@ -413,18 +414,7 @@ training (Sec.~\ref{sec:future}). H3 is supported.
 \subsection{No engineered-reward variant passes the biomechanical-realism scorecard (H4)}
 \label{sec:scorecard}
 
-This is the central result of the paper. Table~\ref{tab:scorecard}
-shows per-metric values for the four variants against the measured
-Subject 1 baseline. Every variant misses every spatiotemporal and
-kinetic target by $\geq 40\%$. Stride period 0.57--0.67~s vs
-1.12~s (cadence 1.7--2.0$\times$ too fast); peak vGRF
-3.7--4.8$\times$ body weight vs 1.10; double-support 0.7--7\% vs
-23\%. These are the kinetic signatures of running or bouncing,
-not walking --- walking has $\sim$23\% double-support and peak
-vGRF near body weight, running has near-zero double-support and
-$\sim 2.5\times$ vGRF. Our values exceed even running.
-
-\begin{table}[h]
+\begin{table}[!h]
   \caption{Held-out biomechanical-realism scorecard. Sim values are
   per-stride medians over 6 deterministic episodes $\times$ 2500
   steps; reference values are per-stride medians from Subject 1's
@@ -452,16 +442,37 @@ $\sim 2.5\times$ vGRF. Our values exceed even running.
   \end{tabular}
 \end{table}
 
-Figure~\ref{fig:dashboard} visualizes the same data as joint-angle
+This is the central result of the paper. Table~\ref{tab:scorecard}
+shows per-metric values for the four variants against the measured
+Subject 1 baseline. Every variant misses every spatiotemporal and
+kinetic target by $\geq 40\%$. Stride period 0.57--0.67~s vs
+1.12~s (cadence 1.7--2.0$\times$ too fast); peak vGRF
+3.7--4.8$\times$ body weight vs 1.10; double-support 0.7--7\% vs
+23\%. These are the kinetic signatures of running or bouncing,
+not walking. Walking has $\sim$23\% double-support and peak vGRF
+near body weight; running has near-zero double-support and
+$\sim 2.5\times$ vGRF. Our values exceed even running.
+
+Figure~\ref{fig:dashboard} shows the same data as joint-angle
 overlays, vGRF stance curves, and phase-plane portraits.
 Kinematic shapes roughly track the reference, but the vGRF curves
-diverge sharply: where the reference shows the classic
+diverge sharply. Where the reference shows the classic
 double-hump walking trace near $1\times$ body weight, the policies
-produce spikes of 3.7--4.8$\times$. The hip-knee phase planes
+produce spikes of 3.7 to 4.8$\times$. The hip-knee phase planes
 show much smaller cycles than the reference, the signature of
 reduced ROM and shorter stride. H4 is confirmed.
 
-\begin{figure}[p]
+The torque actuator has no mechanism by which producing 4 to 5
+times body-weight ground reaction forces costs more than
+producing $1\times$. Both are just torque commands. Closing the
+gap inside this paradigm would require explicit reward terms on
+double-support, vGRF magnitude, and stride period, which is no
+longer imitation but hand-engineered gait shaping with the
+imitation cost as a regularizer. We read the negative result as
+structural to the engineered-reward plus torque-actuated
+combination, not as a tuning failure.
+
+\begin{figure}[t]
   \centering
   \makebox[\textwidth][c]{\includegraphics[width=1.25\textwidth]{../docs/figures/biomech_realism_dashboard_paper.png}}
   \caption{Biomechanical-realism dashboard. Top two rows: per-joint
@@ -474,17 +485,7 @@ reduced ROM and shorter stride. H4 is confirmed.
   \label{fig:dashboard}
 \end{figure}
 
-\paragraph{Discussion.}
-The torque actuator has no mechanism by which producing 4 to 5
-times body-weight ground reaction forces is more expensive than
-producing $1\times$ — both are just torque commands. Closing the
-gap inside this paradigm would require explicit reward terms on
-double-support, vGRF magnitude, and stride period, which is no
-longer imitation but hand-engineered gait shaping with the
-imitation cost as a regularizer. We read the negative result as
-structural to the engineered-reward + torque-actuated combination,
-not as a tuning failure.
-
+\FloatBarrier
 \subsection{Morphology can mask reward problems (H5)}
 \label{sec:morph}
 
@@ -499,7 +500,7 @@ pinned at the $0^\circ$ wall for 95\% of frames
 order-of-magnitude jump in hip ROM. Methodological lesson: check
 kinematic feasibility before tuning the reward.
 
-\begin{figure}[h]
+\begin{figure}[t]
   \centering
   \includegraphics[width=0.95\textwidth]{../docs/figures/tier0/C_hiprelax/C_hip_trace_comparison.png}
   \caption{Hip-angle traces. Baseline (left) vs three relaxed-MJCF
@@ -509,35 +510,36 @@ kinematic feasibility before tuning the reward.
   \label{fig:hip-trace}
 \end{figure}
 
+\FloatBarrier
 \section{Conclusion and Future Work}
 \label{sec:future}
 
-Can engineered-reward phase-conditioned PPO on torque-actuated
-Walker2d recover a biomechanically realistic gait against
-held-out force-plate ground truth? The answer is \textbf{no}. The
-visually walking policies produce running-gait kinetics (peak
-vGRF 3.7--4.8 BW, near-zero double-support); AMP at 8--16
-environments collapses before producing clean strides. The
-engineered reward closes individual reward-hacking loopholes
-through hand-engineering, but those loopholes do not include peak
-vGRF or double-support, and no variant crosses the $\pm 20\%$
-credible band on those metrics. The torque actuator does not
-penalize 4-BW foot-slamming, and a reward shape that does
-penalize it amounts to engineering walking by hand.
+Engineered-reward phase-conditioned PPO on torque-actuated
+Walker2d does not recover a biomechanically realistic gait
+against held-out force-plate ground truth. The visually walking
+policies produce running-gait kinetics (peak vGRF 3.7 to 4.8 BW,
+near-zero double-support), and AMP at 8 to 16 environments
+collapses before producing clean strides. The engineered reward
+closes individual reward-hacking loopholes through hand-engineering,
+but those loopholes do not include peak vGRF or double-support,
+and no variant crosses the $\pm 20\%$ credible band on those
+metrics. The torque actuator does not penalize 4-BW foot-slamming,
+and a reward shape that does penalize it amounts to engineering
+walking by hand.
 
 \paragraph{Two paths forward.}
 First, port the environment to MuJoCo
-MJX~\cite{mujocomjx} and train AMP at 2{,}000--4{,}000 parallel
+MJX~\cite{mujocomjx} and train AMP at 2{,}000 to 4{,}000 parallel
 environments on a single GPU, matching Escontrela et
 al.~\cite{escontrela2022amp}. At that scale, policy diversity
 forces the discriminator to generalize, and $r_s$ should escape
 the collapse floor. Second, return to the original proposal's
 muscle-actuated humanoid scope: KINESIS~\cite{simos2025kinesis}
-and KinTwin~\cite{cotton2025kintwin} demonstrate that
-muscle-driven imitation reproduces able-bodied and impaired gait,
-including from markerless mocap. Hill-type muscles cannot produce
+and KinTwin~\cite{cotton2025kintwin} show that muscle-driven
+imitation reproduces able-bodied and impaired gait, including
+from markerless mocap. Hill-type muscles cannot produce
 $4\times$ BW peak vGRF without violating force-length-velocity
-limits --- the muscle actuator is, in effect, the implicit
+limits, so the muscle actuator is the implicit
 biomechanical-realism prior we tried to construct as a reward.
 Either path, evaluated against the same scorecard, would directly
 measure the realism gap this paper documents.
